@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Rapporto di lavoro — Elettricista</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --quadro:#22262B;        /* carpenteria del quadro */
+    --modulo:#F2F3F4;        /* modulo DIN chiaro */
+    --testo:#1C1F23;
+    --fase:#8C5A2B;          /* marrone fase */
+    --neutro:#1F5FA8;        /* blu neutro */
+    --terra1:#F7D417;        /* giallo terra */
+    --terra2:#3E9B3E;        /* verde terra */
+    --rame:#C97B3D;
+    --bordo:#C9CDD2;
+    --spento:#5A6068;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    background:var(--quadro);
+    color:var(--testo);
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:16px;
+    padding-bottom:150px;
+  }
+  .colonna{max-width:560px;margin:0 auto;padding:0 14px}
+
+  /* ---- targa del quadro ---- */
+  header{
+    padding:22px 2px 14px;
+    color:#E8EAED;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .fulmine{
+    flex:none;
+    width:46px;height:46px;
+    border:2px solid var(--terra1);
+    border-radius:8px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .fulmine svg{width:24px;height:24px;fill:var(--terra1)}
+  header h1{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:23px;
+    text-transform:uppercase;
+    letter-spacing:1px;
+    line-height:1.1;
+  }
+  header .sotto{
+    font-size:12.5px;
+    color:#9AA1A9;
+    letter-spacing:.5px;
+    margin-top:3px;
+  }
+  /* filo giallo-verde di terra come separatore */
+  .terra{
+    height:8px;
+    border-radius:4px;
+    margin:2px 2px 18px;
+    background:repeating-linear-gradient(90deg,var(--terra1) 0 26px,var(--terra2) 26px 52px);
+  }
+
+  /* ---- moduli tipo guida DIN ---- */
+  .modulo{
+    background:var(--modulo);
+    border-radius:10px;
+    padding:16px 16px 18px 20px;
+    margin-bottom:14px;
+    position:relative;
+    box-shadow:0 2px 0 rgba(0,0,0,.35);
+  }
+  .modulo::before{           /* filo colorato a sinistra: il colore dice la sezione */
+    content:"";
+    position:absolute;
+    left:0;top:0;bottom:0;
+    width:7px;
+    border-radius:10px 0 0 10px;
+    background:var(--colore-filo,var(--spento));
+  }
+  .m-dati{--colore-filo:var(--spento)}
+  .m-lavori{--colore-filo:var(--fase)}
+  .m-orario{--colore-filo:var(--neutro)}
+  .m-materiale{--colore-filo:var(--rame)}
+  .m-note{--colore-filo:var(--bordo)}
+
+  .titolo{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    letter-spacing:1.5px;
+    text-transform:uppercase;
+    margin-bottom:10px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+  }
+  .titolo .tag{
+    font-size:10.5px;
+    letter-spacing:1px;
+    color:#fff;
+    background:var(--colore-filo,var(--spento));
+    border-radius:3px;
+    padding:2px 6px;
+  }
+
+  label{
+    display:block;
+    font-size:12.5px;
+    font-weight:600;
+    letter-spacing:.8px;
+    text-transform:uppercase;
+    color:#5A6068;
+    margin-bottom:5px;
+  }
+  input,textarea{
+    width:100%;
+    border:1.5px solid var(--bordo);
+    border-radius:7px;
+    background:#fff;
+    padding:13px 12px;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:17px;
+    font-weight:500;
+    color:var(--testo);
+  }
+  input:focus,textarea:focus{
+    outline:2.5px solid var(--neutro);
+    outline-offset:1px;
+    border-color:var(--neutro);
+  }
+  /* resa corretta su iPhone: i campi data/ora di iOS hanno stile e altezza propri */
+  input[type="date"],input[type="time"]{
+    -webkit-appearance:none;
+    appearance:none;
+    min-height:50px;
+    text-align:left;
+    display:block;
+  }
+  input::-webkit-date-and-time-value{
+    text-align:left;
+    line-height:1.4;
+  }
+  input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
+  textarea{resize:vertical;min-height:80px}
+  .due{display:flex;gap:12px}
+  .due>div{flex:1}
+
+  /* ---- righe lavori: morsetti numerati ---- */
+  .lavoro{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .lavoro input{flex:1;min-width:0}
+  .lavoro .num{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;
+    font-size:15px;
+    width:30px;height:30px;
+    flex:none;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--quadro);
+    color:var(--terra1);
+    border-radius:5px;
+  }
+  .lavoro button.togli{
+    flex:none;width:34px;height:34px;
+    border:none;border-radius:6px;
+    background:transparent;color:#9AA1A9;
+    font-size:22px;line-height:1;cursor:pointer;
+  }
+  .aggiungi{
+    margin-top:2px;width:100%;
+    border:1.5px dashed var(--fase);
+    background:transparent;color:var(--fase);
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:14px;
+    letter-spacing:1px;text-transform:uppercase;
+    border-radius:7px;padding:12px;cursor:pointer;
+  }
+
+  .totore{margin-top:10px;font-size:14.5px;color:#5A6068}
+  .totore b{color:var(--testo);font-size:17px;font-family:'Chakra Petch',sans-serif}
+
+  /* ---- barra invio: leva tipo magnetotermico ---- */
+  .barra{
+    position:fixed;left:0;right:0;bottom:0;
+    background:var(--quadro);
+    border-top:2px solid #14171A;
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom));
+  }
+  .barra .dentro{max-width:560px;margin:0 auto;display:flex;gap:10px}
+  .invia{
+    flex:1;
+    background:var(--terra1);
+    color:var(--quadro);
+    border:none;border-radius:8px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:18px;
+    letter-spacing:1.5px;text-transform:uppercase;
+    padding:15px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
+  }
+  .invia svg{width:18px;height:18px;fill:var(--quadro)}
+  .invia:active{transform:translateY(1px)}
+  .copia{
+    flex:none;
+    background:transparent;
+    border:1.5px solid #4A5058;
+    border-radius:8px;
+    padding:0 16px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:600;font-size:14px;
+    letter-spacing:.5px;text-transform:uppercase;
+    color:#C9CDD2;cursor:pointer;
+  }
+  .avviso{
+    max-width:560px;margin:8px auto 0;
+    text-align:center;font-size:12.5px;color:#9AA1A9;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{transition:none!important;animation:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="colonna">
+
+  <header>
+    <div class="fulmine" aria-hidden="true">
+      <svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+    </div>
+    <div>
+      <h1>Rapporto di lavoro</h1>
+    </div>
+  </header>
+  <div class="terra" aria-hidden="true"></div>
+
+  <div class="modulo m-dati">
+    <div class="titolo">Dati <span class="tag">GEN</span></div>
+    <div class="due">
+      <div>
+        <label for="data">Data</label>
+        <input type="date" id="data">
+      </div>
+      <div>
+        <label for="tecnici">Tecnici</label>
+        <input type="text" id="tecnici" value="Luca / Francesco" autocomplete="off">
+      </div>
+    </div>
+  </div>
+
+  <div class="modulo m-lavori">
+    <div class="titolo">Lavori eseguiti <span class="tag">L1</span></div>
+    <div id="lavori"></div>
+    <button type="button" class="aggiungi" onclick="aggiungiLavoro()">+ Aggiungi lavoro</button>
+  </div>
+
+  <div class="modulo m-orario">
+    <div class="titolo">Orario <span class="tag">N</span></div>
+    <div class="due">
+      <div>
+        <label for="dalle">Dalle</label>
+        <input type="time" id="dalle" value="08:00" onchange="calcolaOre()">
+      </div>
+      <div>
+        <label for="alle">Alle</label>
+        <input type="time" id="alle" value="17:00" onchange="calcolaOre()">
+      </div>
+    </div>
+    <div class="totore">Totale: <b id="totore">9 ore</b></div>
+  </div>
+
+  <div class="modulo m-materiale">
+    <div class="titolo">Materiale utilizzato <span class="tag">MAT</span></div>
+    <textarea id="materiale" placeholder="Es. 8 m cavo 3x2,5 mm&#178;, 2 frutti bticino, 1 magnetotermico 16A" aria-label="Materiale utilizzato"></textarea>
+  </div>
+
+  <div class="modulo m-note">
+    <div class="titolo">Note</div>
+    <textarea id="note" placeholder="Facoltativo" aria-label="Note"></textarea>
+  </div>
+
+</div>
+
+<div class="barra">
+  <div class="dentro">
+    <button type="button" class="invia" onclick="inviaEmail()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      Invia via email
+    </button>
+    <button type="button" class="copia" onclick="copiaTesto()" id="btncopia">Copia</button>
+  </div>
+  <div class="avviso">Si apre la tua app di posta già compilata: premi solo Invia.</div>
+</div>
+
+<script>
+const DESTINATARIO = "lcsoon93@gmail.com";
+
+document.getElementById("data").value = new Date().toISOString().slice(0,10);
+
+// ---- lavori dinamici ----
+function aggiungiLavoro(valore){
+  const div = document.createElement("div");
+  div.className = "lavoro";
+  div.innerHTML =
+    '<span class="num"></span>' +
+    '<input type="text" placeholder="Cliente / luogo / lavoro" autocomplete="off">' +
+    '<button type="button" class="togli" aria-label="Rimuovi riga" onclick="togliLavoro(this)">&times;</button>';
+  document.getElementById("lavori").appendChild(div);
+  if (valore) div.querySelector("input").value = valore;
+  rinumera();
+}
+function togliLavoro(btn){
+  btn.parentElement.remove();
+  rinumera();
+}
+function rinumera(){
+  document.querySelectorAll("#lavori .lavoro .num").forEach((n,i)=>n.textContent = i+1);
+}
+aggiungiLavoro();
+aggiungiLavoro();
+
+// ---- ore totali ----
+function calcolaOre(){
+  const d = document.getElementById("dalle").value;
+  const a = document.getElementById("alle").value;
+  const out = document.getElementById("totore");
+  if(!d || !a){ out.textContent = "—"; return; }
+  let mins = toMin(a) - toMin(d);
+  if (mins < 0) mins += 24*60;
+  const h = Math.floor(mins/60), m = mins%60;
+  out.textContent = m ? h + " ore e " + m + " min" : h + " ore";
+}
+function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
+calcolaOre();
+
+// ---- testo del rapporto ----
+function dataIt(){
+  const v = document.getElementById("data").value;
+  if(!v) return "";
+  const p = v.split("-");
+  return p[2] + "/" + p[1] + "/" + p[0];
+}
+function testoRapporto(){
+  const righe = [];
+  righe.push("RAPPORTO DI LAVORO - " + dataIt());
+  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
+  righe.push("");
+  righe.push("LAVORI ESEGUITI:");
+  let n = 0;
+  document.querySelectorAll("#lavori input").forEach(inp=>{
+    const v = inp.value.trim();
+    if(v){ n++; righe.push(n + ") " + v); }
+  });
+  if(n === 0) righe.push("-");
+  righe.push("");
+  righe.push("ORARIO: " + document.getElementById("dalle").value + " - " + document.getElementById("alle").value +
+             " (" + document.getElementById("totore").textContent + ")");
+  righe.push("");
+  righe.push("MATERIALE UTILIZZATO:");
+  righe.push(document.getElementById("materiale").value.trim() || "-");
+  const note = document.getElementById("note").value.trim();
+  if(note){
+    righe.push("");
+    righe.push("NOTE:");
+    righe.push(note);
+  }
+  return righe.join("\n");
+}
+
+// ---- invio ----
+function inviaEmail(){
+  const oggetto = "Rapporto di lavoro " + dataIt();
+  window.location.href = "mailto:" + DESTINATARIO +
+    "?subject=" + encodeURIComponent(oggetto) +
+    "&body=" + encodeURIComponent(testoRapporto());
+}
+
+// ---- copia di riserva ----
+function copiaTesto(){
+  const testo = "A: " + DESTINATARIO + "\nOggetto: Rapporto di lavoro " + dataIt() + "\n\n" + testoRapporto();
+  const btn = document.getElementById("btncopia");
+  function ok(){ btn.textContent = "Copiato"; setTimeout(()=>btn.textContent="Copia", 2000); }
+  if (navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(testo).then(ok).catch(fallback);
+  } else { fallback(); }
+  function fallback(){
+    const ta = document.createElement("textarea");
+    ta.value = testo;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand("copy");
+    document.body.removeChild(ta);
+    ok();
+  }
+}
+</script>
+</body>
+</html>
