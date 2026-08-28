@@ -3,18 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Rapporto di lavoro — Elettricista</title>
+<title>Rapporto di lavoro</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
   :root{
-    --quadro:#22262B;        /* carpenteria del quadro */
-    --modulo:#F2F3F4;        /* modulo DIN chiaro */
+    --quadro:#22262B;
+    --modulo:#F2F3F4;
     --testo:#1C1F23;
-    --fase:#8C5A2B;          /* marrone fase */
-    --neutro:#1F5FA8;        /* blu neutro */
-    --terra1:#F7D417;        /* giallo terra */
-    --terra2:#3E9B3E;        /* verde terra */
+    --fase:#8C5A2B;
+    --neutro:#1F5FA8;
+    --terra1:#F7D417;
+    --terra2:#3E9B3E;
     --rame:#C97B3D;
     --bordo:#C9CDD2;
     --spento:#5A6068;
@@ -26,11 +27,10 @@
     color:var(--testo);
     font-family:'IBM Plex Sans',sans-serif;
     font-size:16px;
-    padding-bottom:150px;
+    padding-bottom:160px;
   }
   .colonna{max-width:560px;margin:0 auto;padding:0 14px}
 
-  /* ---- targa del quadro ---- */
   header{
     padding:22px 2px 14px;
     color:#E8EAED;
@@ -39,8 +39,7 @@
     gap:14px;
   }
   .fulmine{
-    flex:none;
-    width:46px;height:46px;
+    flex:none;width:46px;height:46px;
     border:2px solid var(--terra1);
     border-radius:8px;
     display:flex;align-items:center;justify-content:center;
@@ -48,27 +47,15 @@
   .fulmine svg{width:24px;height:24px;fill:var(--terra1)}
   header h1{
     font-family:'Chakra Petch',sans-serif;
-    font-weight:700;
-    font-size:23px;
-    text-transform:uppercase;
-    letter-spacing:1px;
-    line-height:1.1;
+    font-weight:700;font-size:23px;
+    text-transform:uppercase;letter-spacing:1px;line-height:1.1;
   }
-  header .sotto{
-    font-size:12.5px;
-    color:#9AA1A9;
-    letter-spacing:.5px;
-    margin-top:3px;
-  }
-  /* filo giallo-verde di terra come separatore */
   .terra{
-    height:8px;
-    border-radius:4px;
+    height:8px;border-radius:4px;
     margin:2px 2px 18px;
     background:repeating-linear-gradient(90deg,var(--terra1) 0 26px,var(--terra2) 26px 52px);
   }
 
-  /* ---- moduli tipo guida DIN ---- */
   .modulo{
     background:var(--modulo);
     border-radius:10px;
@@ -77,11 +64,9 @@
     position:relative;
     box-shadow:0 2px 0 rgba(0,0,0,.35);
   }
-  .modulo::before{           /* filo colorato a sinistra: il colore dice la sezione */
+  .modulo::before{
     content:"";
-    position:absolute;
-    left:0;top:0;bottom:0;
-    width:7px;
+    position:absolute;left:0;top:0;bottom:0;width:7px;
     border-radius:10px 0 0 10px;
     background:var(--colore-filo,var(--spento));
   }
@@ -93,78 +78,52 @@
 
   .titolo{
     font-family:'Chakra Petch',sans-serif;
-    font-weight:700;
-    font-size:15px;
-    letter-spacing:1.5px;
-    text-transform:uppercase;
+    font-weight:700;font-size:15px;
+    letter-spacing:1.5px;text-transform:uppercase;
     margin-bottom:10px;
-    display:flex;
-    align-items:center;
-    gap:8px;
+    display:flex;align-items:center;gap:8px;
   }
   .titolo .tag{
-    font-size:10.5px;
-    letter-spacing:1px;
-    color:#fff;
+    font-size:10.5px;letter-spacing:1px;color:#fff;
     background:var(--colore-filo,var(--spento));
-    border-radius:3px;
-    padding:2px 6px;
+    border-radius:3px;padding:2px 6px;
   }
 
   label{
-    display:block;
-    font-size:12.5px;
-    font-weight:600;
-    letter-spacing:.8px;
-    text-transform:uppercase;
-    color:#5A6068;
-    margin-bottom:5px;
+    display:block;font-size:12.5px;font-weight:600;
+    letter-spacing:.8px;text-transform:uppercase;
+    color:#5A6068;margin-bottom:5px;
   }
   input,textarea{
     width:100%;
     border:1.5px solid var(--bordo);
-    border-radius:7px;
-    background:#fff;
+    border-radius:7px;background:#fff;
     padding:13px 12px;
     font-family:'IBM Plex Sans',sans-serif;
-    font-size:17px;
-    font-weight:500;
-    color:var(--testo);
+    font-size:17px;font-weight:500;color:var(--testo);
   }
   input:focus,textarea:focus{
     outline:2.5px solid var(--neutro);
-    outline-offset:1px;
-    border-color:var(--neutro);
+    outline-offset:1px;border-color:var(--neutro);
   }
-  /* resa corretta su iPhone: i campi data/ora di iOS hanno stile e altezza propri */
   input[type="date"],input[type="time"]{
-    -webkit-appearance:none;
-    appearance:none;
-    min-height:50px;
-    text-align:left;
-    display:block;
+    -webkit-appearance:none;appearance:none;
+    min-height:50px;text-align:left;display:block;
   }
-  input::-webkit-date-and-time-value{
-    text-align:left;
-    line-height:1.4;
-  }
+  input::-webkit-date-and-time-value{text-align:left;line-height:1.4}
   input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
   textarea{resize:vertical;min-height:80px}
   .due{display:flex;gap:12px}
   .due>div{flex:1}
 
-  /* ---- righe lavori: morsetti numerati ---- */
   .lavoro{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .lavoro input{flex:1;min-width:0}
   .lavoro .num{
     font-family:'Chakra Petch',sans-serif;
-    font-weight:700;
-    font-size:15px;
-    width:30px;height:30px;
-    flex:none;
+    font-weight:700;font-size:15px;
+    width:30px;height:30px;flex:none;
     display:flex;align-items:center;justify-content:center;
-    background:var(--quadro);
-    color:var(--terra1);
+    background:var(--quadro);color:var(--terra1);
     border-radius:5px;
   }
   .lavoro button.togli{
@@ -186,7 +145,6 @@
   .totore{margin-top:10px;font-size:14.5px;color:#5A6068}
   .totore b{color:var(--testo);font-size:17px;font-family:'Chakra Petch',sans-serif}
 
-  /* ---- barra invio: leva tipo magnetotermico ---- */
   .barra{
     position:fixed;left:0;right:0;bottom:0;
     background:var(--quadro);
@@ -196,25 +154,24 @@
   .barra .dentro{max-width:560px;margin:0 auto;display:flex;gap:10px}
   .invia{
     flex:1;
-    background:var(--terra1);
-    color:var(--quadro);
+    background:var(--terra1);color:var(--quadro);
     border:none;border-radius:8px;
     font-family:'Chakra Petch',sans-serif;
-    font-weight:700;font-size:18px;
-    letter-spacing:1.5px;text-transform:uppercase;
-    padding:15px;cursor:pointer;
+    font-weight:700;font-size:17px;
+    letter-spacing:1px;text-transform:uppercase;
+    padding:15px 8px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:8px;
   }
-  .invia svg{width:18px;height:18px;fill:var(--quadro)}
+  .invia svg{width:18px;height:18px;fill:var(--quadro);flex:none}
   .invia:active{transform:translateY(1px)}
-  .copia{
+  .secondario{
     flex:none;
     background:transparent;
     border:1.5px solid #4A5058;
     border-radius:8px;
-    padding:0 16px;
+    padding:0 14px;
     font-family:'Chakra Petch',sans-serif;
-    font-weight:600;font-size:14px;
+    font-weight:600;font-size:13.5px;
     letter-spacing:.5px;text-transform:uppercase;
     color:#C9CDD2;cursor:pointer;
   }
@@ -234,9 +191,7 @@
     <div class="fulmine" aria-hidden="true">
       <svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
     </div>
-    <div>
-      <h1>Rapporto di lavoro</h1>
-    </div>
+    <div><h1>Rapporto di lavoro</h1></div>
   </header>
   <div class="terra" aria-hidden="true"></div>
 
@@ -277,7 +232,7 @@
 
   <div class="modulo m-materiale">
     <div class="titolo">Materiale utilizzato <span class="tag">MAT</span></div>
-    <textarea id="materiale" placeholder="Es. 8 m cavo 3x2,5 mm&#178;, 2 frutti bticino, 1 magnetotermico 16A" aria-label="Materiale utilizzato"></textarea>
+    <textarea id="materiale" placeholder="Es. 8 m cavo 3x2,5 mm&#178;" aria-label="Materiale utilizzato"></textarea>
   </div>
 
   <div class="modulo m-note">
@@ -289,13 +244,13 @@
 
 <div class="barra">
   <div class="dentro">
-    <button type="button" class="invia" onclick="inviaEmail()">
+    <button type="button" class="invia" onclick="inviaPDF()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
-      Invia via email
+      Invia PDF
     </button>
-    <button type="button" class="copia" onclick="copiaTesto()" id="btncopia">Copia</button>
+    <button type="button" class="secondario" onclick="inviaTesto()">Testo</button>
   </div>
-  <div class="avviso">Si apre la tua app di posta già compilata: premi solo Invia.</div>
+  <div class="avviso" id="avviso">Con "Invia PDF" scegli Mail o Gmail dal menu: il PDF è già allegato.</div>
 </div>
 
 <script>
@@ -315,10 +270,7 @@ function aggiungiLavoro(valore){
   if (valore) div.querySelector("input").value = valore;
   rinumera();
 }
-function togliLavoro(btn){
-  btn.parentElement.remove();
-  rinumera();
-}
+function togliLavoro(btn){ btn.parentElement.remove(); rinumera(); }
 function rinumera(){
   document.querySelectorAll("#lavori .lavoro .num").forEach((n,i)=>n.textContent = i+1);
 }
@@ -339,12 +291,20 @@ function calcolaOre(){
 function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
 calcolaOre();
 
-// ---- testo del rapporto ----
+// ---- dati raccolti ----
 function dataIt(){
   const v = document.getElementById("data").value;
   if(!v) return "";
   const p = v.split("-");
   return p[2] + "/" + p[1] + "/" + p[0];
+}
+function elencoLavori(){
+  const out = [];
+  document.querySelectorAll("#lavori input").forEach(inp=>{
+    const v = inp.value.trim();
+    if(v) out.push(v);
+  });
+  return out;
 }
 function testoRapporto(){
   const righe = [];
@@ -352,12 +312,9 @@ function testoRapporto(){
   righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
   righe.push("");
   righe.push("LAVORI ESEGUITI:");
-  let n = 0;
-  document.querySelectorAll("#lavori input").forEach(inp=>{
-    const v = inp.value.trim();
-    if(v){ n++; righe.push(n + ") " + v); }
-  });
-  if(n === 0) righe.push("-");
+  const lav = elencoLavori();
+  if(lav.length) lav.forEach((l,i)=>righe.push((i+1) + ") " + l));
+  else righe.push("-");
   righe.push("");
   righe.push("ORARIO: " + document.getElementById("dalle").value + " - " + document.getElementById("alle").value +
              " (" + document.getElementById("totore").textContent + ")");
@@ -365,39 +322,131 @@ function testoRapporto(){
   righe.push("MATERIALE UTILIZZATO:");
   righe.push(document.getElementById("materiale").value.trim() || "-");
   const note = document.getElementById("note").value.trim();
-  if(note){
-    righe.push("");
-    righe.push("NOTE:");
-    righe.push(note);
-  }
+  if(note){ righe.push(""); righe.push("NOTE:"); righe.push(note); }
   return righe.join("\n");
 }
 
-// ---- invio ----
-function inviaEmail(){
+// ---- generazione PDF ----
+function generaPDF(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
+  let y = 22;
+
+  // intestazione
+  doc.setFillColor(34,38,43);
+  doc.rect(ML, y-8, CW, 12, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(14);
+  doc.text("RAPPORTO DI LAVORO GIORNALIERO", W/2, y, {align:"center"});
+  doc.setTextColor(0,0,0);
+  y += 14;
+
+  // dati
+  doc.setFontSize(11);
+  doc.text("Data: " + dataIt(), ML, y);
+  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 60, y);
+  y += 11;
+
+  // lavori
+  doc.setFontSize(12);
+  doc.text("LAVORI ESEGUITI", ML, y);
+  y += 7;
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(11);
+  const lav = elencoLavori();
+  if(lav.length === 0){ doc.text("-", ML, y); y += 7; }
+  lav.forEach((l,i)=>{
+    const righe = doc.splitTextToSize((i+1) + ")  " + l, CW);
+    doc.text(righe, ML, y);
+    y += righe.length * 6 + 2;
+  });
+  y += 4;
+
+  // orario
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.text("ORARIO", ML, y);
+  y += 7;
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(11);
+  doc.text("Dalle " + document.getElementById("dalle").value +
+           "  alle " + document.getElementById("alle").value +
+           "   —   Totale: " + document.getElementById("totore").textContent, ML, y);
+  y += 11;
+
+  // materiale
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.text("MATERIALE UTILIZZATO", ML, y);
+  y += 7;
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(11);
+  const mat = document.getElementById("materiale").value.trim() || "-";
+  const matRighe = doc.splitTextToSize(mat, CW);
+  doc.text(matRighe, ML, y);
+  y += matRighe.length * 6 + 5;
+
+  // note
+  const note = document.getElementById("note").value.trim();
+  if(note){
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(12);
+    doc.text("NOTE", ML, y);
+    y += 7;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(11);
+    const noteRighe = doc.splitTextToSize(note, CW);
+    doc.text(noteRighe, ML, y);
+    y += noteRighe.length * 6 + 5;
+  }
+
+  // firma
+  y = Math.max(y + 14, 240);
+  doc.setFontSize(10);
+  doc.text("Firma", W - MR - 60, y);
+  doc.setLineWidth(0.3);
+  doc.line(W - MR - 46, y + 1, W - MR, y + 1);
+
+  return doc;
+}
+
+function nomeFile(){
+  return "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf";
+}
+
+// ---- invio PDF: foglio di condivisione con allegato ----
+async function inviaPDF(){
+  const doc = generaPDF();
+  const blob = doc.output("blob");
+  const file = new File([blob], nomeFile(), {type:"application/pdf"});
+  const oggetto = "Rapporto di lavoro " + dataIt();
+
+  if (navigator.canShare && navigator.canShare({files:[file]})){
+    try{
+      await navigator.share({
+        files:[file],
+        title: oggetto,
+        text: "In allegato il rapporto di lavoro del " + dataIt() + ". Da inviare a: " + DESTINATARIO
+      });
+      return;
+    }catch(e){
+      if (e && e.name === "AbortError") return; // l'utente ha chiuso il menu
+    }
+  }
+  // riserva: scarica il PDF
+  doc.save(nomeFile());
+  document.getElementById("avviso").textContent =
+    "PDF scaricato: allegalo a una mail per " + DESTINATARIO + ".";
+}
+
+// ---- invio testo (come prima, tutto precompilato) ----
+function inviaTesto(){
   const oggetto = "Rapporto di lavoro " + dataIt();
   window.location.href = "mailto:" + DESTINATARIO +
     "?subject=" + encodeURIComponent(oggetto) +
     "&body=" + encodeURIComponent(testoRapporto());
-}
-
-// ---- copia di riserva ----
-function copiaTesto(){
-  const testo = "A: " + DESTINATARIO + "\nOggetto: Rapporto di lavoro " + dataIt() + "\n\n" + testoRapporto();
-  const btn = document.getElementById("btncopia");
-  function ok(){ btn.textContent = "Copiato"; setTimeout(()=>btn.textContent="Copia", 2000); }
-  if (navigator.clipboard && navigator.clipboard.writeText){
-    navigator.clipboard.writeText(testo).then(ok).catch(fallback);
-  } else { fallback(); }
-  function fallback(){
-    const ta = document.createElement("textarea");
-    ta.value = testo;
-    document.body.appendChild(ta);
-    ta.select();
-    document.execCommand("copy");
-    document.body.removeChild(ta);
-    ok();
-  }
 }
 </script>
 </body>
