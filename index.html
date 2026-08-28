@@ -714,7 +714,7 @@ function calcolaOre(){
   const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa);
   document.getElementById("totore").textContent = (dalle && alle) ? oreTesto(netto) : "—";
   const extra = [];
-  if(pausa) extra.push(pausa + "m pausa detratta");
+  if(pausa) extra.push(pausa + "m pausa");
   if(viaggio) extra.push(viaggio + "m viaggio");
   document.getElementById("totore-extra").textContent = extra.length ? "  ·  " + extra.join("  ·  ") : "";
 }
@@ -887,7 +887,7 @@ function testoRapporto(){
   });
   righe.push("");
   righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreTesto(minutiNetti(d)) +
-             (d.pausa ? " (pausa " + d.pausa + " min detratta)" : ""));
+             (d.pausa ? " (pausa " + d.pausa + " min)" : ""));
   if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
   if(d.spese.length){
     righe.push("");
@@ -1168,7 +1168,7 @@ function generaPDF(){
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
   let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreTesto(minutiNetti(d));
-  if(d.pausa) rigaOre += "   (pausa " + d.pausa + " min detratta)";
+  if(d.pausa) rigaOre += "   (pausa " + d.pausa + " min)";
   doc.text(rigaOre, ML, y);
   y += 6;
   if(d.viaggio){
