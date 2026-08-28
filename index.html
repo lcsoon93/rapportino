@@ -1329,7 +1329,7 @@ async function condividi(btn, generatore, nome, oggetto, testoAccomp){
     const file = new File([blob], nome, {type:"application/pdf"});
     if (navigator.canShare && navigator.canShare({files:[file]})){
       try{
-        await navigator.share({files:[file], title: oggetto, text: testoAccomp});
+        await navigator.share({files:[file], title: oggetto});
         return;
       }catch(e){
         if (e && e.name === "AbortError") return;
