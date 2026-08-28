@@ -34,9 +34,7 @@
   header{
     padding:22px 2px 14px;
     color:#E8EAED;
-    display:flex;
-    align-items:center;
-    gap:14px;
+    display:flex;align-items:center;gap:14px;
   }
   .fulmine{
     flex:none;width:46px;height:46px;
@@ -74,7 +72,6 @@
   .m-lavori{--colore-filo:var(--fase)}
   .m-orario{--colore-filo:var(--neutro)}
   .m-materiale{--colore-filo:var(--rame)}
-  .m-note{--colore-filo:var(--bordo)}
 
   .titolo{
     font-family:'Chakra Petch',sans-serif;
@@ -116,9 +113,20 @@
   .due{display:flex;gap:12px}
   .due>div{flex:1}
 
-  .lavoro{display:flex;align-items:center;gap:10px;margin-bottom:10px}
-  .lavoro input{flex:1;min-width:0}
-  .lavoro .num{
+  /* ---- scheda per ogni cliente ---- */
+  .cliente{
+    border:1.5px solid var(--bordo);
+    border-radius:8px;
+    background:#FAFAFA;
+    padding:12px;
+    margin-bottom:12px;
+  }
+  .cliente .testata{
+    display:flex;align-items:center;gap:10px;
+    margin-bottom:10px;
+  }
+  .cliente .testata input{flex:1;min-width:0}
+  .cliente .num{
     font-family:'Chakra Petch',sans-serif;
     font-weight:700;font-size:15px;
     width:30px;height:30px;flex:none;
@@ -126,12 +134,16 @@
     background:var(--quadro);color:var(--terra1);
     border-radius:5px;
   }
-  .lavoro button.togli{
+  .cliente button.togli{
     flex:none;width:34px;height:34px;
     border:none;border-radius:6px;
     background:transparent;color:#9AA1A9;
     font-size:22px;line-height:1;cursor:pointer;
   }
+  .cliente .orari{display:flex;gap:10px;margin-bottom:10px}
+  .cliente .orari>div{flex:1}
+  .cliente textarea{min-height:70px}
+
   .aggiungi{
     margin-top:2px;width:100%;
     border:1.5px dashed var(--fase);
@@ -210,13 +222,13 @@
   </div>
 
   <div class="modulo m-lavori">
-    <div class="titolo">Lavori eseguiti <span class="tag">L1</span></div>
-    <div id="lavori"></div>
-    <button type="button" class="aggiungi" onclick="aggiungiLavoro()">+ Aggiungi lavoro</button>
+    <div class="titolo">Clienti e lavori <span class="tag">L1</span></div>
+    <div id="clienti"></div>
+    <button type="button" class="aggiungi" onclick="aggiungiCliente()">+ Aggiungi cliente</button>
   </div>
 
   <div class="modulo m-orario">
-    <div class="titolo">Orario <span class="tag">N</span></div>
+    <div class="titolo">Orario della giornata <span class="tag">N</span></div>
     <div class="due">
       <div>
         <label for="dalle">Dalle</label>
@@ -233,11 +245,6 @@
   <div class="modulo m-materiale">
     <div class="titolo">Materiale utilizzato <span class="tag">MAT</span></div>
     <textarea id="materiale" placeholder="Es. 8 m cavo 3x2,5 mm&#178;" aria-label="Materiale utilizzato"></textarea>
-  </div>
-
-  <div class="modulo m-note">
-    <div class="titolo">Note</div>
-    <textarea id="note" placeholder="Facoltativo" aria-label="Note"></textarea>
   </div>
 
 </div>
@@ -258,26 +265,37 @@ const DESTINATARIO = "lcsoon93@gmail.com";
 
 document.getElementById("data").value = new Date().toISOString().slice(0,10);
 
-// ---- lavori dinamici ----
-function aggiungiLavoro(valore){
+// ---- schede cliente: nome + orario + dettagli lavoro ----
+function aggiungiCliente(){
   const div = document.createElement("div");
-  div.className = "lavoro";
+  div.className = "cliente";
   div.innerHTML =
-    '<span class="num"></span>' +
-    '<input type="text" placeholder="Cliente / luogo / lavoro" autocomplete="off">' +
-    '<button type="button" class="togli" aria-label="Rimuovi riga" onclick="togliLavoro(this)">&times;</button>';
-  document.getElementById("lavori").appendChild(div);
-  if (valore) div.querySelector("input").value = valore;
+    '<div class="testata">' +
+      '<span class="num"></span>' +
+      '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off">' +
+      '<button type="button" class="togli" aria-label="Rimuovi cliente" onclick="togliCliente(this)">&times;</button>' +
+    '</div>' +
+    '<div class="orari">' +
+      '<div><label>Dalle</label><input type="time" class="c-dalle"></div>' +
+      '<div><label>Alle</label><input type="time" class="c-alle"></div>' +
+    '</div>' +
+    '<label>Dettagli lavoro eseguito</label>' +
+    '<textarea class="c-dettagli" placeholder="Cosa avete fatto da questo cliente"></textarea>';
+  document.getElementById("clienti").appendChild(div);
+  rinumera();
+  div.querySelector(".c-nome").focus();
+}
+function togliCliente(btn){
+  btn.closest(".cliente").remove();
   rinumera();
 }
-function togliLavoro(btn){ btn.parentElement.remove(); rinumera(); }
 function rinumera(){
-  document.querySelectorAll("#lavori .lavoro .num").forEach((n,i)=>n.textContent = i+1);
+  document.querySelectorAll("#clienti .cliente .num").forEach((n,i)=>n.textContent = i+1);
 }
-aggiungiLavoro();
-aggiungiLavoro();
+aggiungiCliente();
+document.querySelector(".c-nome").blur();
 
-// ---- ore totali ----
+// ---- ore totali giornata ----
 function calcolaOre(){
   const d = document.getElementById("dalle").value;
   const a = document.getElementById("alle").value;
@@ -291,38 +309,49 @@ function calcolaOre(){
 function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
 calcolaOre();
 
-// ---- dati raccolti ----
+// ---- raccolta dati ----
 function dataIt(){
   const v = document.getElementById("data").value;
   if(!v) return "";
   const p = v.split("-");
   return p[2] + "/" + p[1] + "/" + p[0];
 }
-function elencoLavori(){
+function elencoClienti(){
   const out = [];
-  document.querySelectorAll("#lavori input").forEach(inp=>{
-    const v = inp.value.trim();
-    if(v) out.push(v);
+  document.querySelectorAll("#clienti .cliente").forEach(c=>{
+    const nome = c.querySelector(".c-nome").value.trim();
+    const dalle = c.querySelector(".c-dalle").value;
+    const alle = c.querySelector(".c-alle").value;
+    const dettagli = c.querySelector(".c-dettagli").value.trim();
+    if(nome || dettagli) out.push({nome: nome || "(senza nome)", dalle, alle, dettagli});
   });
   return out;
 }
+function rigaOrarioCliente(c){
+  if(c.dalle && c.alle) return " (" + c.dalle + " - " + c.alle + ")";
+  if(c.dalle) return " (dalle " + c.dalle + ")";
+  return "";
+}
+
 function testoRapporto(){
   const righe = [];
   righe.push("RAPPORTO DI LAVORO - " + dataIt());
   righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
   righe.push("");
   righe.push("LAVORI ESEGUITI:");
-  const lav = elencoLavori();
-  if(lav.length) lav.forEach((l,i)=>righe.push((i+1) + ") " + l));
-  else righe.push("-");
+  const cl = elencoClienti();
+  if(cl.length === 0) righe.push("-");
+  cl.forEach((c,i)=>{
+    righe.push("");
+    righe.push((i+1) + ") " + c.nome + rigaOrarioCliente(c));
+    if(c.dettagli) righe.push("   " + c.dettagli.replaceAll("\n","\n   "));
+  });
   righe.push("");
-  righe.push("ORARIO: " + document.getElementById("dalle").value + " - " + document.getElementById("alle").value +
+  righe.push("ORARIO GIORNATA: " + document.getElementById("dalle").value + " - " + document.getElementById("alle").value +
              " (" + document.getElementById("totore").textContent + ")");
   righe.push("");
   righe.push("MATERIALE UTILIZZATO:");
   righe.push(document.getElementById("materiale").value.trim() || "-");
-  const note = document.getElementById("note").value.trim();
-  if(note){ righe.push(""); righe.push("NOTE:"); righe.push(note); }
   return righe.join("\n");
 }
 
@@ -332,6 +361,10 @@ function generaPDF(){
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
   let y = 22;
+
+  function serveNuovaPagina(spazio){
+    if (y + spazio > 275){ doc.addPage(); y = 22; }
+  }
 
   // intestazione
   doc.setFillColor(34,38,43);
@@ -343,31 +376,43 @@ function generaPDF(){
   doc.setTextColor(0,0,0);
   y += 14;
 
-  // dati
   doc.setFontSize(11);
   doc.text("Data: " + dataIt(), ML, y);
   doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 60, y);
   y += 11;
 
-  // lavori
+  // clienti
   doc.setFontSize(12);
   doc.text("LAVORI ESEGUITI", ML, y);
-  y += 7;
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(11);
-  const lav = elencoLavori();
-  if(lav.length === 0){ doc.text("-", ML, y); y += 7; }
-  lav.forEach((l,i)=>{
-    const righe = doc.splitTextToSize((i+1) + ")  " + l, CW);
-    doc.text(righe, ML, y);
-    y += righe.length * 6 + 2;
+  y += 8;
+  const cl = elencoClienti();
+  if(cl.length === 0){
+    doc.setFont("helvetica","normal"); doc.setFontSize(11);
+    doc.text("-", ML, y); y += 8;
+  }
+  cl.forEach((c,i)=>{
+    serveNuovaPagina(25);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(11.5);
+    doc.text((i+1) + ")  " + c.nome + rigaOrarioCliente(c), ML, y);
+    y += 6;
+    if(c.dettagli){
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(11);
+      const righe = doc.splitTextToSize(c.dettagli, CW - 8);
+      serveNuovaPagina(righe.length * 5.5 + 4);
+      doc.text(righe, ML + 8, y);
+      y += righe.length * 5.5 + 3;
+    }
+    y += 3;
   });
   y += 4;
 
-  // orario
+  // orario giornata
+  serveNuovaPagina(20);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  doc.text("ORARIO", ML, y);
+  doc.text("ORARIO GIORNATA", ML, y);
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
@@ -377,6 +422,7 @@ function generaPDF(){
   y += 11;
 
   // materiale
+  serveNuovaPagina(25);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
   doc.text("MATERIALE UTILIZZATO", ML, y);
@@ -388,22 +434,9 @@ function generaPDF(){
   doc.text(matRighe, ML, y);
   y += matRighe.length * 6 + 5;
 
-  // note
-  const note = document.getElementById("note").value.trim();
-  if(note){
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(12);
-    doc.text("NOTE", ML, y);
-    y += 7;
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(11);
-    const noteRighe = doc.splitTextToSize(note, CW);
-    doc.text(noteRighe, ML, y);
-    y += noteRighe.length * 6 + 5;
-  }
-
   // firma
-  y = Math.max(y + 14, 240);
+  y = Math.max(y + 14, 250);
+  if (y > 275){ doc.addPage(); y = 250; }
   doc.setFontSize(10);
   doc.text("Firma", W - MR - 60, y);
   doc.setLineWidth(0.3);
@@ -416,7 +449,7 @@ function nomeFile(){
   return "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf";
 }
 
-// ---- invio PDF: foglio di condivisione con allegato ----
+// ---- invio PDF ----
 async function inviaPDF(){
   const doc = generaPDF();
   const blob = doc.output("blob");
@@ -432,16 +465,15 @@ async function inviaPDF(){
       });
       return;
     }catch(e){
-      if (e && e.name === "AbortError") return; // l'utente ha chiuso il menu
+      if (e && e.name === "AbortError") return;
     }
   }
-  // riserva: scarica il PDF
   doc.save(nomeFile());
   document.getElementById("avviso").textContent =
     "PDF scaricato: allegalo a una mail per " + DESTINATARIO + ".";
 }
 
-// ---- invio testo (come prima, tutto precompilato) ----
+// ---- invio testo ----
 function inviaTesto(){
   const oggetto = "Rapporto di lavoro " + dataIt();
   window.location.href = "mailto:" + DESTINATARIO +
