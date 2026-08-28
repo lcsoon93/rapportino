@@ -190,6 +190,19 @@
     font-size:22px;line-height:1;cursor:pointer;
   }
   .cliente .orari{display:flex;gap:10px;margin-bottom:10px}
+  .oranow{display:flex;gap:6px}
+  .oranow input{flex:1;min-width:0}
+  .btn-ora{
+    flex:none;width:52px;
+    border:1.5px solid var(--terra1);
+    background:transparent;color:var(--terra1);
+    border-radius:7px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:12px;
+    letter-spacing:.5px;text-transform:uppercase;
+    cursor:pointer;
+  }
+  .btn-ora:active{background:var(--terra1);color:#fff}
   .cliente .orari>div{flex:1}
   .cliente label{margin-top:10px}
   .cliente label:first-of-type{margin-top:0}
@@ -549,8 +562,10 @@ function aggiungiCliente(dati){
       '<button type="button" class="togli" aria-label="Rimuovi cliente" onclick="togliCliente(this)">&times;</button>' +
     '</div>' +
     '<div class="orari">' +
-      '<div><label>Dalle</label><input type="time" class="c-dalle"></div>' +
-      '<div><label>Alle</label><input type="time" class="c-alle"></div>' +
+      '<div><label>Dalle</label><div class="oranow"><input type="time" class="c-dalle">' +
+        '<button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button></div></div>' +
+      '<div><label>Alle</label><div class="oranow"><input type="time" class="c-alle">' +
+        '<button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button></div></div>' +
     '</div>' +
     '<label>Fatturare a / Rif. commessa (facoltativo)</label>' +
     '<input type="text" class="c-fatturare" placeholder="Es. Studio Amm. Rossi — commessa 26-114" autocomplete="off">' +
@@ -628,6 +643,14 @@ function aggiungiMateriale(btn){
   aggiungiRigaMateriale(div);
   const righe = div.querySelectorAll(".mat-riga");
   righe[righe.length-1].querySelector(".m-art").focus();
+}
+
+// ============ ora corrente nei campi cliente ============
+function oraAdesso(btn){
+  const input = btn.parentElement.querySelector("input");
+  const d = new Date();
+  input.value = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  salvaGiornata();
 }
 
 // ============ firma touch ============
