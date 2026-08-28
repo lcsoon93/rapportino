@@ -14,8 +14,8 @@
     --testo:#1C1F23;
     --fase:#8C5A2B;
     --neutro:#1F5FA8;
-    --terra1:#F7D417;
-    --terra2:#3E9B3E;
+    --terra1:#2FA189;   /* verde acqua del logo */
+    --terra2:#8C97C4;   /* azzurro lavanda del logo */
     --rame:#C97B3D;
     --bordo:#C9CDD2;
     --spento:#5A6068;
@@ -32,17 +32,17 @@
   .colonna{max-width:560px;margin:0 auto;padding:0 14px}
 
   header{
-    padding:22px 2px 14px;
+    padding:22px 2px 10px;
     color:#E8EAED;
     display:flex;align-items:center;gap:14px;
   }
-  .fulmine{
-    flex:none;width:46px;height:46px;
-    border:2px solid var(--terra1);
-    border-radius:8px;
-    display:flex;align-items:center;justify-content:center;
+  .logochip{
+    flex:none;height:48px;
+    background:#fff;border-radius:8px;
+    padding:6px 10px;
+    display:flex;align-items:center;
   }
-  .fulmine svg{width:24px;height:24px;fill:var(--terra1)}
+  .logochip img{height:100%;width:auto;display:block}
   header h1{
     font-family:'Chakra Petch',sans-serif;
     font-weight:700;font-size:23px;
@@ -50,9 +50,20 @@
   }
   .terra{
     height:8px;border-radius:4px;
-    margin:2px 2px 18px;
+    margin:2px 2px 14px;
     background:repeating-linear-gradient(90deg,var(--terra1) 0 26px,var(--terra2) 26px 52px);
   }
+
+  .tabs{display:flex;gap:8px;margin:0 2px 16px}
+  .tab{
+    flex:1;background:transparent;
+    border:1.5px solid #4A5058;color:#C9CDD2;
+    border-radius:8px;padding:11px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:14px;
+    letter-spacing:1px;text-transform:uppercase;cursor:pointer;
+  }
+  .tab.attivo{background:var(--terra1);border-color:var(--terra1);color:#fff}
 
   .modulo{
     background:var(--modulo);
@@ -71,7 +82,10 @@
   .m-dati{--colore-filo:var(--spento)}
   .m-lavori{--colore-filo:var(--fase)}
   .m-orario{--colore-filo:var(--neutro)}
-  .m-materiale{--colore-filo:var(--rame)}
+  .m-sett{--colore-filo:var(--terra2)}
+  .m-backup{--colore-filo:var(--rame)}
+  .m-spese{--colore-filo:var(--rame)}
+  .m-sicurezza{--colore-filo:#B3413A}
 
   .titolo{
     font-family:'Chakra Petch',sans-serif;
@@ -109,11 +123,50 @@
   }
   input::-webkit-date-and-time-value{text-align:left;line-height:1.4}
   input[type="date"]::-webkit-calendar-picker-indicator{opacity:.6}
-  textarea{resize:vertical;min-height:80px}
+  textarea{resize:vertical;min-height:70px}
+  select{
+    width:100%;
+    border:1.5px solid var(--bordo);
+    border-radius:7px;background:#fff;
+    padding:12px;
+    font-family:'IBM Plex Sans',sans-serif;
+    font-size:16px;font-weight:500;color:var(--testo);
+    -webkit-appearance:none;appearance:none;
+    min-height:50px;
+  }
+  select:focus{outline:2.5px solid var(--neutro);outline-offset:1px;border-color:var(--neutro)}
+  .check{display:flex;align-items:center;gap:10px;padding:4px 0;cursor:pointer}
+  .check input[type=checkbox]{width:24px;height:24px;flex:none;accent-color:var(--terra1)}
+  .check span{font-size:15px;font-weight:500}
+  .spesa-riga{display:flex;gap:8px;margin-bottom:8px}
+  .spesa-riga .s-desc{flex:1;min-width:0;padding:10px 11px;font-size:16px}
+  .spesa-riga .s-imp{flex:none;width:96px;padding:10px 8px;font-size:16px;text-align:right}
+  .spesa-riga .s-del{flex:none;width:32px;border:none;background:transparent;color:#9AA1A9;font-size:20px;cursor:pointer}
   .due{display:flex;gap:12px}
   .due>div{flex:1}
 
-  /* ---- scheda per ogni cliente ---- */
+  /* navigazione data */
+  .datanav{display:flex;gap:8px;align-items:stretch}
+  .datanav input{flex:1;min-width:0}
+  .freccia{
+    flex:none;width:48px;
+    border:1.5px solid var(--bordo);
+    border-radius:7px;background:#fff;
+    font-size:19px;color:var(--neutro);
+    cursor:pointer;font-weight:700;
+  }
+  .azioni-rapide{display:flex;gap:8px;margin-top:10px}
+  .mini{
+    flex:1;
+    border:1.5px solid var(--bordo);
+    background:#fff;color:var(--testo);
+    border-radius:7px;padding:9px 4px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:600;font-size:12.5px;
+    letter-spacing:.5px;text-transform:uppercase;
+    cursor:pointer;
+  }
+
   .cliente{
     border:1.5px solid var(--bordo);
     border-radius:8px;
@@ -121,10 +174,7 @@
     padding:12px;
     margin-bottom:12px;
   }
-  .cliente .testata{
-    display:flex;align-items:center;gap:10px;
-    margin-bottom:10px;
-  }
+  .cliente .testata{display:flex;align-items:center;gap:10px;margin-bottom:10px}
   .cliente .testata input{flex:1;min-width:0}
   .cliente .num{
     font-family:'Chakra Petch',sans-serif;
@@ -142,7 +192,48 @@
   }
   .cliente .orari{display:flex;gap:10px;margin-bottom:10px}
   .cliente .orari>div{flex:1}
-  .cliente textarea{min-height:70px}
+  .cliente label{margin-top:10px}
+  .cliente label:first-of-type{margin-top:0}
+
+  /* righe materiale */
+  .mat-riga{display:flex;gap:8px;margin-bottom:8px}
+  .mat-riga .m-art{flex:1;min-width:0;padding:10px 11px;font-size:16px}
+  .mat-riga .m-qta{flex:none;width:76px;padding:10px 8px;font-size:16px;text-align:center}
+  .mat-riga .m-del{
+    flex:none;width:32px;border:none;background:transparent;
+    color:#9AA1A9;font-size:20px;cursor:pointer;
+  }
+  .mat-add{
+    width:100%;
+    border:1.5px dashed var(--rame);
+    background:transparent;color:var(--rame);
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:600;font-size:12.5px;
+    letter-spacing:.5px;text-transform:uppercase;
+    border-radius:7px;padding:9px;cursor:pointer;
+  }
+
+  /* firma */
+  .firma-box{
+    border:1.5px dashed var(--bordo);
+    border-radius:7px;background:#fff;
+    position:relative;
+  }
+  .firma-box canvas{
+    display:block;width:100%;height:110px;
+    touch-action:none;border-radius:7px;
+  }
+  .firma-box .firma-clear{
+    position:absolute;top:6px;right:6px;
+    border:none;background:#F2F3F4;color:#5A6068;
+    border-radius:5px;padding:4px 10px;
+    font-size:12px;font-weight:600;cursor:pointer;
+  }
+  .firma-hint{
+    position:absolute;left:0;right:0;top:44px;
+    text-align:center;color:#C4C8CD;font-size:14px;
+    pointer-events:none;
+  }
 
   .aggiungi{
     margin-top:2px;width:100%;
@@ -156,6 +247,38 @@
 
   .totore{margin-top:10px;font-size:14.5px;color:#5A6068}
   .totore b{color:var(--testo);font-size:17px;font-family:'Chakra Petch',sans-serif}
+  .salvato{font-size:13px;color:#3E9B3E;font-weight:600;margin-top:8px;min-height:18px}
+
+  .giorno{
+    display:flex;align-items:center;gap:10px;
+    padding:11px 0;border-bottom:1px solid var(--bordo);
+  }
+  .giorno:last-child{border-bottom:none}
+  .giorno .gnome{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:13px;
+    width:38px;flex:none;text-transform:uppercase;color:#5A6068;
+  }
+  .giorno .ginfo{flex:1;min-width:0;font-size:14.5px}
+  .giorno .ginfo .gclienti{color:#5A6068;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .giorno .gore{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:15px;flex:none}
+  .giorno .gvuoto{color:#B4B8BD}
+  .giorno button.gdel{
+    flex:none;width:30px;height:30px;
+    border:none;background:transparent;
+    color:#B4B8BD;font-size:19px;cursor:pointer;
+  }
+  .monte{
+    margin-top:12px;padding-top:12px;
+    border-top:2px solid var(--quadro);
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .monte .mlabel{
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:14px;
+    letter-spacing:1px;text-transform:uppercase;
+  }
+  .monte .mvalore{font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:22px}
 
   .barra{
     position:fixed;left:0;right:0;bottom:0;
@@ -166,31 +289,28 @@
   .barra .dentro{max-width:560px;margin:0 auto;display:flex;gap:10px}
   .invia{
     flex:1;
-    background:var(--terra1);color:var(--quadro);
+    background:var(--terra1);color:#fff;
     border:none;border-radius:8px;
     font-family:'Chakra Petch',sans-serif;
-    font-weight:700;font-size:17px;
+    font-weight:700;font-size:16px;
     letter-spacing:1px;text-transform:uppercase;
     padding:15px 8px;cursor:pointer;
     display:flex;align-items:center;justify-content:center;gap:8px;
   }
-  .invia svg{width:18px;height:18px;fill:var(--quadro);flex:none}
+  .invia svg{width:18px;height:18px;fill:#fff;flex:none}
   .invia:active{transform:translateY(1px)}
+  .invia:disabled{opacity:.6}
   .secondario{
-    flex:none;
-    background:transparent;
-    border:1.5px solid #4A5058;
-    border-radius:8px;
+    flex:none;background:transparent;
+    border:1.5px solid #4A5058;border-radius:8px;
     padding:0 14px;
     font-family:'Chakra Petch',sans-serif;
     font-weight:600;font-size:13.5px;
     letter-spacing:.5px;text-transform:uppercase;
     color:#C9CDD2;cursor:pointer;
   }
-  .avviso{
-    max-width:560px;margin:8px auto 0;
-    text-align:center;font-size:12.5px;color:#9AA1A9;
-  }
+  .avviso{max-width:560px;margin:8px auto 0;text-align:center;font-size:12.5px;color:#9AA1A9}
+  .nascosto{display:none!important}
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
   }
@@ -200,121 +320,431 @@
 <div class="colonna">
 
   <header>
-    <div class="fulmine" aria-hidden="true">
-      <svg viewBox="0 0 24 24"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+    <div class="logochip">
+      <img id="logoimg" alt="COMP.HAS assistance SRL">
     </div>
     <div><h1>Rapporto di lavoro</h1></div>
   </header>
   <div class="terra" aria-hidden="true"></div>
 
-  <div class="modulo m-dati">
-    <div class="titolo">Dati <span class="tag">GEN</span></div>
-    <div class="due">
-      <div>
-        <label for="data">Data</label>
+  <div class="tabs">
+    <button type="button" class="tab attivo" id="tab-giorno" onclick="mostraVista('giorno')">Giornata</button>
+    <button type="button" class="tab" id="tab-sett" onclick="mostraVista('sett')">Settimana</button>
+  </div>
+
+  <!-- ================= VISTA GIORNATA ================= -->
+  <div id="vista-giorno">
+
+    <div class="modulo m-dati">
+      <div class="titolo">Dati <span class="tag">GEN</span></div>
+      <label for="data">Data</label>
+      <div class="datanav">
+        <button type="button" class="freccia" onclick="spostaGiorno(-1)" aria-label="Giorno precedente">&#9664;</button>
         <input type="date" id="data">
+        <button type="button" class="freccia" onclick="spostaGiorno(1)" aria-label="Giorno successivo">&#9654;</button>
       </div>
-      <div>
+      <div class="azioni-rapide">
+        <button type="button" class="mini" onclick="vaiOggi()">Oggi</button>
+        <button type="button" class="mini" onclick="copiaIeri()">Copia ieri</button>
+        <button type="button" class="mini" onclick="svuotaGiornata()">Svuota</button>
+      </div>
+      <div style="margin-top:12px">
         <label for="tecnici">Tecnici</label>
         <input type="text" id="tecnici" value="Luca / Francesco" autocomplete="off">
       </div>
+      <div class="salvato" id="statosalvataggio"></div>
     </div>
-  </div>
 
-  <div class="modulo m-lavori">
-    <div class="titolo">Clienti e lavori <span class="tag">L1</span></div>
-    <div id="clienti"></div>
-    <button type="button" class="aggiungi" onclick="aggiungiCliente()">+ Aggiungi cliente</button>
-  </div>
+    <div class="modulo m-lavori">
+      <div class="titolo">Clienti e lavori <span class="tag">L1</span></div>
+      <div id="clienti"></div>
+      <button type="button" class="aggiungi" onclick="aggiungiCliente()">+ Aggiungi cliente</button>
+    </div>
 
-  <div class="modulo m-orario">
-    <div class="titolo">Orario della giornata <span class="tag">N</span></div>
-    <div class="due">
-      <div>
-        <label for="dalle">Dalle</label>
-        <input type="time" id="dalle" value="08:00" onchange="calcolaOre()">
+    <div class="modulo m-orario">
+      <div class="titolo">Orario della giornata <span class="tag">N</span></div>
+      <div class="due">
+        <div>
+          <label for="dalle">Dalle</label>
+          <input type="time" id="dalle" value="08:00">
+        </div>
+        <div>
+          <label for="alle">Alle</label>
+          <input type="time" id="alle" value="17:00">
+        </div>
       </div>
-      <div>
-        <label for="alle">Alle</label>
-        <input type="time" id="alle" value="17:00" onchange="calcolaOre()">
+      <div class="due" style="margin-top:10px">
+        <div>
+          <label for="pausa">Pausa (min)</label>
+          <input type="number" id="pausa" min="0" step="5" placeholder="0" inputmode="numeric">
+        </div>
+        <div>
+          <label for="viaggio">Viaggio (min)</label>
+          <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
+        </div>
+      </div>
+      <div class="totore">Totale lavoro: <b id="totore">9 ore</b><span id="totore-extra" style="font-size:13px"></span></div>
+    </div>
+
+    <div class="modulo m-spese">
+      <div class="titolo">Spese / extra <span class="tag">EUR</span></div>
+      <div id="spese"></div>
+      <button type="button" class="mat-add" onclick="aggiungiSpesa()">+ Aggiungi spesa</button>
+      <div class="totore">Totale spese: <b id="totspese">0,00 €</b></div>
+    </div>
+
+    <div class="modulo m-sicurezza">
+      <div class="titolo">Sicurezza <span class="tag">DPI</span></div>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:15px">
+        <input type="checkbox" id="sicurezza-ok" checked>
+        <span>Norme di sicurezza rispettate (DPI e procedure)</span>
+      </label>
+      <label for="sicurezza-note" style="margin-top:8px">Criticità riscontrate (facoltativo)</label>
+      <textarea id="sicurezza-note" placeholder="Es. quadro non a norma, messa a terra assente…" style="min-height:60px"></textarea>
+    </div>
+
+  </div>
+
+  <!-- ================= VISTA SETTIMANA ================= -->
+  <div id="vista-sett" class="nascosto">
+
+    <div class="modulo m-sett">
+      <div class="titolo">Report settimanale <span class="tag">SET</span></div>
+      <label for="settdata">Scegli un giorno qualsiasi della settimana</label>
+      <input type="date" id="settdata" onchange="disegnaSettimana()">
+      <div id="settelenco" style="margin-top:14px"></div>
+      <div class="totore" id="giornilav" style="margin-top:12px"></div>
+      <div class="monte">
+        <span class="mlabel">Monte ore</span>
+        <span class="mvalore" id="monteore">0 ore</span>
       </div>
     </div>
-    <div class="totore">Totale: <b id="totore">9 ore</b></div>
-  </div>
 
-  <div class="modulo m-materiale">
-    <div class="titolo">Materiale utilizzato <span class="tag">MAT</span></div>
-    <textarea id="materiale" placeholder="Es. 8 m cavo 3x2,5 mm&#178;" aria-label="Materiale utilizzato"></textarea>
+    <div class="modulo m-backup">
+      <div class="titolo">Backup archivio <span class="tag">BK</span></div>
+      <div class="azioni-rapide" style="margin-top:0">
+        <button type="button" class="mini" onclick="esportaBackup()">Esporta backup</button>
+        <button type="button" class="mini" onclick="document.getElementById('fileimporta').click()">Importa backup</button>
+      </div>
+      <input type="file" id="fileimporta" accept=".json,application/json" class="nascosto" onchange="importaBackup(this)">
+      <div class="avviso" style="text-align:left;margin-top:10px">
+        I rapporti sono salvati su questo telefono. Esporta il backup ogni tanto (o quando cambi telefono) e conservalo, ad esempio, su Drive o mandatelo per mail.
+      </div>
+    </div>
+
   </div>
 
 </div>
 
-<div class="barra">
+<!-- barra giornata -->
+<div class="barra" id="barra-giorno">
   <div class="dentro">
-    <button type="button" class="invia" onclick="inviaPDF()">
+    <button type="button" class="invia" id="btn-pdf-giorno" onclick="inviaPDF()">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
-      Invia PDF
+      <span>Invia PDF</span>
     </button>
     <button type="button" class="secondario" onclick="inviaTesto()">Testo</button>
+    <button type="button" class="secondario" onclick="inviaAlServerVPN(this)">Server</button>
   </div>
-  <div class="avviso" id="avviso">Con "Invia PDF" scegli Mail o Gmail dal menu: il PDF è già allegato.</div>
+  <div class="avviso" id="avviso">Salvataggio automatico attivo. Con "Invia PDF" scegli Mail o Gmail: il PDF è allegato.</div>
 </div>
 
+<!-- barra settimana -->
+<div class="barra nascosto" id="barra-sett">
+  <div class="dentro">
+    <button type="button" class="invia" id="btn-pdf-sett" onclick="inviaPDFSettimana()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      <span>PDF settimana</span>
+    </button>
+    <button type="button" class="secondario" onclick="inviaTestoSettimana()">Testo</button>
+  </div>
+  <div class="avviso">Report con giorni, ore e monte ore della settimana scelta.</div>
+</div>
+
+<datalist id="clienti-noti"></datalist>
+
 <script>
+const LOGO_B64 = "data:image/jpeg;base64,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";
+const LOGO_RAPPORTO = 2.3237; // larghezza/altezza
 const DESTINATARIO = "lcsoon93@gmail.com";
+// Indirizzo del server aziendale raggiungibile in VPN.
+// ATTENZIONE: se l'app è aperta in HTTPS (es. GitHub Pages) il browser blocca
+// le chiamate verso un server HTTP: serve HTTPS sul server, oppure ospitare
+// l'app sul server stesso.
+const SERVER_VPN = "http://192.168.100.70/dati/upload.php";
+const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 
-document.getElementById("data").value = new Date().toISOString().slice(0,10);
+// ============ archivio ============
+let memoriaProvvisoria = {};
+function leggiDB(){
+  try{ return JSON.parse(localStorage.getItem("rapporti") || "{}"); }
+  catch(e){ return memoriaProvvisoria; }
+}
+function scriviDB(db){
+  try{ localStorage.setItem("rapporti", JSON.stringify(db)); }
+  catch(e){ memoriaProvvisoria = db; }
+}
 
-// ---- schede cliente: nome + orario + dettagli lavoro ----
-function aggiungiCliente(){
+// ============ viste ============
+function mostraVista(v){
+  const giorno = v === "giorno";
+  document.getElementById("vista-giorno").classList.toggle("nascosto", !giorno);
+  document.getElementById("vista-sett").classList.toggle("nascosto", giorno);
+  document.getElementById("barra-giorno").classList.toggle("nascosto", !giorno);
+  document.getElementById("barra-sett").classList.toggle("nascosto", giorno);
+  document.getElementById("tab-giorno").classList.toggle("attivo", giorno);
+  document.getElementById("tab-sett").classList.toggle("attivo", !giorno);
+  if(!giorno) disegnaSettimana();
+}
+
+// ============ navigazione data ============
+function spostaGiorno(delta){
+  const el = document.getElementById("data");
+  const d = new Date(el.value + "T12:00:00");
+  d.setDate(d.getDate() + delta);
+  el.value = isoDi(d);
+  caricaGiornata(el.value);
+}
+function vaiOggi(){
+  const el = document.getElementById("data");
+  el.value = new Date().toISOString().slice(0,10);
+  caricaGiornata(el.value);
+}
+function copiaIeri(){
+  const iso = document.getElementById("data").value;
+  const prec = new Date(iso + "T12:00:00");
+  prec.setDate(prec.getDate() - 1);
+  const isoPrec = isoDi(prec);
+  const db = leggiDB();
+  if(!db[isoPrec]){
+    alert("Nessun rapporto salvato per " + dataIt(isoPrec) + ".");
+    return;
+  }
+  if(db[iso] && !confirm("Sovrascrivere la giornata attuale con i dati di ieri?")) return;
+  const copia = JSON.parse(JSON.stringify(db[isoPrec]));
+  copia.clienti.forEach(c=>{ c.firma = ""; c.firmatario = ""; }); // firme e firmatari non si copiano
+  copia.spese = [];                                               // le spese sono del giorno
+  db[iso] = copia;
+  scriviDB(db);
+  caricaGiornata(iso);
+}
+function svuotaGiornata(){
+  const iso = document.getElementById("data").value;
+  if(!confirm("Svuotare il rapporto del " + dataIt(iso) + "?")) return;
+  const db = leggiDB();
+  delete db[iso];
+  scriviDB(db);
+  caricaGiornata(iso);
+}
+
+// ============ clienti noti (completamento automatico) ============
+function aggiornaClientiNoti(){
+  const db = leggiDB();
+  const nomi = new Set();
+  Object.values(db).forEach(d=>{
+    (d.clienti || []).forEach(c=>{
+      if(c.nome && c.nome !== "(senza nome)") nomi.add(c.nome);
+    });
+  });
+  const dl = document.getElementById("clienti-noti");
+  dl.innerHTML = "";
+  [...nomi].sort().forEach(n=>{
+    const o = document.createElement("option");
+    o.value = n;
+    dl.appendChild(o);
+  });
+}
+
+// ============ schede cliente ============
+function aggiungiCliente(dati){
   const div = document.createElement("div");
   div.className = "cliente";
   div.innerHTML =
     '<div class="testata">' +
       '<span class="num"></span>' +
-      '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off">' +
+      '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off" list="clienti-noti">' +
       '<button type="button" class="togli" aria-label="Rimuovi cliente" onclick="togliCliente(this)">&times;</button>' +
     '</div>' +
     '<div class="orari">' +
       '<div><label>Dalle</label><input type="time" class="c-dalle"></div>' +
       '<div><label>Alle</label><input type="time" class="c-alle"></div>' +
     '</div>' +
+    '<label>Fatturare a / Rif. commessa (facoltativo)</label>' +
+    '<input type="text" class="c-fatturare" placeholder="Es. Studio Amm. Rossi — commessa 26-114" autocomplete="off">' +
+    '<div class="orari" style="margin-top:10px">' +
+      '<div><label>Tipologia</label><select class="c-tipologia">' +
+        '<option value="">—</option>' +
+        '<option>Manutenzione ordinaria</option>' +
+        '<option>Guasto / straordinaria</option>' +
+        '<option>Nuovo impianto</option>' +
+        '<option>Garanzia</option>' +
+      '</select></div>' +
+      '<div><label>Stato</label><select class="c-stato">' +
+        '<option>Completato</option>' +
+        '<option>Da ultimare</option>' +
+      '</select></div>' +
+    '</div>' +
     '<label>Dettagli lavoro eseguito</label>' +
-    '<textarea class="c-dettagli" placeholder="Cosa avete fatto da questo cliente"></textarea>';
+    '<textarea class="c-dettagli" placeholder="Cosa avete fatto da questo cliente"></textarea>' +
+    '<label>Materiale utilizzato</label>' +
+    '<div class="materiali"></div>' +
+    '<button type="button" class="mat-add" onclick="aggiungiMateriale(this)">+ Riga materiale</button>' +
+    '<label>Firma cliente (facoltativa)</label>' +
+    '<div class="firma-box">' +
+      '<canvas class="c-firma" width="600" height="220"></canvas>' +
+      '<div class="firma-hint">Firma qui col dito</div>' +
+      '<button type="button" class="firma-clear" onclick="pulisciFirma(this)">Cancella</button>' +
+    '</div>' +
+    '<label>Nome firmatario (stampatello)</label>' +
+    '<input type="text" class="c-firmatario" placeholder="Nome e cognome di chi firma" autocomplete="off">';
   document.getElementById("clienti").appendChild(div);
+
+  if(dati){
+    div.querySelector(".c-nome").value = dati.nome || "";
+    div.querySelector(".c-dalle").value = dati.dalle || "";
+    div.querySelector(".c-alle").value = dati.alle || "";
+    div.querySelector(".c-fatturare").value = dati.fatturare || "";
+    div.querySelector(".c-tipologia").value = dati.tipologia || "";
+    div.querySelector(".c-stato").value = dati.stato || "Completato";
+    div.querySelector(".c-dettagli").value = dati.dettagli || "";
+    div.querySelector(".c-firmatario").value = dati.firmatario || "";
+    // materiali: nuovo formato a righe, o vecchio formato testo unico
+    if(dati.materiali && dati.materiali.length){
+      dati.materiali.forEach(m=>aggiungiRigaMateriale(div, m.a, m.q));
+    } else if(dati.materiale){
+      aggiungiRigaMateriale(div, dati.materiale, "");
+    }
+    if(dati.firma) caricaFirma(div, dati.firma);
+  }
+  preparaFirma(div);
   rinumera();
-  div.querySelector(".c-nome").focus();
 }
 function togliCliente(btn){
   btn.closest(".cliente").remove();
   rinumera();
+  salvaGiornata();
 }
 function rinumera(){
   document.querySelectorAll("#clienti .cliente .num").forEach((n,i)=>n.textContent = i+1);
 }
-aggiungiCliente();
-document.querySelector(".c-nome").blur();
 
-// ---- ore totali giornata ----
-function calcolaOre(){
-  const d = document.getElementById("dalle").value;
-  const a = document.getElementById("alle").value;
-  const out = document.getElementById("totore");
-  if(!d || !a){ out.textContent = "—"; return; }
-  let mins = toMin(a) - toMin(d);
-  if (mins < 0) mins += 24*60;
-  const h = Math.floor(mins/60), m = mins%60;
-  out.textContent = m ? h + " ore e " + m + " min" : h + " ore";
+// ============ righe materiale ============
+function aggiungiRigaMateriale(clienteDiv, articolo, qta){
+  const riga = document.createElement("div");
+  riga.className = "mat-riga";
+  riga.innerHTML =
+    '<input type="text" class="m-art" placeholder="Articolo (es. cavo 3x2,5)" autocomplete="off">' +
+    '<input type="text" class="m-qta" placeholder="Q.tà" autocomplete="off">' +
+    '<button type="button" class="m-del" aria-label="Rimuovi materiale" onclick="this.parentElement.remove(); salvaGiornata();">&times;</button>';
+  clienteDiv.querySelector(".materiali").appendChild(riga);
+  if(articolo) riga.querySelector(".m-art").value = articolo;
+  if(qta) riga.querySelector(".m-qta").value = qta;
 }
-function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
-calcolaOre();
+function aggiungiMateriale(btn){
+  const div = btn.closest(".cliente");
+  aggiungiRigaMateriale(div);
+  const righe = div.querySelectorAll(".mat-riga");
+  righe[righe.length-1].querySelector(".m-art").focus();
+}
 
-// ---- raccolta dati ----
-function dataIt(){
-  const v = document.getElementById("data").value;
+// ============ firma touch ============
+function preparaFirma(div){
+  const canvas = div.querySelector(".c-firma");
+  const hint = div.querySelector(".firma-hint");
+  const ctx = canvas.getContext("2d");
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#14213D";
+  let giu = false;
+  function xy(e){
+    const r = canvas.getBoundingClientRect();
+    return [ (e.clientX - r.left) * canvas.width / r.width,
+             (e.clientY - r.top) * canvas.height / r.height ];
+  }
+  canvas.addEventListener("pointerdown", e=>{
+    e.preventDefault();
+    canvas.setPointerCapture(e.pointerId);
+    giu = true;
+    const [x,y] = xy(e);
+    ctx.beginPath();
+    ctx.moveTo(x,y);
+  });
+  canvas.addEventListener("pointermove", e=>{
+    if(!giu) return;
+    e.preventDefault();
+    const [x,y] = xy(e);
+    ctx.lineTo(x,y);
+    ctx.stroke();
+    canvas.dataset.pieno = "1";
+    hint.style.display = "none";
+  });
+  function fine(){
+    if(!giu) return;
+    giu = false;
+    salvaGiornata();
+  }
+  canvas.addEventListener("pointerup", fine);
+  canvas.addEventListener("pointercancel", fine);
+}
+function pulisciFirma(btn){
+  const box = btn.closest(".firma-box");
+  const canvas = box.querySelector(".c-firma");
+  canvas.getContext("2d").clearRect(0,0,canvas.width,canvas.height);
+  canvas.dataset.pieno = "";
+  box.querySelector(".firma-hint").style.display = "";
+  salvaGiornata();
+}
+function caricaFirma(div, dataURL){
+  const canvas = div.querySelector(".c-firma");
+  const img = new Image();
+  img.onload = ()=>{
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.dataset.pieno = "1";
+    div.querySelector(".firma-hint").style.display = "none";
+  };
+  img.src = dataURL;
+}
+
+// ============ ore ============
+function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
+function minutiGiornata(dalle, alle){
+  if(!dalle || !alle) return 0;
+  let m = toMin(alle) - toMin(dalle);
+  if(m < 0) m += 24*60;
+  return m;
+}
+function oreTesto(min){
+  const h = Math.floor(min/60), m = min%60;
+  if(h === 0 && m === 0) return "0 ore";
+  if(m === 0) return h + (h === 1 ? " ora" : " ore");
+  return h + "h " + m + "m";
+}
+function minutiNetti(d){
+  return Math.max(0, minutiGiornata(d.dalle, d.alle) - (+d.pausa || 0));
+}
+function calcolaOre(){
+  const dalle = document.getElementById("dalle").value;
+  const alle = document.getElementById("alle").value;
+  const pausa = +document.getElementById("pausa").value || 0;
+  const viaggio = +document.getElementById("viaggio").value || 0;
+  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa);
+  document.getElementById("totore").textContent = (dalle && alle) ? oreTesto(netto) : "—";
+  const extra = [];
+  if(pausa) extra.push(pausa + "m pausa detratta");
+  if(viaggio) extra.push(viaggio + "m viaggio");
+  document.getElementById("totore-extra").textContent = extra.length ? "  ·  " + extra.join("  ·  ") : "";
+}
+
+// ============ raccolta dati ============
+function dataIt(iso){
+  const v = iso || document.getElementById("data").value;
   if(!v) return "";
   const p = v.split("-");
   return p[2] + "/" + p[1] + "/" + p[0];
+}
+function isoDi(d){
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
 }
 function elencoClienti(){
   const out = [];
@@ -322,80 +752,394 @@ function elencoClienti(){
     const nome = c.querySelector(".c-nome").value.trim();
     const dalle = c.querySelector(".c-dalle").value;
     const alle = c.querySelector(".c-alle").value;
+    const fatturare = c.querySelector(".c-fatturare").value.trim();
+    const tipologia = c.querySelector(".c-tipologia").value;
+    const stato = c.querySelector(".c-stato").value;
+    const firmatario = c.querySelector(".c-firmatario").value.trim();
     const dettagli = c.querySelector(".c-dettagli").value.trim();
-    if(nome || dettagli) out.push({nome: nome || "(senza nome)", dalle, alle, dettagli});
+    const materiali = [];
+    c.querySelectorAll(".mat-riga").forEach(r=>{
+      const a = r.querySelector(".m-art").value.trim();
+      const q = r.querySelector(".m-qta").value.trim();
+      if(a) materiali.push({a, q});
+    });
+    const canvas = c.querySelector(".c-firma");
+    const firma = canvas.dataset.pieno === "1" ? canvas.toDataURL("image/png") : "";
+    if(nome || dettagli || materiali.length || firma){
+      out.push({nome: nome || "(senza nome)", dalle, alle, fatturare, tipologia, stato, firmatario, dettagli, materiali, firma});
+    }
   });
   return out;
+}
+function datiGiornata(){
+  return {
+    tecnici: document.getElementById("tecnici").value.trim(),
+    dalle: document.getElementById("dalle").value,
+    alle: document.getElementById("alle").value,
+    pausa: +document.getElementById("pausa").value || 0,
+    viaggio: +document.getElementById("viaggio").value || 0,
+    clienti: elencoClienti(),
+    spese: elencoSpese(),
+    sicurezza: {
+      ok: document.getElementById("sicurezza-ok").checked,
+      note: document.getElementById("sicurezza-note").value.trim()
+    }
+  };
+}
+
+// ============ spese ============
+function aggiungiRigaSpesa(desc, imp){
+  const riga = document.createElement("div");
+  riga.className = "spesa-riga";
+  riga.innerHTML =
+    '<input type="text" class="s-desc" placeholder="Es. parcheggio, autostrada" autocomplete="off">' +
+    '<input type="number" class="s-imp" placeholder="0,00" min="0" step="0.01" inputmode="decimal">' +
+    '<button type="button" class="s-del" aria-label="Rimuovi spesa" onclick="this.parentElement.remove(); calcolaSpese(); salvaGiornata();">&times;</button>';
+  document.getElementById("spese").appendChild(riga);
+  if(desc) riga.querySelector(".s-desc").value = desc;
+  if(imp) riga.querySelector(".s-imp").value = imp;
+}
+function aggiungiSpesa(){
+  aggiungiRigaSpesa();
+  const r = document.querySelectorAll("#spese .spesa-riga");
+  r[r.length-1].querySelector(".s-desc").focus();
+}
+function elencoSpese(){
+  const out = [];
+  document.querySelectorAll("#spese .spesa-riga").forEach(r=>{
+    const d = r.querySelector(".s-desc").value.trim();
+    const i = parseFloat(r.querySelector(".s-imp").value) || 0;
+    if(d || i) out.push({d: d || "(senza descrizione)", i});
+  });
+  return out;
+}
+function euro(n){ return n.toFixed(2).replace(".", ",") + " €"; }
+function totaleSpese(spese){ return spese.reduce((a,s)=>a+s.i, 0); }
+function calcolaSpese(){
+  document.getElementById("totspese").textContent = euro(totaleSpese(elencoSpese()));
+}
+
+// ============ salvataggio automatico ============
+let timerSalva = null;
+function salvaGiornata(){
+  clearTimeout(timerSalva);
+  timerSalva = setTimeout(()=>{
+    const iso = document.getElementById("data").value;
+    if(!iso) return;
+    const db = leggiDB();
+    const d = datiGiornata();
+    if(d.clienti.length === 0 && d.spese.length === 0){
+      delete db[iso];
+    } else {
+      db[iso] = d;
+    }
+    scriviDB(db);
+    aggiornaClientiNoti();
+    const s = document.getElementById("statosalvataggio");
+    s.textContent = "Salvato ✓";
+    setTimeout(()=>{ s.textContent = ""; }, 1500);
+  }, 600);
+}
+function caricaGiornata(iso){
+  const db = leggiDB();
+  const d = db[iso];
+  document.getElementById("clienti").innerHTML = "";
+  document.getElementById("spese").innerHTML = "";
+  if(d){
+    document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
+    document.getElementById("dalle").value = d.dalle || "08:00";
+    document.getElementById("alle").value = d.alle || "17:00";
+    document.getElementById("pausa").value = d.pausa || "";
+    document.getElementById("viaggio").value = d.viaggio || "";
+    document.getElementById("sicurezza-ok").checked = d.sicurezza ? !!d.sicurezza.ok : true;
+    document.getElementById("sicurezza-note").value = (d.sicurezza && d.sicurezza.note) || "";
+    (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
+    if(d.clienti && d.clienti.length) d.clienti.forEach(c=>aggiungiCliente(c));
+    else aggiungiCliente();
+  } else {
+    document.getElementById("dalle").value = "08:00";
+    document.getElementById("alle").value = "17:00";
+    document.getElementById("pausa").value = "";
+    document.getElementById("viaggio").value = "";
+    document.getElementById("sicurezza-ok").checked = true;
+    document.getElementById("sicurezza-note").value = "";
+    aggiungiCliente();
+  }
+  calcolaOre();
+  calcolaSpese();
+}
+
+document.addEventListener("input", e=>{
+  if(e.target.closest("#vista-giorno")){
+    if(["dalle","alle","pausa","viaggio"].includes(e.target.id)) calcolaOre();
+    if(e.target.closest(".spesa-riga")) calcolaSpese();
+    if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
+    salvaGiornata();
+  }
+});
+document.addEventListener("change", e=>{
+  if(e.target.closest("#vista-giorno") && e.target.id !== "data") salvaGiornata();
+});
+
+// ============ testo materiali ============
+function testoMateriale(m){
+  return m.q ? m.a + " (" + m.q + ")" : m.a;
 }
 function rigaOrarioCliente(c){
   if(c.dalle && c.alle) return " (" + c.dalle + " - " + c.alle + ")";
   if(c.dalle) return " (dalle " + c.dalle + ")";
   return "";
 }
-
 function testoRapporto(){
+  const d = datiGiornata();
   const righe = [];
   righe.push("RAPPORTO DI LAVORO - " + dataIt());
-  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
+  righe.push("Tecnici: " + d.tecnici);
   righe.push("");
   righe.push("LAVORI ESEGUITI:");
-  const cl = elencoClienti();
-  if(cl.length === 0) righe.push("-");
-  cl.forEach((c,i)=>{
+  if(d.clienti.length === 0) righe.push("-");
+  d.clienti.forEach((c,i)=>{
     righe.push("");
-    righe.push((i+1) + ") " + c.nome + rigaOrarioCliente(c));
+    righe.push((i+1) + ") " + c.nome + rigaOrarioCliente(c) + (c.stato === "Da ultimare" ? "  [DA ULTIMARE]" : ""));
+    if(c.tipologia) righe.push("   Tipologia: " + c.tipologia);
+    if(c.fatturare) righe.push("   Fatturare a: " + c.fatturare);
     if(c.dettagli) righe.push("   " + c.dettagli.replaceAll("\n","\n   "));
+    if(c.materiali && c.materiali.length){
+      righe.push("   Materiale:");
+      c.materiali.forEach(m=>righe.push("   - " + testoMateriale(m)));
+    }
+    if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
   righe.push("");
-  righe.push("ORARIO GIORNATA: " + document.getElementById("dalle").value + " - " + document.getElementById("alle").value +
-             " (" + document.getElementById("totore").textContent + ")");
+  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreTesto(minutiNetti(d)) +
+             (d.pausa ? " (pausa " + d.pausa + " min detratta)" : ""));
+  if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
+  if(d.spese.length){
+    righe.push("");
+    righe.push("SPESE / EXTRA:");
+    d.spese.forEach(s=>righe.push("- " + s.d + ": " + euro(s.i)));
+    righe.push("Totale spese: " + euro(totaleSpese(d.spese)));
+  }
   righe.push("");
-  righe.push("MATERIALE UTILIZZATO:");
-  righe.push(document.getElementById("materiale").value.trim() || "-");
+  righe.push("SICUREZZA: " + (d.sicurezza.ok ? "norme rispettate (DPI e procedure)" : "ATTENZIONE — norme non pienamente rispettate"));
+  if(d.sicurezza.note) righe.push("Criticità: " + d.sicurezza.note);
   return righe.join("\n");
 }
 
-// ---- generazione PDF ----
+// ============ settimana ============
+function lunediDi(iso){
+  const d = new Date(iso + "T12:00:00");
+  const diff = (d.getDay() + 6) % 7;
+  d.setDate(d.getDate() - diff);
+  return d;
+}
+function giorniSettimana(iso){
+  const lun = lunediDi(iso);
+  const out = [];
+  for(let i=0;i<7;i++){
+    const g = new Date(lun);
+    g.setDate(lun.getDate()+i);
+    out.push(isoDi(g));
+  }
+  return out;
+}
+function datiSettimana(){
+  const iso = document.getElementById("settdata").value;
+  const db = leggiDB();
+  const giorni = giorniSettimana(iso);
+  let tot = 0, totViaggio = 0;
+  const righe = giorni.map((g,i)=>{
+    const d = db[g];
+    const min = d ? minutiNetti(d) : 0;
+    tot += min;
+    if(d) totViaggio += (+d.viaggio || 0);
+    return {
+      iso: g,
+      nome: GIORNI[i],
+      dati: d || null,
+      minuti: min,
+      clienti: d ? d.clienti.map(c=>c.nome).join(", ") : ""
+    };
+  });
+  return {righe, tot, totViaggio, giorniLavorati: righe.filter(r=>r.dati).length, dal: dataIt(giorni[0]), al: dataIt(giorni[6])};
+}
+function disegnaSettimana(){
+  if(!document.getElementById("settdata").value){
+    document.getElementById("settdata").value = new Date().toISOString().slice(0,10);
+  }
+  const s = datiSettimana();
+  const cont = document.getElementById("settelenco");
+  cont.innerHTML = "";
+  s.righe.forEach(r=>{
+    const div = document.createElement("div");
+    div.className = "giorno";
+    if(r.dati){
+      div.innerHTML =
+        '<span class="gnome">' + r.nome + '</span>' +
+        '<div class="ginfo"><div>' + dataIt(r.iso) + '</div>' +
+        '<div class="gclienti">' + (r.clienti || "—") + '</div></div>' +
+        '<span class="gore">' + oreTesto(r.minuti) + '</span>' +
+        '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiorno(\'' + r.iso + '\')">&times;</button>';
+    } else {
+      div.innerHTML =
+        '<span class="gnome">' + r.nome + '</span>' +
+        '<div class="ginfo gvuoto">' + dataIt(r.iso) + ' — nessun rapporto</div>' +
+        '<span class="gore gvuoto">—</span>';
+    }
+    cont.appendChild(div);
+  });
+  document.getElementById("giornilav").innerHTML = "Giorni lavorati: <b>" + s.giorniLavorati + " su 7</b>" +
+    (s.totViaggio ? " &nbsp;·&nbsp; Viaggio: <b>" + oreTesto(s.totViaggio) + "</b>" : "");
+  document.getElementById("monteore").textContent = oreTesto(s.tot);
+}
+function eliminaGiorno(iso){
+  if(!confirm("Eliminare il rapporto del " + dataIt(iso) + "?")) return;
+  const db = leggiDB();
+  delete db[iso];
+  scriviDB(db);
+  disegnaSettimana();
+  if(document.getElementById("data").value === iso) caricaGiornata(iso);
+}
+function testoSettimana(){
+  const s = datiSettimana();
+  const righe = [];
+  righe.push("REPORT SETTIMANALE " + s.dal + " - " + s.al);
+  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
+  righe.push("");
+  s.righe.forEach(r=>{
+    if(r.dati){
+      righe.push(r.nome + " " + dataIt(r.iso) + "  —  " + oreTesto(r.minuti) +
+                 (r.clienti ? "  —  " + r.clienti : ""));
+    } else {
+      righe.push(r.nome + " " + dataIt(r.iso) + "  —  -");
+    }
+  });
+  righe.push("");
+  righe.push("GIORNI LAVORATI: " + s.giorniLavorati + " su 7");
+  if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
+  righe.push("MONTE ORE (lavoro netto): " + oreTesto(s.tot));
+  return righe.join("\n");
+}
+
+// ============ backup ============
+function esportaBackup(){
+  const db = leggiDB();
+  const blob = new Blob([JSON.stringify(db, null, 2)], {type:"application/json"});
+  const oggi = new Date().toISOString().slice(0,10);
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "backup_rapporti_" + oggi + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function importaBackup(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    try{
+      const nuovo = JSON.parse(reader.result);
+      if(typeof nuovo !== "object" || Array.isArray(nuovo)) throw new Error();
+      const db = leggiDB();
+      let n = 0;
+      Object.keys(nuovo).forEach(k=>{
+        if(/^\d{4}-\d{2}-\d{2}$/.test(k)){ db[k] = nuovo[k]; n++; }
+      });
+      scriviDB(db);
+      aggiornaClientiNoti();
+      disegnaSettimana();
+      caricaGiornata(document.getElementById("data").value);
+      alert("Importati " + n + " giorni dal backup.");
+    }catch(e){
+      alert("File non valido: seleziona un backup esportato da questa app.");
+    }
+    input.value = "";
+  };
+  reader.readAsText(file);
+}
+
+// ============ intestazione e piè di pagina PDF ============
+function intestazionePDF(doc, titolo){
+  const ML = 18, MR = 18, W = 210;
+  const larghezzaLogo = 46, altezzaLogo = 46 / LOGO_RAPPORTO;
+  try{ doc.addImage(LOGO_B64, "JPEG", ML, 11, larghezzaLogo, altezzaLogo); }catch(e){}
+  doc.setTextColor(28,31,35);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(14);
+  doc.text(titolo, W - MR, 22, {align:"right"});
+  doc.setDrawColor(47,161,137);   // verde acqua del logo
+  doc.setLineWidth(1.1);
+  doc.line(ML, 33, W - MR, 33);
+  doc.setDrawColor(140,151,196);  // azzurro lavanda del logo
+  doc.setLineWidth(0.5);
+  doc.line(ML, 34.6, W - MR, 34.6);
+  doc.setTextColor(0,0,0);
+  return 43;
+}
+function aggiungiPiePagina(doc){
+  const totale = doc.getNumberOfPages();
+  for(let i = 1; i <= totale; i++){
+    doc.setPage(i);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(130,135,140);
+    doc.text("COMP.HAS assistance SRL", 18, 289);
+    doc.text("Pagina " + i + " di " + totale, 210 - 18, 289, {align:"right"});
+    doc.setTextColor(0,0,0);
+  }
+}
+
+// ============ PDF giornata ============
 function generaPDF(){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
-  let y = 22;
+  const d = datiGiornata();
+  let y = intestazionePDF(doc, "RAPPORTO DI LAVORO GIORNALIERO");
 
   function serveNuovaPagina(spazio){
     if (y + spazio > 275){ doc.addPage(); y = 22; }
   }
 
-  // intestazione
-  doc.setFillColor(34,38,43);
-  doc.rect(ML, y-8, CW, 12, "F");
-  doc.setTextColor(255,255,255);
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(14);
-  doc.text("RAPPORTO DI LAVORO GIORNALIERO", W/2, y, {align:"center"});
-  doc.setTextColor(0,0,0);
-  y += 14;
-
   doc.setFontSize(11);
   doc.text("Data: " + dataIt(), ML, y);
-  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 60, y);
+  doc.text("Tecnici: " + d.tecnici, ML + 60, y);
   y += 11;
 
-  // clienti
   doc.setFontSize(12);
   doc.text("LAVORI ESEGUITI", ML, y);
   y += 8;
-  const cl = elencoClienti();
-  if(cl.length === 0){
+  if(d.clienti.length === 0){
     doc.setFont("helvetica","normal"); doc.setFontSize(11);
     doc.text("-", ML, y); y += 8;
   }
-  cl.forEach((c,i)=>{
+  d.clienti.forEach((c,i)=>{
     serveNuovaPagina(25);
     doc.setFont("helvetica","bold");
     doc.setFontSize(11.5);
     doc.text((i+1) + ")  " + c.nome + rigaOrarioCliente(c), ML, y);
+    if(c.stato === "Da ultimare"){
+      doc.setTextColor(179,65,58);
+      doc.setFontSize(9.5);
+      doc.text("DA ULTIMARE", W - MR, y, {align:"right"});
+      doc.setTextColor(0,0,0);
+    }
     y += 6;
+    const meta = [];
+    if(c.tipologia) meta.push("Tipologia: " + c.tipologia);
+    if(c.fatturare) meta.push("Fatturare a: " + c.fatturare);
+    if(meta.length){
+      doc.setFont("helvetica","italic");
+      doc.setFontSize(9.5);
+      doc.setTextColor(90,96,104);
+      const righeMeta = doc.splitTextToSize(meta.join("   ·   "), CW - 8);
+      serveNuovaPagina(righeMeta.length * 4.5 + 3);
+      doc.text(righeMeta, ML + 8, y);
+      doc.setTextColor(0,0,0);
+      y += righeMeta.length * 4.5 + 2;
+    }
     if(c.dettagli){
       doc.setFont("helvetica","normal");
       doc.setFontSize(11);
@@ -404,11 +1148,46 @@ function generaPDF(){
       doc.text(righe, ML + 8, y);
       y += righe.length * 5.5 + 3;
     }
+    if(c.materiali && c.materiali.length){
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(10);
+      serveNuovaPagina(8 + c.materiali.length * 5);
+      doc.text("Materiale:", ML + 8, y);
+      y += 5;
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(10.5);
+      c.materiali.forEach(m=>{
+        const righeM = doc.splitTextToSize("- " + testoMateriale(m), CW - 16);
+        serveNuovaPagina(righeM.length * 5 + 2);
+        doc.text(righeM, ML + 12, y);
+        y += righeM.length * 5;
+      });
+      y += 2;
+    }
+    if(c.firma){
+      serveNuovaPagina(28);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(10);
+      doc.text("Firma cliente:", ML + 8, y + 4);
+      try{
+        doc.addImage(c.firma, "PNG", ML + 40, y - 3, 44, 16);
+      }catch(e){}
+      doc.setDrawColor(180,184,189);
+      doc.setLineWidth(0.2);
+      doc.line(ML + 40, y + 13.5, ML + 84, y + 13.5);
+      if(c.firmatario){
+        doc.setFont("helvetica","normal");
+        doc.setFontSize(9);
+        doc.text("Firmatario: " + c.firmatario.toUpperCase(), ML + 40, y + 17.5);
+        y += 24;
+      } else {
+        y += 20;
+      }
+    }
     y += 3;
   });
   y += 4;
 
-  // orario giornata
   serveNuovaPagina(20);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
@@ -416,70 +1195,231 @@ function generaPDF(){
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
-  doc.text("Dalle " + document.getElementById("dalle").value +
-           "  alle " + document.getElementById("alle").value +
-           "   —   Totale: " + document.getElementById("totore").textContent, ML, y);
-  y += 11;
+  let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreTesto(minutiNetti(d));
+  if(d.pausa) rigaOre += "   (pausa " + d.pausa + " min detratta)";
+  doc.text(rigaOre, ML, y);
+  y += 6;
+  if(d.viaggio){
+    doc.text("Ore di viaggio: " + oreTesto(d.viaggio), ML, y);
+    y += 6;
+  }
+  y += 5;
 
-  // materiale
-  serveNuovaPagina(25);
+  if(d.spese.length){
+    serveNuovaPagina(16 + d.spese.length * 6);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(12);
+    doc.text("SPESE / EXTRA", ML, y);
+    y += 7;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
+    d.spese.forEach(s=>{
+      doc.text("- " + s.d, ML + 2, y);
+      doc.text(euro(s.i), W - MR, y, {align:"right"});
+      y += 5.5;
+    });
+    doc.setFont("helvetica","bold");
+    doc.text("Totale spese", ML + 2, y + 1);
+    doc.text(euro(totaleSpese(d.spese)), W - MR, y + 1, {align:"right"});
+    y += 10;
+  }
+
+  serveNuovaPagina(20);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  doc.text("MATERIALE UTILIZZATO", ML, y);
+  doc.text("SICUREZZA", ML, y);
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
-  const mat = document.getElementById("materiale").value.trim() || "-";
-  const matRighe = doc.splitTextToSize(mat, CW);
-  doc.text(matRighe, ML, y);
-  y += matRighe.length * 6 + 5;
+  if(d.sicurezza.ok){
+    doc.text("Norme di sicurezza rispettate (DPI e procedure).", ML, y);
+  } else {
+    doc.setTextColor(179,65,58);
+    doc.text("ATTENZIONE: norme di sicurezza non pienamente rispettate.", ML, y);
+    doc.setTextColor(0,0,0);
+  }
+  y += 6;
+  if(d.sicurezza.note){
+    const righeS = doc.splitTextToSize("Criticità: " + d.sicurezza.note, CW);
+    serveNuovaPagina(righeS.length * 5.5 + 3);
+    doc.text(righeS, ML, y);
+    y += righeS.length * 5.5;
+  }
+  y += 5;
 
-  // firma
   y = Math.max(y + 14, 250);
   if (y > 275){ doc.addPage(); y = 250; }
   doc.setFontSize(10);
-  doc.text("Firma", W - MR - 60, y);
+  doc.text("Firma tecnico", W - MR - 70, y);
   doc.setLineWidth(0.3);
-  doc.line(W - MR - 46, y + 1, W - MR, y + 1);
+  doc.line(W - MR - 42, y + 1, W - MR, y + 1);
 
+  aggiungiPiePagina(doc);
   return doc;
 }
 
-function nomeFile(){
-  return "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf";
+// ============ PDF settimana ============
+function generaPDFSettimana(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
+  const s = datiSettimana();
+  let y = intestazionePDF(doc, "REPORT SETTIMANALE");
+
+  doc.setFontSize(11);
+  doc.text("Settimana: " + s.dal + " - " + s.al, ML, y);
+  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 80, y);
+  y += 11;
+
+  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50, colOre = W - MR - 20;
+  doc.setFillColor(230,231,232);
+  doc.rect(ML, y - 5, CW, 8, "F");
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10);
+  doc.text("Giorno", colGiorno + 2, y);
+  doc.text("Data", colData + 2, y);
+  doc.text("Clienti", colClienti + 2, y);
+  doc.text("Ore", colOre + 2, y);
+  y += 8;
+
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10.5);
+  s.righe.forEach(r=>{
+    const clienti = r.dati ? (r.clienti || "—") : "—";
+    const clientiRighe = doc.splitTextToSize(clienti, colOre - colClienti - 6);
+    const altezza = Math.max(clientiRighe.length * 5, 7);
+    doc.text(r.nome, colGiorno + 2, y);
+    doc.text(dataIt(r.iso), colData + 2, y);
+    doc.text(clientiRighe, colClienti + 2, y);
+    doc.text(r.dati ? oreTesto(r.minuti) : "-", colOre + 2, y);
+    y += altezza + 2.5;
+    doc.setDrawColor(200,205,210);
+    doc.setLineWidth(0.2);
+    doc.line(ML, y - 4.5, W - MR, y - 4.5);
+  });
+
+  y += 4;
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(10.5);
+  doc.text("Giorni lavorati: " + s.giorniLavorati + " su 7" +
+           (s.totViaggio ? "        Ore di viaggio: " + oreTesto(s.totViaggio) : ""), ML, y);
+  y += 8;
+  doc.setFillColor(47,161,137);
+  doc.rect(ML, y - 5.5, CW, 10, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  doc.text("MONTE ORE", ML + 3, y + 1);
+  doc.text(oreTesto(s.tot), W - MR - 3, y + 1, {align:"right"});
+  doc.setTextColor(0,0,0);
+
+  doc.setFontSize(10);
+  doc.setFont("helvetica","normal");
+  doc.text("Firma tecnico", W - MR - 70, 262);
+  doc.setLineWidth(0.3);
+  doc.line(W - MR - 42, 263, W - MR, 263);
+
+  aggiungiPiePagina(doc);
+  return doc;
 }
 
-// ---- invio PDF ----
-async function inviaPDF(){
-  const doc = generaPDF();
-  const blob = doc.output("blob");
-  const file = new File([blob], nomeFile(), {type:"application/pdf"});
-  const oggetto = "Rapporto di lavoro " + dataIt();
-
-  if (navigator.canShare && navigator.canShare({files:[file]})){
-    try{
-      await navigator.share({
-        files:[file],
-        title: oggetto,
-        text: "In allegato il rapporto di lavoro del " + dataIt() + ". Da inviare a: " + DESTINATARIO
-      });
-      return;
-    }catch(e){
-      if (e && e.name === "AbortError") return;
+// ============ invio con stato di caricamento ============
+async function condividi(btn, generatore, nome, oggetto, testoAccomp){
+  const etichetta = btn.querySelector("span");
+  const originale = etichetta.textContent;
+  btn.disabled = true;
+  etichetta.textContent = "Generazione…";
+  try{
+    const doc = generatore();
+    const blob = doc.output("blob");
+    const file = new File([blob], nome, {type:"application/pdf"});
+    if (navigator.canShare && navigator.canShare({files:[file]})){
+      try{
+        await navigator.share({files:[file], title: oggetto, text: testoAccomp});
+        return;
+      }catch(e){
+        if (e && e.name === "AbortError") return;
+      }
     }
+    doc.save(nome);
+    alert("PDF scaricato: allegalo a una mail per " + DESTINATARIO + ".");
+  } finally {
+    btn.disabled = false;
+    etichetta.textContent = originale;
   }
-  doc.save(nomeFile());
-  document.getElementById("avviso").textContent =
-    "PDF scaricato: allegalo a una mail per " + DESTINATARIO + ".";
 }
-
-// ---- invio testo ----
+function inviaPDF(){
+  condividi(document.getElementById("btn-pdf-giorno"), generaPDF,
+    "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf",
+    "Rapporto di lavoro " + dataIt(),
+    "In allegato il rapporto di lavoro del " + dataIt() + ". Da inviare a: " + DESTINATARIO);
+}
+function inviaPDFSettimana(){
+  const s = datiSettimana();
+  condividi(document.getElementById("btn-pdf-sett"), generaPDFSettimana,
+    "Report_settimana_" + s.dal.replaceAll("/","-") + ".pdf",
+    "Report settimanale " + s.dal + " - " + s.al,
+    "In allegato il report settimanale " + s.dal + " - " + s.al + ". Da inviare a: " + DESTINATARIO);
+}
 function inviaTesto(){
-  const oggetto = "Rapporto di lavoro " + dataIt();
   window.location.href = "mailto:" + DESTINATARIO +
-    "?subject=" + encodeURIComponent(oggetto) +
+    "?subject=" + encodeURIComponent("Rapporto di lavoro " + dataIt()) +
     "&body=" + encodeURIComponent(testoRapporto());
 }
+function inviaTestoSettimana(){
+  const s = datiSettimana();
+  window.location.href = "mailto:" + DESTINATARIO +
+    "?subject=" + encodeURIComponent("Report settimanale " + s.dal + " - " + s.al) +
+    "&body=" + encodeURIComponent(testoSettimana());
+}
+
+// ============ invio al server aziendale (VPN) ============
+async function inviaAlServerVPN(btn){
+  const nomeFile = "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf";
+  const testoOriginale = btn.textContent;
+  btn.textContent = "Invio…";
+  btn.disabled = true;
+
+  // timeout di 10 secondi: se la VPN non risponde non restiamo appesi
+  const controllo = new AbortController();
+  const timer = setTimeout(()=>controllo.abort(), 10000);
+
+  try{
+    const doc = generaPDF();
+    const blob = doc.output("blob");
+    const formData = new FormData();
+    formData.append("pdfFile", blob, nomeFile);
+    formData.append("data", document.getElementById("data").value);
+    formData.append("tecnici", document.getElementById("tecnici").value.trim());
+
+    const risposta = await fetch(SERVER_VPN, {
+      method: "POST",
+      body: formData,
+      signal: controllo.signal
+    });
+    if(!risposta.ok) throw new Error("Il server ha risposto con codice " + risposta.status);
+    alert("Rapporto inviato al server aziendale.");
+  }catch(errore){
+    console.error(errore);
+    if(errore.name === "AbortError"){
+      alert("Il server non risponde. Controlla che la VPN sia attiva.");
+    } else {
+      alert("Impossibile contattare il server. Controlla la VPN e, se l'app è aperta in HTTPS, ricorda che il server deve avere HTTPS.");
+    }
+  }finally{
+    clearTimeout(timer);
+    btn.textContent = testoOriginale;
+    btn.disabled = false;
+  }
+}
+
+// ============ avvio ============
+document.getElementById("logoimg").src = LOGO_B64;
+const oggi = new Date().toISOString().slice(0,10);
+document.getElementById("data").value = oggi;
+document.getElementById("settdata").value = oggi;
+aggiornaClientiNoti();
+caricaGiornata(oggi);
 </script>
 </body>
 </html>
