@@ -85,7 +85,6 @@
   .m-sett{--colore-filo:var(--terra2)}
   .m-backup{--colore-filo:var(--rame)}
   .m-spese{--colore-filo:var(--rame)}
-  .m-sicurezza{--colore-filo:#B3413A}
 
   .titolo{
     font-family:'Chakra Petch',sans-serif;
@@ -391,16 +390,6 @@
       <div id="spese"></div>
       <button type="button" class="mat-add" onclick="aggiungiSpesa()">+ Aggiungi spesa</button>
       <div class="totore">Totale spese: <b id="totspese">0,00 €</b></div>
-    </div>
-
-    <div class="modulo m-sicurezza">
-      <div class="titolo">Sicurezza <span class="tag">DPI</span></div>
-      <label class="check" style="text-transform:none;letter-spacing:0;font-size:15px">
-        <input type="checkbox" id="sicurezza-ok" checked>
-        <span>Norme di sicurezza rispettate (DPI e procedure)</span>
-      </label>
-      <label for="sicurezza-note" style="margin-top:8px">Criticità riscontrate (facoltativo)</label>
-      <textarea id="sicurezza-note" placeholder="Es. quadro non a norma, messa a terra assente…" style="min-height:60px"></textarea>
     </div>
 
   </div>
@@ -773,11 +762,7 @@ function datiGiornata(){
     pausa: +document.getElementById("pausa").value || 0,
     viaggio: +document.getElementById("viaggio").value || 0,
     clienti: elencoClienti(),
-    spese: elencoSpese(),
-    sicurezza: {
-      ok: document.getElementById("sicurezza-ok").checked,
-      note: document.getElementById("sicurezza-note").value.trim()
-    }
+    spese: elencoSpese()
   };
 }
 
@@ -845,8 +830,6 @@ function caricaGiornata(iso){
     document.getElementById("alle").value = d.alle || "17:00";
     document.getElementById("pausa").value = d.pausa || "";
     document.getElementById("viaggio").value = d.viaggio || "";
-    document.getElementById("sicurezza-ok").checked = d.sicurezza ? !!d.sicurezza.ok : true;
-    document.getElementById("sicurezza-note").value = (d.sicurezza && d.sicurezza.note) || "";
     (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
     if(d.clienti && d.clienti.length) d.clienti.forEach(c=>aggiungiCliente(c));
     else aggiungiCliente();
@@ -855,8 +838,6 @@ function caricaGiornata(iso){
     document.getElementById("alle").value = "17:00";
     document.getElementById("pausa").value = "";
     document.getElementById("viaggio").value = "";
-    document.getElementById("sicurezza-ok").checked = true;
-    document.getElementById("sicurezza-note").value = "";
     aggiungiCliente();
   }
   calcolaOre();
@@ -914,9 +895,6 @@ function testoRapporto(){
     d.spese.forEach(s=>righe.push("- " + s.d + ": " + euro(s.i)));
     righe.push("Totale spese: " + euro(totaleSpese(d.spese)));
   }
-  righe.push("");
-  righe.push("SICUREZZA: " + (d.sicurezza.ok ? "norme rispettate (DPI e procedure)" : "ATTENZIONE — norme non pienamente rispettate"));
-  if(d.sicurezza.note) righe.push("Criticità: " + d.sicurezza.note);
   return righe.join("\n");
 }
 
@@ -1218,36 +1196,6 @@ function generaPDF(){
     y += 10;
   }
 
-  serveNuovaPagina(20);
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(12);
-  doc.text("SICUREZZA", ML, y);
-  y += 7;
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(11);
-  if(d.sicurezza.ok){
-    doc.text("Norme di sicurezza rispettate (DPI e procedure).", ML, y);
-  } else {
-    doc.setTextColor(179,65,58);
-    doc.text("ATTENZIONE: norme di sicurezza non pienamente rispettate.", ML, y);
-    doc.setTextColor(0,0,0);
-  }
-  y += 6;
-  if(d.sicurezza.note){
-    const righeS = doc.splitTextToSize("Criticità: " + d.sicurezza.note, CW);
-    serveNuovaPagina(righeS.length * 5.5 + 3);
-    doc.text(righeS, ML, y);
-    y += righeS.length * 5.5;
-  }
-  y += 5;
-
-  y = Math.max(y + 14, 250);
-  if (y > 275){ doc.addPage(); y = 250; }
-  doc.setFontSize(10);
-  doc.text("Firma tecnico", W - MR - 70, y);
-  doc.setLineWidth(0.3);
-  doc.line(W - MR - 42, y + 1, W - MR, y + 1);
-
   aggiungiPiePagina(doc);
   return doc;
 }
@@ -1307,12 +1255,6 @@ function generaPDFSettimana(){
   doc.text(oreTesto(s.tot), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
 
-  doc.setFontSize(10);
-  doc.setFont("helvetica","normal");
-  doc.text("Firma tecnico", W - MR - 70, 262);
-  doc.setLineWidth(0.3);
-  doc.line(W - MR - 42, 263, W - MR, 263);
-
   aggiungiPiePagina(doc);
   return doc;
 }
@@ -1329,7 +1271,7 @@ async function condividi(btn, generatore, nome, oggetto, testoAccomp){
     const file = new File([blob], nome, {type:"application/pdf"});
     if (navigator.canShare && navigator.canShare({files:[file]})){
       try{
-        await navigator.share({files:[file], title: oggetto});
+        await navigator.share({files:[file]});
         return;
       }catch(e){
         if (e && e.name === "AbortError") return;
