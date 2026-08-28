@@ -193,7 +193,7 @@
   .oranow{display:flex;gap:6px}
   .oranow input{flex:1;min-width:0}
   .btn-ora{
-    flex:none;width:52px;
+    flex:none;width:58px;
     border:1.5px solid var(--terra1);
     background:transparent;color:var(--terra1);
     border-radius:7px;
@@ -378,20 +378,29 @@
       <div class="due">
         <div>
           <label for="dalle">Dalle</label>
-          <input type="time" id="dalle" value="08:00">
+          <div class="oranow">
+            <input type="time" id="dalle" value="08:00">
+            <button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button>
+          </div>
         </div>
         <div>
           <label for="alle">Alle</label>
-          <input type="time" id="alle" value="17:00">
+          <div class="oranow">
+            <input type="time" id="alle" value="17:00">
+            <button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button>
+          </div>
         </div>
       </div>
       <div class="due" style="margin-top:10px">
         <div>
           <label for="pausa">Pausa (min)</label>
-          <input type="number" id="pausa" min="0" step="5" placeholder="0" inputmode="numeric">
+          <div class="oranow">
+            <input type="number" id="pausa" min="0" step="5" placeholder="0" inputmode="numeric">
+            <button type="button" class="btn-ora" id="btn-pausa" onclick="pausaTimer(this)">Inizio</button>
+          </div>
         </div>
         <div>
-          <label for="viaggio">Viaggio (min)</label>
+          <label for="viaggio">Viaggio (min, auto)</label>
           <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
         </div>
       </div>
@@ -650,7 +659,42 @@ function oraAdesso(btn){
   const input = btn.parentElement.querySelector("input");
   const d = new Date();
   input.value = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
-  salvaGiornata();
+  input.dispatchEvent(new Event("input", {bubbles:true}));
+}
+
+// timer della pausa: un tocco all'inizio, uno alla fine
+let pausaInizio = null;
+function pausaTimer(btn){
+  if(pausaInizio === null){
+    pausaInizio = Date.now();
+    btn.textContent = "Stop";
+  } else {
+    const minuti = Math.max(1, Math.round((Date.now() - pausaInizio) / 60000));
+    pausaInizio = null;
+    btn.textContent = "Inizio";
+    const campo = document.getElementById("pausa");
+    campo.value = (+campo.value || 0) + minuti;
+    campo.dispatchEvent(new Event("input", {bubbles:true}));
+  }
+}
+
+// il "resto" della giornata (fuori dai clienti e dalla pausa) diventa viaggio
+function minutiClienti(){
+  let t = 0;
+  document.querySelectorAll("#clienti .cliente").forEach(cl=>{
+    t += minutiGiornata(cl.querySelector(".c-dalle").value, cl.querySelector(".c-alle").value);
+  });
+  return t;
+}
+function ricalcolaViaggio(){
+  const span = minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value);
+  const pausa = +document.getElementById("pausa").value || 0;
+  const lavoro = minutiClienti();
+  if(lavoro > 0){
+    const resto = Math.max(0, span - pausa - lavoro);
+    document.getElementById("viaggio").value = resto || "";
+  }
+  calcolaOre();
 }
 
 // ============ firma touch ============
@@ -727,14 +771,14 @@ function oreTesto(min){
   return h + "h " + m + "m";
 }
 function minutiNetti(d){
-  return Math.max(0, minutiGiornata(d.dalle, d.alle) - (+d.pausa || 0));
+  return Math.max(0, minutiGiornata(d.dalle, d.alle) - (+d.pausa || 0) - (+d.viaggio || 0));
 }
 function calcolaOre(){
   const dalle = document.getElementById("dalle").value;
   const alle = document.getElementById("alle").value;
   const pausa = +document.getElementById("pausa").value || 0;
   const viaggio = +document.getElementById("viaggio").value || 0;
-  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa);
+  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa - viaggio);
   document.getElementById("totore").textContent = (dalle && alle) ? oreTesto(netto) : "—";
   const extra = [];
   if(pausa) extra.push(pausa + "m pausa");
@@ -869,7 +913,9 @@ function caricaGiornata(iso){
 
 document.addEventListener("input", e=>{
   if(e.target.closest("#vista-giorno")){
-    if(["dalle","alle","pausa","viaggio"].includes(e.target.id)) calcolaOre();
+    if(e.target.classList.contains("c-dalle") || e.target.classList.contains("c-alle") ||
+       ["dalle","alle","pausa"].includes(e.target.id)) ricalcolaViaggio();
+    if(e.target.id === "viaggio") calcolaOre();
     if(e.target.closest(".spesa-riga")) calcolaSpese();
     if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
     salvaGiornata();
