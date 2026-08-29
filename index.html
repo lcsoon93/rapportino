@@ -189,6 +189,25 @@
     background:transparent;color:#9AA1A9;
     font-size:22px;line-height:1;cursor:pointer;
   }
+  .cliente.urgente{border-color:#B3413A;border-width:2px;background:#FDF6F5}
+  .cliente .badge{
+    display:none;flex:none;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:10px;letter-spacing:.8px;
+    background:#B3413A;color:#fff;
+    border-radius:3px;padding:3px 6px;
+  }
+  .cliente.urgente .badge{display:block}
+  .cliente button.riprendi{
+    flex:none;
+    border:1.5px solid var(--fase);
+    background:transparent;color:var(--fase);
+    border-radius:6px;padding:6px 10px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:11px;
+    letter-spacing:.5px;text-transform:uppercase;
+    cursor:pointer;
+  }
   .cliente .orari{display:flex;gap:10px;margin-bottom:10px}
   .oranow{display:flex;gap:6px}
   .oranow input{flex:1;min-width:0}
@@ -371,6 +390,7 @@
       <div class="titolo">Clienti e lavori <span class="tag">L1</span></div>
       <div id="clienti"></div>
       <button type="button" class="aggiungi" onclick="aggiungiCliente()">+ Aggiungi cliente</button>
+      <button type="button" class="aggiungi" style="border-color:#B3413A;color:#B3413A;margin-top:8px" onclick="aggiungiUrgenza()">+ Intervento urgente</button>
     </div>
 
     <div class="modulo m-orario">
@@ -567,7 +587,9 @@ function aggiungiCliente(dati){
   div.innerHTML =
     '<div class="testata">' +
       '<span class="num"></span>' +
+      '<span class="badge">Urgenza</span>' +
       '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off" list="clienti-noti">' +
+      '<button type="button" class="riprendi" title="Riprendi questo lavoro dopo un\'interruzione" onclick="riprendiLavoro(this)">Riprendi</button>' +
       '<button type="button" class="togli" aria-label="Rimuovi cliente" onclick="togliCliente(this)">&times;</button>' +
     '</div>' +
     '<div class="orari">' +
@@ -603,7 +625,8 @@ function aggiungiCliente(dati){
       '<button type="button" class="firma-clear" onclick="pulisciFirma(this)">Cancella</button>' +
     '</div>' +
     '<label>Nome firmatario (stampatello)</label>' +
-    '<input type="text" class="c-firmatario" placeholder="Nome e cognome di chi firma" autocomplete="off">';
+    '<input type="text" class="c-firmatario" placeholder="Nome e cognome di chi firma" autocomplete="off">' +
+    '<input type="hidden" class="c-urgente" value="">';
   document.getElementById("clienti").appendChild(div);
 
   if(dati){
@@ -615,6 +638,10 @@ function aggiungiCliente(dati){
     div.querySelector(".c-stato").value = dati.stato || "Completato";
     div.querySelector(".c-dettagli").value = dati.dettagli || "";
     div.querySelector(".c-firmatario").value = dati.firmatario || "";
+    if(dati.urgente){
+      div.querySelector(".c-urgente").value = "1";
+      div.classList.add("urgente");
+    }
     // materiali: nuovo formato a righe, o vecchio formato testo unico
     if(dati.materiali && dati.materiali.length){
       dati.materiali.forEach(m=>aggiungiRigaMateriale(div, m.a, m.q));
@@ -626,6 +653,37 @@ function aggiungiCliente(dati){
   preparaFirma(div);
   rinumera();
 }
+function aggiungiUrgenza(){
+  aggiungiCliente({tipologia:"Guasto / straordinaria", urgente:true});
+  const schede = document.querySelectorAll("#clienti .cliente");
+  const nuova = schede[schede.length-1];
+  // l'urgenza parte adesso
+  nuova.querySelector(".c-dalle").value = oraCorrente();
+  nuova.querySelector(".c-nome").focus();
+  salvaGiornata();
+}
+
+// riapre lo stesso lavoro dopo un'interruzione: nuova fascia oraria, stesso cliente
+function riprendiLavoro(btn){
+  const scheda = btn.closest(".cliente");
+  const precedente = {
+    nome: scheda.querySelector(".c-nome").value.trim(),
+    fatturare: scheda.querySelector(".c-fatturare").value.trim(),
+    tipologia: scheda.querySelector(".c-tipologia").value,
+    urgente: scheda.querySelector(".c-urgente").value === "1"
+  };
+  if(!scheda.querySelector(".c-alle").value){
+    scheda.querySelector(".c-alle").value = oraCorrente();
+  }
+  aggiungiCliente(precedente);
+  const schede = document.querySelectorAll("#clienti .cliente");
+  const nuova = schede[schede.length-1];
+  nuova.querySelector(".c-dalle").value = oraCorrente();
+  nuova.querySelector(".c-dettagli").focus();
+  ricalcolaViaggio();
+  salvaGiornata();
+}
+
 function togliCliente(btn){
   btn.closest(".cliente").remove();
   rinumera();
@@ -655,10 +713,13 @@ function aggiungiMateriale(btn){
 }
 
 // ============ ora corrente nei campi cliente ============
+function oraCorrente(){
+  const d = new Date();
+  return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+}
 function oraAdesso(btn){
   const input = btn.parentElement.querySelector("input");
-  const d = new Date();
-  input.value = String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
+  input.value = oraCorrente();
   input.dispatchEvent(new Event("input", {bubbles:true}));
 }
 
@@ -806,6 +867,7 @@ function elencoClienti(){
     const tipologia = c.querySelector(".c-tipologia").value;
     const stato = c.querySelector(".c-stato").value;
     const firmatario = c.querySelector(".c-firmatario").value.trim();
+    const urgente = c.querySelector(".c-urgente").value === "1";
     const dettagli = c.querySelector(".c-dettagli").value.trim();
     const materiali = [];
     c.querySelectorAll(".mat-riga").forEach(r=>{
@@ -816,7 +878,7 @@ function elencoClienti(){
     const canvas = c.querySelector(".c-firma");
     const firma = canvas.dataset.pieno === "1" ? canvas.toDataURL("image/png") : "";
     if(nome || dettagli || materiali.length || firma){
-      out.push({nome: nome || "(senza nome)", dalle, alle, fatturare, tipologia, stato, firmatario, dettagli, materiali, firma});
+      out.push({nome: nome || "(senza nome)", dalle, alle, fatturare, tipologia, stato, firmatario, dettagli, materiali, firma, urgente});
     }
   });
   return out;
@@ -944,7 +1006,8 @@ function testoRapporto(){
   if(d.clienti.length === 0) righe.push("-");
   d.clienti.forEach((c,i)=>{
     righe.push("");
-    righe.push((i+1) + ") " + c.nome + rigaOrarioCliente(c) + (c.stato === "Da ultimare" ? "  [DA ULTIMARE]" : ""));
+    righe.push((i+1) + ") " + (c.urgente ? "[URGENZA] " : "") + c.nome + rigaOrarioCliente(c) +
+               (c.stato === "Da ultimare" ? "  [DA ULTIMARE]" : ""));
     if(c.tipologia) righe.push("   Tipologia: " + c.tipologia);
     if(c.fatturare) righe.push("   Fatturare a: " + c.fatturare);
     if(c.dettagli) righe.push("   " + c.dettagli.replaceAll("\n","\n   "));
@@ -1160,7 +1223,7 @@ function generaPDF(){
     serveNuovaPagina(25);
     doc.setFont("helvetica","bold");
     doc.setFontSize(11.5);
-    doc.text((i+1) + ")  " + c.nome + rigaOrarioCliente(c), ML, y);
+    doc.text((i+1) + ")  " + (c.urgente ? "URGENZA - " : "") + c.nome + rigaOrarioCliente(c), ML, y);
     if(c.stato === "Da ultimare"){
       doc.setTextColor(179,65,58);
       doc.setFontSize(9.5);
