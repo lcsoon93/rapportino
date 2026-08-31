@@ -293,6 +293,13 @@
     border-radius:7px;padding:12px;cursor:pointer;
   }
 
+  .straord{
+    display:inline-block;margin-left:8px;
+    background:#B3413A;color:#fff;
+    border-radius:4px;padding:2px 7px;
+    font-family:'Chakra Petch',sans-serif;
+    font-weight:700;font-size:12.5px;letter-spacing:.5px;
+  }
   .totore{margin-top:10px;font-size:14.5px;color:#5A6068}
   .totore b{color:var(--testo);font-size:17px;font-family:'Chakra Petch',sans-serif}
   .salvato{font-size:13px;color:#3E9B3E;font-weight:600;margin-top:8px;min-height:18px}
@@ -516,6 +523,8 @@ const LOGO_B64 = "data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBAU
 const LOGO_RAPPORTO = 2.3237; // larghezza/altezza
 const DESTINATARIO = "lcsoon93@gmail.com";
 const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
+const ORARIO_ORDINARIO = 8 * 60;   // minuti di lavoro ordinario al giorno
+function eccedenza(min){ return Math.max(0, min - ORARIO_ORDINARIO); }
 
 // ============ archivio ============
 let memoriaProvvisoria = {};
@@ -908,7 +917,10 @@ function calcolaOre(){
   const extra = [];
   if(pausa) extra.push(pausa + "m pausa");
   if(viaggio) extra.push(viaggio + "m viaggio");
-  document.getElementById("totore-extra").textContent = extra.length ? "  ·  " + extra.join("  ·  ") : "";
+  const ecc = eccedenza(netto);
+  document.getElementById("totore-extra").innerHTML =
+    (extra.length ? "  ·  " + extra.join("  ·  ") : "") +
+    (ecc ? '<span class="straord">+' + oreTesto(ecc) + ' straord.</span>' : "");
 }
 
 // ============ raccolta dati ============
@@ -1097,6 +1109,8 @@ function testoRapporto(){
   righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreTesto(minutiNetti(d)) +
              (d.pausa ? " (pausa " + d.pausa + " min)" : ""));
   if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
+  const eccG = eccedenza(minutiNetti(d));
+  if(eccG) righe.push("STRAORDINARIO: +" + oreTesto(eccG) + " oltre le 8 ore");
   if(d.spese.length){
     righe.push("");
     righe.push("SPESE / EXTRA:");
@@ -1127,21 +1141,24 @@ function datiSettimana(){
   const iso = document.getElementById("settdata").value;
   const db = leggiDB();
   const giorni = giorniSettimana(iso);
-  let tot = 0, totViaggio = 0;
+  let tot = 0, totViaggio = 0, totEcc = 0;
   const righe = giorni.map((g,i)=>{
     const d = db[g];
     const min = d ? minutiNetti(d) : 0;
     tot += min;
+    const ecc = d ? eccedenza(min) : 0;
+    totEcc += ecc;
     if(d) totViaggio += (+d.viaggio || 0);
     return {
       iso: g,
       nome: GIORNI[i],
       dati: d || null,
       minuti: min,
+      eccedenza: ecc,
       clienti: d ? d.clienti.map(c=>c.nome).join(", ") : ""
     };
   });
-  return {righe, tot, totViaggio, giorniLavorati: righe.filter(r=>r.dati).length, dal: dataIt(giorni[0]), al: dataIt(giorni[6])};
+  return {righe, tot, totViaggio, totEcc, giorniLavorati: righe.filter(r=>r.dati).length, dal: dataIt(giorni[0]), al: dataIt(giorni[6])};
 }
 function disegnaSettimana(){
   if(!document.getElementById("settdata").value){
@@ -1158,7 +1175,8 @@ function disegnaSettimana(){
         '<span class="gnome">' + r.nome + '</span>' +
         '<div class="ginfo"><div>' + dataIt(r.iso) + '</div>' +
         '<div class="gclienti">' + (r.clienti || "—") + '</div></div>' +
-        '<span class="gore">' + oreTesto(r.minuti) + '</span>' +
+        '<span class="gore"' + (r.eccedenza ? ' style="color:#B3413A"' : '') + '>' +
+          oreTesto(r.minuti) + (r.eccedenza ? ' *' : '') + '</span>' +
         '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiorno(\'' + r.iso + '\')">&times;</button>';
     } else {
       div.innerHTML =
@@ -1169,7 +1187,8 @@ function disegnaSettimana(){
     cont.appendChild(div);
   });
   document.getElementById("giornilav").innerHTML = "Giorni lavorati: <b>" + s.giorniLavorati + " su 7</b>" +
-    (s.totViaggio ? " &nbsp;·&nbsp; Viaggio: <b>" + oreTesto(s.totViaggio) + "</b>" : "");
+    (s.totViaggio ? " &nbsp;·&nbsp; Viaggio: <b>" + oreTesto(s.totViaggio) + "</b>" : "") +
+    (s.totEcc ? '<span class="straord">+' + oreTesto(s.totEcc) + ' straord.</span>' : "");
   document.getElementById("monteore").textContent = oreTesto(s.tot);
 }
 function eliminaGiorno(iso){
@@ -1189,6 +1208,7 @@ function testoSettimana(){
   s.righe.forEach(r=>{
     if(r.dati){
       righe.push(r.nome + " " + dataIt(r.iso) + "  —  " + oreTesto(r.minuti) +
+                 (r.eccedenza ? " (+" + oreTesto(r.eccedenza) + " str.)" : "") +
                  (r.clienti ? "  —  " + r.clienti : ""));
     } else {
       righe.push(r.nome + " " + dataIt(r.iso) + "  —  -");
@@ -1198,6 +1218,7 @@ function testoSettimana(){
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati + " su 7");
   if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
   righe.push("MONTE ORE (lavoro netto): " + oreTesto(s.tot));
+  if(s.totEcc) righe.push("DI CUI STRAORDINARIE: " + oreTesto(s.totEcc));
   return righe.join("\n");
 }
 
@@ -1398,6 +1419,22 @@ function generaPDF(){
     doc.text("Ore di viaggio: " + oreTesto(d.viaggio), ML, y);
     y += 6;
   }
+  const eccG = eccedenza(minutiNetti(d));
+  if(eccG){
+    serveNuovaPagina(14);
+    y += 2;
+    doc.setFillColor(253,240,239);
+    doc.rect(ML - 2, y - 5, CW + 4, 9, "F");
+    doc.setFillColor(179,65,58);
+    doc.rect(ML - 2, y - 5, 2.5, 9, "F");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(11);
+    doc.setTextColor(179,65,58);
+    doc.text("STRAORDINARIO: +" + oreTesto(eccG) + "  (oltre le 8 ore)", ML + 3, y + 1);
+    doc.setTextColor(0,0,0);
+    doc.setFont("helvetica","normal");
+    y += 12;
+  }
   y += 5;
 
   if(d.spese.length){
@@ -1436,7 +1473,7 @@ function generaPDFSettimana(){
   doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 80, y);
   y += 11;
 
-  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50, colOre = W - MR - 20;
+  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50, colOre = W - MR - 42, colStr = W - MR - 20;
   doc.setFillColor(230,231,232);
   doc.rect(ML, y - 5, CW, 8, "F");
   doc.setFont("helvetica","bold");
@@ -1445,18 +1482,28 @@ function generaPDFSettimana(){
   doc.text("Data", colData + 2, y);
   doc.text("Clienti", colClienti + 2, y);
   doc.text("Ore", colOre + 2, y);
+  doc.text("Straord.", colStr + 2, y);
   y += 8;
 
   doc.setFont("helvetica","normal");
   doc.setFontSize(10.5);
   s.righe.forEach(r=>{
     const clienti = r.dati ? (r.clienti || "—") : "—";
-    const clientiRighe = doc.splitTextToSize(clienti, colOre - colClienti - 6);
+    const clientiRighe = doc.splitTextToSize(clienti, colOre - colClienti - 4);
     const altezza = Math.max(clientiRighe.length * 5, 7);
     doc.text(r.nome, colGiorno + 2, y);
     doc.text(dataIt(r.iso), colData + 2, y);
     doc.text(clientiRighe, colClienti + 2, y);
     doc.text(r.dati ? oreTesto(r.minuti) : "-", colOre + 2, y);
+    if(r.eccedenza){
+      doc.setTextColor(179,65,58);
+      doc.setFont("helvetica","bold");
+      doc.text("+" + oreTesto(r.eccedenza), colStr + 2, y);
+      doc.setFont("helvetica","normal");
+      doc.setTextColor(0,0,0);
+    } else {
+      doc.text("-", colStr + 2, y);
+    }
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
@@ -1477,6 +1524,17 @@ function generaPDFSettimana(){
   doc.text("MONTE ORE", ML + 3, y + 1);
   doc.text(oreTesto(s.tot), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
+  if(s.totEcc){
+    y += 12;
+    doc.setFillColor(179,65,58);
+    doc.rect(ML, y - 5.5, CW, 10, "F");
+    doc.setTextColor(255,255,255);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(12);
+    doc.text("DI CUI STRAORDINARIE", ML + 3, y + 1);
+    doc.text(oreTesto(s.totEcc), W - MR - 3, y + 1, {align:"right"});
+    doc.setTextColor(0,0,0);
+  }
 
   aggiungiPiePagina(doc);
   return doc;
