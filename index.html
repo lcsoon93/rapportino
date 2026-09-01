@@ -293,7 +293,6 @@
     border-radius:7px;padding:12px;cursor:pointer;
   }
 
-  .straord{color:#5A6068;font-weight:600}
   .saldo{
     display:flex;justify-content:space-between;
     font-size:14px;color:#5A6068;
@@ -435,11 +434,16 @@
           </div>
         </div>
       </div>
-      <div style="margin-top:10px">
-        <label for="viaggio">Viaggio (min, auto)</label>
-        <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
+      <div class="due" style="margin-top:10px">
+        <div>
+          <label for="pausa">Pausa (min)</label>
+          <input type="number" id="pausa" min="0" step="5" value="60" inputmode="numeric">
+        </div>
+        <div>
+          <label for="viaggio">Viaggio (min, auto)</label>
+          <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
+        </div>
       </div>
-      <input type="hidden" id="pausa" value="60">
       <div class="totore">Totale lavoro: <b id="totore">9 ore</b><span id="totore-extra" style="font-size:13px"></span></div>
     </div>
 
@@ -462,7 +466,7 @@
       <div id="settelenco" style="margin-top:14px"></div>
       <div class="totore" id="giornilav" style="margin-top:12px"></div>
       <div class="monte">
-        <span class="mlabel">Saldo</span>
+        <span class="mlabel">Totale</span>
         <span class="mvalore" id="monteore">0</span>
       </div>
     </div>
@@ -516,16 +520,13 @@ const LOGO_RAPPORTO = 2.3237; // larghezza/altezza
 const DESTINATARIO = "lcsoon93@gmail.com";
 const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 const ORARIO_ORDINARIO = 8 * 60;   // minuti di lavoro ordinario al giorno
-const PAUSA_STANDARD = 60;         // pausa detratta in automatico
-const SOGLIA_PAUSA = 6 * 60;       // sotto le 6 ore di presenza la pausa non si detrae
-// pausa da togliere in base alla durata della giornata
-function pausaPer(span){ return span < SOGLIA_PAUSA ? 0 : PAUSA_STANDARD; }
+const PAUSA_STANDARD = 60;         // pausa preimpostata, modificabile a mano
 function eccedenza(min){ return Math.max(0, min - ORARIO_ORDINARIO); }
 // "8h + 30m" quando si supera l'orario ordinario, altrimenti solo il totale
 function oreConStraordinario(min){
   const ecc = eccedenza(min);
   if(!ecc) return oreTesto(min);
-  return oreTesto(ORARIO_ORDINARIO) + " + " + oreTesto(ecc);
+  return oreTesto(ORARIO_ORDINARIO) + " +" + oreTesto(ecc);
 }
 // saldo con segno: +1h 30m oppure -45m
 function saldoTesto(min){
@@ -813,9 +814,10 @@ function minutiClienti(){
 }
 function ricalcolaViaggio(){
   const span = minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value);
+  const pausa = +document.getElementById("pausa").value || 0;
   const lavoro = minutiClienti();
   if(lavoro > 0){
-    const resto = Math.max(0, span - pausaPer(span) - lavoro);
+    const resto = Math.max(0, span - pausa - lavoro);
     document.getElementById("viaggio").value = resto || "";
   }
   calcolaOre();
@@ -895,9 +897,7 @@ function oreTesto(min){
   return h + "h " + m + "m";
 }
 function pausaDi(d){
-  // rapporti vecchi: valore salvato; nuovi: automatico secondo la durata
-  if(d.pausaAuto === false) return (+d.pausa || 0);
-  return pausaPer(minutiGiornata(d.dalle, d.alle));
+  return (d.pausa === undefined || d.pausa === null || d.pausa === "") ? PAUSA_STANDARD : (+d.pausa || 0);
 }
 function minutiNetti(d){
   return Math.max(0, minutiGiornata(d.dalle, d.alle) - pausaDi(d) - (+d.viaggio || 0));
@@ -906,8 +906,8 @@ function calcolaOre(){
   const dalle = document.getElementById("dalle").value;
   const alle = document.getElementById("alle").value;
   const viaggio = +document.getElementById("viaggio").value || 0;
-  const span = minutiGiornata(dalle, alle);
-  const netto = Math.max(0, span - pausaPer(span) - viaggio);
+  const pausa = +document.getElementById("pausa").value || 0;
+  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa - viaggio);
   document.getElementById("totore").textContent = (dalle && alle) ? oreConStraordinario(netto) : "—";
   document.getElementById("totore-extra").textContent = viaggio ? "  ·  " + viaggio + "m viaggio" : "";
 }
@@ -958,8 +958,7 @@ function datiGiornata(){
     tecnici: document.getElementById("tecnici").value.trim(),
     dalle: document.getElementById("dalle").value,
     alle: document.getElementById("alle").value,
-    pausa: pausaPer(minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value)),
-    pausaAuto: true,
+    pausa: +document.getElementById("pausa").value || 0,
     viaggio: +document.getElementById("viaggio").value || 0,
     clienti: elencoClienti(),
     spese: elencoSpese()
@@ -1028,6 +1027,7 @@ function caricaGiornata(iso){
     document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
     document.getElementById("dalle").value = d.dalle || "08:00";
     document.getElementById("alle").value = d.alle || "17:00";
+    document.getElementById("pausa").value = (d.pausa === undefined ? PAUSA_STANDARD : d.pausa);
     document.getElementById("viaggio").value = d.viaggio || "";
     (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
     if(d.clienti && d.clienti.length) d.clienti.forEach(c=>aggiungiCliente(c));
@@ -1035,6 +1035,7 @@ function caricaGiornata(iso){
   } else {
     document.getElementById("dalle").value = "08:00";
     document.getElementById("alle").value = "17:00";
+    document.getElementById("pausa").value = PAUSA_STANDARD;
     document.getElementById("viaggio").value = "";
     aggiungiCliente();
   }
@@ -1045,7 +1046,7 @@ function caricaGiornata(iso){
 document.addEventListener("input", e=>{
   if(e.target.closest("#vista-giorno")){
     if(e.target.classList.contains("f-dalle") || e.target.classList.contains("f-alle") ||
-       ["dalle","alle"].includes(e.target.id)) ricalcolaViaggio();
+       ["dalle","alle","pausa"].includes(e.target.id)) ricalcolaViaggio();
     if(e.target.id === "viaggio") calcolaOre();
     if(e.target.closest(".spesa-riga")) calcolaSpese();
     if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
@@ -1174,12 +1175,10 @@ function disegnaSettimana(){
   });
   const saldo = s.tot - s.atteso;
   document.getElementById("giornilav").innerHTML =
-    '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + ' su 7</b></div>' +
-    '<div class="saldo"><span>Ore previste (' + s.giorniLavorati + ' x 8h)</span><b>' + oreTesto(s.atteso) + '</b></div>' +
+    '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>' +
     '<div class="saldo"><span>Ore lavorate</span><b>' + oreTesto(s.tot) + '</b></div>' +
-    (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '') +
-    '<div class="saldo"><span>Saldo settimana</span><b>' + saldoTesto(saldo) + '</b></div>';
-  document.getElementById("monteore").textContent = saldoTesto(saldo);
+    (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '');
+  document.getElementById("monteore").textContent = oreTesto(s.tot) + (saldo ? "  " + saldoTesto(saldo) : "");
 }
 function eliminaGiorno(iso){
   if(!confirm("Eliminare il rapporto del " + dataIt(iso) + "?")) return;
@@ -1203,12 +1202,12 @@ function testoSettimana(){
       righe.push(r.nome + " " + dataIt(r.iso) + "  —  -");
     }
   });
+  const saldoS = s.tot - s.atteso;
   righe.push("");
-  righe.push("GIORNI LAVORATI: " + s.giorniLavorati + " su 7");
-  righe.push("ORE PREVISTE: " + oreTesto(s.atteso) + " (" + s.giorniLavorati + " x 8h)");
+  righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
   righe.push("ORE LAVORATE: " + oreTesto(s.tot));
   if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
-  righe.push("SALDO SETTIMANA: " + saldoTesto(s.tot - s.atteso));
+  righe.push("TOTALE: " + oreTesto(s.tot) + (saldoS ? "  " + saldoTesto(saldoS) : ""));
   return righe.join("\n");
 }
 
@@ -1455,7 +1454,7 @@ function generaPDFSettimana(){
   doc.text("Data", colData + 2, y);
   doc.text("Clienti", colClienti + 2, y);
   doc.text("Ore", colOre + 2, y);
-  doc.text("Straord.", colStr + 2, y);
+  doc.text("+/-", colStr + 2, y);
   y += 8;
 
   doc.setFont("helvetica","normal");
@@ -1468,7 +1467,7 @@ function generaPDFSettimana(){
     doc.text(dataIt(r.iso), colData + 2, y);
     doc.text(clientiRighe, colClienti + 2, y);
     doc.text(r.dati ? oreTesto(r.minuti) : "-", colOre + 2, y);
-    doc.text(r.eccedenza ? "+" + oreTesto(r.eccedenza) : "-", colStr + 2, y);
+    doc.text(r.dati ? saldoTesto(r.minuti - ORARIO_ORDINARIO) : "-", colStr + 2, y);
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
@@ -1479,8 +1478,7 @@ function generaPDFSettimana(){
   doc.setFont("helvetica","normal");
   doc.setFontSize(10.5);
   const voci = [
-    ["Giorni lavorati", s.giorniLavorati + " su 7"],
-    ["Ore previste (" + s.giorniLavorati + " x 8h)", oreTesto(s.atteso)],
+    ["Giorni lavorati", String(s.giorniLavorati)],
     ["Ore lavorate", oreTesto(s.tot)]
   ];
   if(s.totViaggio) voci.push(["Ore di viaggio", oreTesto(s.totViaggio)]);
@@ -1495,8 +1493,9 @@ function generaPDFSettimana(){
   doc.setTextColor(255,255,255);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  doc.text("SALDO SETTIMANA", ML + 3, y + 1);
-  doc.text(saldoTesto(s.tot - s.atteso), W - MR - 3, y + 1, {align:"right"});
+  const saldoSet = s.tot - s.atteso;
+  doc.text("TOTALE", ML + 3, y + 1);
+  doc.text(oreTesto(s.tot) + (saldoSet ? "   " + saldoTesto(saldoSet) : ""), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
 
   aggiungiPiePagina(doc);
