@@ -435,19 +435,11 @@
           </div>
         </div>
       </div>
-      <div class="due" style="margin-top:10px">
-        <div>
-          <label for="pausa">Pausa (min)</label>
-          <div class="oranow">
-            <input type="number" id="pausa" min="0" step="5" placeholder="0" inputmode="numeric">
-            <button type="button" class="btn-ora" id="btn-pausa" onclick="pausaTimer(this)">Inizio</button>
-          </div>
-        </div>
-        <div>
-          <label for="viaggio">Viaggio (min, auto)</label>
-          <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
-        </div>
+      <div style="margin-top:10px">
+        <label for="viaggio">Viaggio (min, auto)</label>
+        <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
       </div>
+      <input type="hidden" id="pausa" value="60">
       <div class="totore">Totale lavoro: <b id="totore">9 ore</b><span id="totore-extra" style="font-size:13px"></span></div>
     </div>
 
@@ -524,6 +516,10 @@ const LOGO_RAPPORTO = 2.3237; // larghezza/altezza
 const DESTINATARIO = "lcsoon93@gmail.com";
 const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 const ORARIO_ORDINARIO = 8 * 60;   // minuti di lavoro ordinario al giorno
+const PAUSA_STANDARD = 60;         // pausa detratta in automatico
+const SOGLIA_PAUSA = 6 * 60;       // sotto le 6 ore di presenza la pausa non si detrae
+// pausa da togliere in base alla durata della giornata
+function pausaPer(span){ return span < SOGLIA_PAUSA ? 0 : PAUSA_STANDARD; }
 function eccedenza(min){ return Math.max(0, min - ORARIO_ORDINARIO); }
 // "8h + 30m" quando si supera l'orario ordinario, altrimenti solo il totale
 function oreConStraordinario(min){
@@ -806,22 +802,6 @@ function oraAdesso(btn){
   input.dispatchEvent(new Event("input", {bubbles:true}));
 }
 
-// timer della pausa: un tocco all'inizio, uno alla fine
-let pausaInizio = null;
-function pausaTimer(btn){
-  if(pausaInizio === null){
-    pausaInizio = Date.now();
-    btn.textContent = "Stop";
-  } else {
-    const minuti = Math.max(1, Math.round((Date.now() - pausaInizio) / 60000));
-    pausaInizio = null;
-    btn.textContent = "Inizio";
-    const campo = document.getElementById("pausa");
-    campo.value = (+campo.value || 0) + minuti;
-    campo.dispatchEvent(new Event("input", {bubbles:true}));
-  }
-}
-
 // il "resto" della giornata (fuori dai clienti e dalla pausa) diventa viaggio
 function minutiClienti(){
   let t = 0;
@@ -833,10 +813,9 @@ function minutiClienti(){
 }
 function ricalcolaViaggio(){
   const span = minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value);
-  const pausa = +document.getElementById("pausa").value || 0;
   const lavoro = minutiClienti();
   if(lavoro > 0){
-    const resto = Math.max(0, span - pausa - lavoro);
+    const resto = Math.max(0, span - pausaPer(span) - lavoro);
     document.getElementById("viaggio").value = resto || "";
   }
   calcolaOre();
@@ -915,20 +894,22 @@ function oreTesto(min){
   if(m === 0) return h + (h === 1 ? " ora" : " ore");
   return h + "h " + m + "m";
 }
+function pausaDi(d){
+  // rapporti vecchi: valore salvato; nuovi: automatico secondo la durata
+  if(d.pausaAuto === false) return (+d.pausa || 0);
+  return pausaPer(minutiGiornata(d.dalle, d.alle));
+}
 function minutiNetti(d){
-  return Math.max(0, minutiGiornata(d.dalle, d.alle) - (+d.pausa || 0) - (+d.viaggio || 0));
+  return Math.max(0, minutiGiornata(d.dalle, d.alle) - pausaDi(d) - (+d.viaggio || 0));
 }
 function calcolaOre(){
   const dalle = document.getElementById("dalle").value;
   const alle = document.getElementById("alle").value;
-  const pausa = +document.getElementById("pausa").value || 0;
   const viaggio = +document.getElementById("viaggio").value || 0;
-  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa - viaggio);
+  const span = minutiGiornata(dalle, alle);
+  const netto = Math.max(0, span - pausaPer(span) - viaggio);
   document.getElementById("totore").textContent = (dalle && alle) ? oreConStraordinario(netto) : "—";
-  const extra = [];
-  if(pausa) extra.push(pausa + "m pausa");
-  if(viaggio) extra.push(viaggio + "m viaggio");
-  document.getElementById("totore-extra").textContent = extra.length ? "  ·  " + extra.join("  ·  ") : "";
+  document.getElementById("totore-extra").textContent = viaggio ? "  ·  " + viaggio + "m viaggio" : "";
 }
 
 // ============ raccolta dati ============
@@ -977,7 +958,8 @@ function datiGiornata(){
     tecnici: document.getElementById("tecnici").value.trim(),
     dalle: document.getElementById("dalle").value,
     alle: document.getElementById("alle").value,
-    pausa: +document.getElementById("pausa").value || 0,
+    pausa: pausaPer(minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value)),
+    pausaAuto: true,
     viaggio: +document.getElementById("viaggio").value || 0,
     clienti: elencoClienti(),
     spese: elencoSpese()
@@ -1046,7 +1028,6 @@ function caricaGiornata(iso){
     document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
     document.getElementById("dalle").value = d.dalle || "08:00";
     document.getElementById("alle").value = d.alle || "17:00";
-    document.getElementById("pausa").value = d.pausa || "";
     document.getElementById("viaggio").value = d.viaggio || "";
     (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
     if(d.clienti && d.clienti.length) d.clienti.forEach(c=>aggiungiCliente(c));
@@ -1054,7 +1035,6 @@ function caricaGiornata(iso){
   } else {
     document.getElementById("dalle").value = "08:00";
     document.getElementById("alle").value = "17:00";
-    document.getElementById("pausa").value = "";
     document.getElementById("viaggio").value = "";
     aggiungiCliente();
   }
@@ -1065,7 +1045,7 @@ function caricaGiornata(iso){
 document.addEventListener("input", e=>{
   if(e.target.closest("#vista-giorno")){
     if(e.target.classList.contains("f-dalle") || e.target.classList.contains("f-alle") ||
-       ["dalle","alle","pausa"].includes(e.target.id)) ricalcolaViaggio();
+       ["dalle","alle"].includes(e.target.id)) ricalcolaViaggio();
     if(e.target.id === "viaggio") calcolaOre();
     if(e.target.closest(".spesa-riga")) calcolaSpese();
     if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
@@ -1115,7 +1095,7 @@ function testoRapporto(){
   });
   righe.push("");
   righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreConStraordinario(minutiNetti(d)) +
-             (d.pausa ? " (pausa " + d.pausa + " min)" : ""));
+             "");
   if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
 
   if(d.spese.length){
@@ -1422,7 +1402,6 @@ function generaPDF(){
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
   let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreConStraordinario(minutiNetti(d));
-  if(d.pausa) rigaOre += "   (pausa " + d.pausa + " min)";
   doc.text(rigaOre, ML, y);
   y += 6;
   if(d.viaggio){
