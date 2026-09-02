@@ -445,6 +445,10 @@
         </div>
       </div>
       <div class="totore">Totale lavoro: <b id="totore">9 ore</b><span id="totore-extra" style="font-size:13px"></span></div>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:8px">
+        <input type="checkbox" id="stampa-extra">
+        <span>Stampa le ore in più nel PDF</span>
+      </label>
     </div>
 
     <div class="modulo m-spese">
@@ -469,6 +473,10 @@
         <span class="mlabel">Totale</span>
         <span class="mvalore" id="monteore">0</span>
       </div>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
+        <input type="checkbox" id="stampa-extra-sett">
+        <span>Stampa le ore in più nel PDF</span>
+      </label>
     </div>
 
     <div class="modulo m-backup">
@@ -543,6 +551,21 @@ function leggiDB(){
 function scriviDB(db){
   try{ localStorage.setItem("rapporti", JSON.stringify(db)); }
   catch(e){ memoriaProvvisoria = db; }
+}
+
+// ============ preferenza stampa ore in piu' ============
+function leggiPrefExtra(){
+  try{ return localStorage.getItem("stampaExtra") === "1"; }catch(e){ return false; }
+}
+function salvaPrefExtra(v){
+  try{ localStorage.setItem("stampaExtra", v ? "1" : "0"); }catch(e){}
+}
+function stampaExtraAttivo(){
+  return document.getElementById("stampa-extra").checked;
+}
+// il PDF usa questa: mostra "8 ore +1h 30m" oppure solo il totale
+function oreStampa(min){
+  return stampaExtraAttivo() ? oreConStraordinario(min) : oreTesto(min);
 }
 
 // ============ viste ============
@@ -1059,6 +1082,13 @@ document.addEventListener("input", e=>{
   }
 });
 document.addEventListener("change", e=>{
+  if(e.target.id === "stampa-extra" || e.target.id === "stampa-extra-sett"){
+    const v = e.target.checked;
+    document.getElementById("stampa-extra").checked = v;
+    document.getElementById("stampa-extra-sett").checked = v;
+    salvaPrefExtra(v);
+    return;
+  }
   if(e.target.closest("#vista-giorno") && e.target.id !== "data") salvaGiornata();
 });
 
@@ -1101,7 +1131,7 @@ function testoRapporto(){
     if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
   righe.push("");
-  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreConStraordinario(minutiNetti(d)) +
+  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreStampa(minutiNetti(d)) +
              "");
   if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
 
@@ -1207,7 +1237,8 @@ function testoSettimana(){
   righe.push("");
   s.righe.forEach(r=>{
     if(r.dati){
-      righe.push(r.nome + " " + dataIt(r.iso) + "  —  " + oreConStraordinario(r.minuti) +
+      righe.push(r.nome + " " + dataIt(r.iso) + "  —  " +
+                 (document.getElementById("stampa-extra-sett").checked ? oreConStraordinario(r.minuti) : oreTesto(r.minuti)) +
                  (r.clienti ? "  —  " + r.clienti : ""));
     } else {
       righe.push(r.nome + " " + dataIt(r.iso) + "  —  -");
@@ -1218,7 +1249,8 @@ function testoSettimana(){
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
   righe.push("ORE LAVORATE: " + oreTesto(s.tot));
   if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
-  righe.push("TOTALE: " + oreTesto(s.tot) + (saldoS ? "  " + saldoTesto(saldoS) : ""));
+  righe.push("TOTALE: " + oreTesto(s.tot) +
+             (document.getElementById("stampa-extra-sett").checked && saldoS ? "  " + saldoTesto(saldoS) : ""));
   return righe.join("\n");
 }
 
@@ -1420,7 +1452,7 @@ function generaPDF(){
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
-  let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreConStraordinario(minutiNetti(d));
+  let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreStampa(minutiNetti(d));
   doc.text(rigaOre, ML, y);
   y += 6;
   if(d.viaggio){
@@ -1482,6 +1514,7 @@ function generaPDFSettimana(){
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
   const s = datiSettimana();
+  const mostraExtra = document.getElementById("stampa-extra-sett").checked;
   let y = intestazionePDF(doc, "REPORT SETTIMANALE");
 
   doc.setFontSize(11);
@@ -1498,7 +1531,7 @@ function generaPDFSettimana(){
   doc.text("Data", colData + 2, y);
   doc.text("Clienti", colClienti + 2, y);
   doc.text("Ore", colOre + 2, y);
-  doc.text("+/-", colStr + 2, y);
+  if(mostraExtra) doc.text("+/-", colStr + 2, y);
   y += 8;
 
   doc.setFont("helvetica","normal");
@@ -1511,7 +1544,7 @@ function generaPDFSettimana(){
     doc.text(dataIt(r.iso), colData + 2, y);
     doc.text(clientiRighe, colClienti + 2, y);
     doc.text(r.dati ? oreTesto(r.minuti) : "-", colOre + 2, y);
-    doc.text(r.dati ? saldoTesto(r.minuti - ORARIO_ORDINARIO) : "-", colStr + 2, y);
+    if(mostraExtra) doc.text(r.dati ? saldoTesto(r.minuti - ORARIO_ORDINARIO) : "-", colStr + 2, y);
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
@@ -1539,7 +1572,7 @@ function generaPDFSettimana(){
   doc.setFontSize(12);
   const saldoSet = s.tot - s.atteso;
   doc.text("TOTALE", ML + 3, y + 1);
-  doc.text(oreTesto(s.tot) + (saldoSet ? "   " + saldoTesto(saldoSet) : ""), W - MR - 3, y + 1, {align:"right"});
+  doc.text(oreTesto(s.tot) + (mostraExtra && saldoSet ? "   " + saldoTesto(saldoSet) : ""), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
 
   aggiungiPiePagina(doc);
@@ -1601,6 +1634,9 @@ document.getElementById("logoimg").src = LOGO_B64;
 const oggi = new Date().toISOString().slice(0,10);
 document.getElementById("data").value = oggi;
 document.getElementById("settdata").value = oggi;
+const prefExtra = leggiPrefExtra();
+document.getElementById("stampa-extra").checked = prefExtra;
+document.getElementById("stampa-extra-sett").checked = prefExtra;
 aggiornaClientiNoti();
 caricaGiornata(oggi);
 </script>
