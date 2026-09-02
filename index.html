@@ -645,6 +645,8 @@ function aggiungiCliente(dati){
     '<button type="button" class="fasce-add" onclick="aggiungiFascia(this)">+ Fascia oraria</button>' +
     '<label>Fatturare a / Rif. commessa (facoltativo)</label>' +
     '<input type="text" class="c-fatturare" placeholder="Es. Studio Amm. Rossi — commessa 26-114" autocomplete="off">' +
+    '<label>Importo da fatturare (facoltativo)</label>' +
+    '<input type="number" class="c-importo" placeholder="0,00" min="0" step="0.01" inputmode="decimal">' +
     '<div class="orari" style="margin-top:10px">' +
       '<div><label>Tipologia</label><select class="c-tipologia">' +
         '<option value="">—</option>' +
@@ -679,6 +681,7 @@ function aggiungiCliente(dati){
     div.querySelector(".c-indirizzo").value = dati.indirizzo || "";
 
     div.querySelector(".c-fatturare").value = dati.fatturare || "";
+    div.querySelector(".c-importo").value = dati.importo || "";
     div.querySelector(".c-tipologia").value = dati.tipologia || "";
     div.querySelector(".c-stato").value = dati.stato || "Completato";
     div.querySelector(".c-dettagli").value = dati.dettagli || "";
@@ -934,6 +937,7 @@ function elencoClienti(){
       if(d || a) fasce.push({d, a});
     });
     const fatturare = c.querySelector(".c-fatturare").value.trim();
+    const importo = parseFloat(c.querySelector(".c-importo").value) || 0;
     const tipologia = c.querySelector(".c-tipologia").value;
     const stato = c.querySelector(".c-stato").value;
     const firmatario = c.querySelector(".c-firmatario").value.trim();
@@ -947,8 +951,8 @@ function elencoClienti(){
     });
     const canvas = c.querySelector(".c-firma");
     const firma = canvas.dataset.pieno === "1" ? canvas.toDataURL("image/png") : "";
-    if(nome || indirizzo || fasce.length || dettagli || materiali.length || firma){
-      out.push({nome: nome || "(senza nome)", indirizzo, fasce, fatturare, tipologia, stato, firmatario, dettagli, materiali, firma, urgente});
+    if(nome || indirizzo || fasce.length || dettagli || materiali.length || firma || importo){
+      out.push({nome: nome || "(senza nome)", indirizzo, fasce, fatturare, importo, tipologia, stato, firmatario, dettagli, materiali, firma, urgente});
     }
   });
   return out;
@@ -993,6 +997,7 @@ function elencoSpese(){
 }
 function euro(n){ return n.toFixed(2).replace(".", ",") + " €"; }
 function totaleSpese(spese){ return spese.reduce((a,s)=>a+s.i, 0); }
+function totaleImporti(clienti){ return clienti.reduce((a,c)=>a + (+c.importo || 0), 0); }
 function calcolaSpese(){
   document.getElementById("totspese").textContent = euro(totaleSpese(elencoSpese()));
 }
@@ -1092,6 +1097,7 @@ function testoRapporto(){
       righe.push("   Materiale:");
       c.materiali.forEach(m=>righe.push("   - " + testoMateriale(m)));
     }
+    if(c.importo) righe.push("   Da fatturare: " + euro(c.importo));
     if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
   righe.push("");
@@ -1099,6 +1105,11 @@ function testoRapporto(){
              "");
   if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
 
+  const totImp = totaleImporti(d.clienti);
+  if(totImp){
+    righe.push("");
+    righe.push("TOTALE DA FATTURARE: " + euro(totImp));
+  }
   if(d.spese.length){
     righe.push("");
     righe.push("SPESE / EXTRA:");
@@ -1369,6 +1380,15 @@ function generaPDF(){
       });
       y += 2;
     }
+    if(c.importo){
+      serveNuovaPagina(10);
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(10.5);
+      doc.text("Da fatturare:", ML + 8, y);
+      doc.text(euro(c.importo), ML + 40, y);
+      doc.setFont("helvetica","normal");
+      y += 7;
+    }
     if(c.firma){
       serveNuovaPagina(28);
       doc.setFont("helvetica","bold");
@@ -1408,6 +1428,30 @@ function generaPDF(){
     y += 6;
   }
   y += 5;
+
+  const totImporti = totaleImporti(d.clienti);
+  if(totImporti){
+    serveNuovaPagina(18);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(12);
+    doc.text("DA FATTURARE", ML, y);
+    y += 7;
+    doc.setFontSize(11);
+    d.clienti.forEach(c=>{
+      if(!c.importo) return;
+      doc.setFont("helvetica","normal");
+      const nomeRighe = doc.splitTextToSize("- " + c.nome, CW - 30);
+      serveNuovaPagina(nomeRighe.length * 5.5 + 2);
+      doc.text(nomeRighe, ML + 2, y);
+      doc.text(euro(c.importo), W - MR, y, {align:"right"});
+      y += nomeRighe.length * 5.5;
+    });
+    doc.setFont("helvetica","bold");
+    doc.text("Totale", ML + 2, y + 1);
+    doc.text(euro(totImporti), W - MR, y + 1, {align:"right"});
+    doc.setFont("helvetica","normal");
+    y += 11;
+  }
 
   if(d.spese.length){
     serveNuovaPagina(16 + d.spese.length * 6);
