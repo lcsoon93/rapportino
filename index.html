@@ -1131,9 +1131,7 @@ function testoRapporto(){
     if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
   righe.push("");
-  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle + " — Lavoro: " + oreStampa(minutiNetti(d)) +
-             "");
-  if(d.viaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(d.viaggio));
+  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle);
 
   const totImp = totaleImporti(d.clienti);
   if(totImp){
@@ -1452,13 +1450,8 @@ function generaPDF(){
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
-  let rigaOre = "Dalle " + d.dalle + "  alle " + d.alle + "   —   Lavoro: " + oreStampa(minutiNetti(d));
-  doc.text(rigaOre, ML, y);
+  doc.text("Dalle " + d.dalle + "  alle " + d.alle, ML, y);
   y += 6;
-  if(d.viaggio){
-    doc.text("Ore di viaggio: " + oreTesto(d.viaggio), ML, y);
-    y += 6;
-  }
   y += 5;
 
   const totImporti = totaleImporti(d.clienti);
