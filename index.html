@@ -384,6 +384,7 @@
   <div class="tabs">
     <button type="button" class="tab attivo" id="tab-giorno" onclick="mostraVista('giorno')">Giornata</button>
     <button type="button" class="tab" id="tab-sett" onclick="mostraVista('sett')">Settimana</button>
+    <button type="button" class="tab" id="tab-mese" onclick="mostraVista('mese')">Mese</button>
   </div>
 
   <!-- ================= VISTA GIORNATA ================= -->
@@ -493,6 +494,26 @@
 
   </div>
 
+  <div id="vista-mese" class="nascosto">
+
+    <div class="modulo m-sett">
+      <div class="titolo">Report mensile <span class="tag">MES</span></div>
+      <label for="mesedata">Mese</label>
+      <input type="month" id="mesedata" onchange="disegnaMese()">
+      <div id="meseelenco" style="margin-top:14px"></div>
+      <div id="mesericap" style="margin-top:12px"></div>
+      <div class="monte">
+        <span class="mlabel">Totale</span>
+        <span class="mvalore" id="monteoremese">0</span>
+      </div>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
+        <input type="checkbox" id="stampa-extra-mese">
+        <span>Stampa le ore in più nel PDF</span>
+      </label>
+    </div>
+
+  </div>
+
 </div>
 
 <!-- barra giornata -->
@@ -517,6 +538,17 @@
     <button type="button" class="secondario" onclick="inviaTestoSettimana()">Testo</button>
   </div>
   <div class="avviso">Report con giorni, ore e monte ore della settimana scelta.</div>
+</div>
+
+<div class="barra nascosto" id="barra-mese">
+  <div class="dentro">
+    <button type="button" class="invia" id="btn-pdf-mese" onclick="inviaPDFMese()">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8z"/></svg>
+      <span>PDF mese</span>
+    </button>
+    <button type="button" class="secondario" onclick="inviaTestoMese()">Testo</button>
+  </div>
+  <div class="avviso">Riepilogo del mese con giorni, ore e totale.</div>
 </div>
 
 <datalist id="clienti-noti"></datalist>
@@ -570,14 +602,13 @@ function oreStampa(min){
 
 // ============ viste ============
 function mostraVista(v){
-  const giorno = v === "giorno";
-  document.getElementById("vista-giorno").classList.toggle("nascosto", !giorno);
-  document.getElementById("vista-sett").classList.toggle("nascosto", giorno);
-  document.getElementById("barra-giorno").classList.toggle("nascosto", !giorno);
-  document.getElementById("barra-sett").classList.toggle("nascosto", giorno);
-  document.getElementById("tab-giorno").classList.toggle("attivo", giorno);
-  document.getElementById("tab-sett").classList.toggle("attivo", !giorno);
-  if(!giorno) disegnaSettimana();
+  ["giorno","sett","mese"].forEach(k=>{
+    document.getElementById("vista-" + k).classList.toggle("nascosto", k !== v);
+    document.getElementById("barra-" + k).classList.toggle("nascosto", k !== v);
+    document.getElementById("tab-" + k).classList.toggle("attivo", k === v);
+  });
+  if(v === "sett") disegnaSettimana();
+  if(v === "mese") disegnaMese();
 }
 
 // ============ navigazione data ============
@@ -1082,10 +1113,11 @@ document.addEventListener("input", e=>{
   }
 });
 document.addEventListener("change", e=>{
-  if(e.target.id === "stampa-extra" || e.target.id === "stampa-extra-sett"){
+  if(["stampa-extra","stampa-extra-sett","stampa-extra-mese"].includes(e.target.id)){
     const v = e.target.checked;
-    document.getElementById("stampa-extra").checked = v;
-    document.getElementById("stampa-extra-sett").checked = v;
+    ["stampa-extra","stampa-extra-sett","stampa-extra-mese"].forEach(id=>{
+      document.getElementById(id).checked = v;
+    });
     salvaPrefExtra(v);
     return;
   }
@@ -1249,6 +1281,109 @@ function testoSettimana(){
   if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
   righe.push("TOTALE: " + oreTesto(s.tot) +
              (document.getElementById("stampa-extra-sett").checked && saldoS ? "  " + saldoTesto(saldoS) : ""));
+  return righe.join("\n");
+}
+
+// ============ mese ============
+function giorniMese(iso){           // iso = "2026-08"
+  const [a, m] = iso.split("-").map(Number);
+  const ultimo = new Date(a, m, 0).getDate();
+  const out = [];
+  for(let g = 1; g <= ultimo; g++){
+    out.push(iso + "-" + String(g).padStart(2,"0"));
+  }
+  return out;
+}
+function datiMese(){
+  const iso = document.getElementById("mesedata").value;
+  const db = leggiDB();
+  const giorni = giorniMese(iso);
+  let tot = 0, totViaggio = 0, totSpese = 0, totImporti = 0;
+  const righe = giorni.map(g=>{
+    const d = db[g];
+    if(!d) return null;
+    const min = minutiNetti(d);
+    tot += min;
+    totViaggio += (+d.viaggio || 0);
+    totSpese += totaleSpese(d.spese || []);
+    totImporti += totaleImporti(d.clienti || []);
+    const data = new Date(g + "T12:00:00");
+    return {
+      iso: g,
+      nome: GIORNI[(data.getDay() + 6) % 7],
+      minuti: min,
+      clienti: d.clienti.map(c=>c.nome).join(", ")
+    };
+  }).filter(Boolean);
+  const [aa, mm] = iso.split("-");
+  const nomiMesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
+                    "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+  return {
+    righe, tot, totViaggio, totSpese, totImporti,
+    giorniLavorati: righe.length,
+    atteso: righe.length * ORARIO_ORDINARIO,
+    etichetta: nomiMesi[+mm - 1] + " " + aa
+  };
+}
+function disegnaMese(){
+  if(!document.getElementById("mesedata").value){
+    document.getElementById("mesedata").value = new Date().toISOString().slice(0,7);
+  }
+  const s = datiMese();
+  const cont = document.getElementById("meseelenco");
+  cont.innerHTML = "";
+  if(s.righe.length === 0){
+    cont.innerHTML = '<div class="giorno"><div class="ginfo gvuoto">Nessun rapporto in questo mese</div></div>';
+  }
+  s.righe.forEach(r=>{
+    const div = document.createElement("div");
+    div.className = "giorno";
+    div.innerHTML =
+      '<span class="gnome">' + r.nome + '</span>' +
+      '<div class="ginfo"><div>' + dataIt(r.iso) + '</div>' +
+      '<div class="gclienti">' + (r.clienti || "—") + '</div></div>' +
+      '<span class="gore">' + oreConStraordinario(r.minuti) + '</span>' +
+      '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
+    cont.appendChild(div);
+  });
+  const saldo = s.tot - s.atteso;
+  document.getElementById("mesericap").innerHTML =
+    '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>' +
+    '<div class="saldo"><span>Ore lavorate</span><b>' + oreTesto(s.tot) + '</b></div>' +
+    (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '') +
+    (s.totSpese ? '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>' : '') +
+    (s.totImporti ? '<div class="saldo"><span>Da fatturare</span><b>' + euro(s.totImporti) + '</b></div>' : '');
+  document.getElementById("monteoremese").textContent =
+    oreTesto(s.tot) + (saldo ? "  " + saldoTesto(saldo) : "");
+}
+function eliminaGiornoMese(iso){
+  if(!confirm("Eliminare il rapporto del " + dataIt(iso) + "?")) return;
+  const db = leggiDB();
+  delete db[iso];
+  scriviDB(db);
+  disegnaMese();
+  if(document.getElementById("data").value === iso) caricaGiornata(iso);
+}
+function testoMese(){
+  const s = datiMese();
+  const extra = document.getElementById("stampa-extra-mese").checked;
+  const righe = [];
+  righe.push("REPORT MENSILE - " + s.etichetta.toUpperCase());
+  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
+  righe.push("");
+  s.righe.forEach(r=>{
+    righe.push(r.nome + " " + dataIt(r.iso) + "  —  " +
+               (extra ? oreConStraordinario(r.minuti) : oreTesto(r.minuti)) +
+               (r.clienti ? "  —  " + r.clienti : ""));
+  });
+  const saldo = s.tot - s.atteso;
+  righe.push("");
+  righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
+  righe.push("ORE LAVORATE: " + oreTesto(s.tot));
+  if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
+  if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
+  if(s.totImporti) righe.push("DA FATTURARE: " + euro(s.totImporti));
+  righe.push("TOTALE: " + oreTesto(s.tot) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
   return righe.join("\n");
 }
 
@@ -1572,6 +1707,90 @@ function generaPDFSettimana(){
   return doc;
 }
 
+// ============ PDF mese ============
+function generaPDFMese(){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
+  const s = datiMese();
+  const mostraExtra = document.getElementById("stampa-extra-mese").checked;
+  let y = intestazionePDF(doc, "REPORT MENSILE");
+
+  doc.setFontSize(11);
+  doc.text("Mese: " + s.etichetta, ML, y);
+  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 80, y);
+  y += 11;
+
+  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50,
+        colOre = W - MR - 42, colStr = W - MR - 20;
+  function intestazioneTabella(){
+    doc.setFillColor(230,231,232);
+    doc.rect(ML, y - 5, CW, 8, "F");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.text("Giorno", colGiorno + 2, y);
+    doc.text("Data", colData + 2, y);
+    doc.text("Clienti", colClienti + 2, y);
+    doc.text("Ore", colOre + 2, y);
+    if(mostraExtra) doc.text("+/-", colStr + 2, y);
+    y += 8;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
+  }
+  intestazioneTabella();
+
+  if(s.righe.length === 0){
+    doc.text("Nessun rapporto in questo mese.", ML + 2, y);
+    y += 8;
+  }
+  s.righe.forEach(r=>{
+    if(y > 265){ doc.addPage(); y = 22; intestazioneTabella(); }
+    const clientiRighe = doc.splitTextToSize(r.clienti || "—", colOre - colClienti - 4);
+    const altezza = Math.max(clientiRighe.length * 5, 7);
+    doc.text(r.nome, colGiorno + 2, y);
+    doc.text(dataIt(r.iso), colData + 2, y);
+    doc.text(clientiRighe, colClienti + 2, y);
+    doc.text(oreTesto(r.minuti), colOre + 2, y);
+    if(mostraExtra) doc.text(saldoTesto(r.minuti - ORARIO_ORDINARIO), colStr + 2, y);
+    y += altezza + 2.5;
+    doc.setDrawColor(200,205,210);
+    doc.setLineWidth(0.2);
+    doc.line(ML, y - 4.5, W - MR, y - 4.5);
+  });
+
+  if(y > 235){ doc.addPage(); y = 22; }
+  y += 5;
+  doc.setFont("helvetica","normal");
+  doc.setFontSize(10.5);
+  const voci = [
+    ["Giorni lavorati", String(s.giorniLavorati)],
+    ["Ore lavorate", oreTesto(s.tot)]
+  ];
+  if(s.totViaggio) voci.push(["Ore di viaggio", oreTesto(s.totViaggio)]);
+  if(s.totSpese) voci.push(["Spese anticipate", euro(s.totSpese)]);
+  if(s.totImporti) voci.push(["Da fatturare", euro(s.totImporti)]);
+  voci.forEach(v=>{
+    doc.text(v[0], ML + 2, y);
+    doc.text(v[1], W - MR - 3, y, {align:"right"});
+    y += 6;
+  });
+  y += 3;
+
+  doc.setFillColor(47,161,137);
+  doc.rect(ML, y - 5.5, CW, 10, "F");
+  doc.setTextColor(255,255,255);
+  doc.setFont("helvetica","bold");
+  doc.setFontSize(12);
+  const saldoM = s.tot - s.atteso;
+  doc.text("TOTALE", ML + 3, y + 1);
+  doc.text(oreTesto(s.tot) + (mostraExtra && saldoM ? "   " + saldoTesto(saldoM) : ""),
+           W - MR - 3, y + 1, {align:"right"});
+  doc.setTextColor(0,0,0);
+
+  aggiungiPiePagina(doc);
+  return doc;
+}
+
 // ============ invio con stato di caricamento ============
 async function condividi(btn, generatore, nome, oggetto, testoAccomp){
   const etichetta = btn.querySelector("span");
@@ -1615,6 +1834,18 @@ function inviaTesto(){
     "?subject=" + encodeURIComponent("Rapporto di lavoro " + dataIt()) +
     "&body=" + encodeURIComponent(testoRapporto());
 }
+function inviaPDFMese(){
+  const s = datiMese();
+  condividi(document.getElementById("btn-pdf-mese"), generaPDFMese,
+    "Report_" + s.etichetta.replaceAll(" ","_") + ".pdf",
+    "Report mensile " + s.etichetta, "");
+}
+function inviaTestoMese(){
+  const s = datiMese();
+  window.location.href = "mailto:" + DESTINATARIO +
+    "?subject=" + encodeURIComponent("Report mensile " + s.etichetta) +
+    "&body=" + encodeURIComponent(testoMese());
+}
 function inviaTestoSettimana(){
   const s = datiSettimana();
   window.location.href = "mailto:" + DESTINATARIO +
@@ -1628,8 +1859,10 @@ const oggi = new Date().toISOString().slice(0,10);
 document.getElementById("data").value = oggi;
 document.getElementById("settdata").value = oggi;
 const prefExtra = leggiPrefExtra();
-document.getElementById("stampa-extra").checked = prefExtra;
-document.getElementById("stampa-extra-sett").checked = prefExtra;
+["stampa-extra","stampa-extra-sett","stampa-extra-mese"].forEach(id=>{
+  document.getElementById(id).checked = prefExtra;
+});
+document.getElementById("mesedata").value = oggi.slice(0,7);
 aggiornaClientiNoti();
 caricaGiornata(oggi);
 </script>
