@@ -1298,7 +1298,7 @@ function datiMese(){
   const iso = document.getElementById("mesedata").value;
   const db = leggiDB();
   const giorni = giorniMese(iso);
-  let tot = 0, totViaggio = 0, totSpese = 0, totImporti = 0;
+  let tot = 0, totViaggio = 0, totSpese = 0;
   const righe = giorni.map(g=>{
     const d = db[g];
     if(!d) return null;
@@ -1306,7 +1306,6 @@ function datiMese(){
     tot += min;
     totViaggio += (+d.viaggio || 0);
     totSpese += totaleSpese(d.spese || []);
-    totImporti += totaleImporti(d.clienti || []);
     const data = new Date(g + "T12:00:00");
     return {
       iso: g,
@@ -1319,7 +1318,7 @@ function datiMese(){
   const nomiMesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
                     "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
   return {
-    righe, tot, totViaggio, totSpese, totImporti,
+    righe, tot, totViaggio, totSpese,
     giorniLavorati: righe.length,
     atteso: righe.length * ORARIO_ORDINARIO,
     etichetta: nomiMesi[+mm - 1] + " " + aa
@@ -1351,8 +1350,7 @@ function disegnaMese(){
     '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>' +
     '<div class="saldo"><span>Ore lavorate</span><b>' + oreTesto(s.tot) + '</b></div>' +
     (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '') +
-    (s.totSpese ? '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>' : '') +
-    (s.totImporti ? '<div class="saldo"><span>Da fatturare</span><b>' + euro(s.totImporti) + '</b></div>' : '');
+    (s.totSpese ? '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>' : '');
   document.getElementById("monteoremese").textContent =
     oreTesto(s.tot) + (saldo ? "  " + saldoTesto(saldo) : "");
 }
@@ -1382,7 +1380,6 @@ function testoMese(){
   righe.push("ORE LAVORATE: " + oreTesto(s.tot));
   if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
-  if(s.totImporti) righe.push("DA FATTURARE: " + euro(s.totImporti));
   righe.push("TOTALE: " + oreTesto(s.tot) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
   return righe.join("\n");
 }
@@ -1768,7 +1765,6 @@ function generaPDFMese(){
   ];
   if(s.totViaggio) voci.push(["Ore di viaggio", oreTesto(s.totViaggio)]);
   if(s.totSpese) voci.push(["Spese anticipate", euro(s.totSpese)]);
-  if(s.totImporti) voci.push(["Da fatturare", euro(s.totImporti)]);
   voci.forEach(v=>{
     doc.text(v[0], ML + 2, y);
     doc.text(v[1], W - MR - 3, y, {align:"right"});
