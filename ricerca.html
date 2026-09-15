@@ -211,6 +211,7 @@ function minutiGiornata(dalle, alle) {
 }
 function oreTesto(min) {
   const h = Math.floor(min/60), m = min%60;
+  if(h === 0 && m === 0) return "0h 0m";
   return h + "h " + m + "m";
 }
 
@@ -280,25 +281,32 @@ function calcolaStatisticheMese() {
   let totInterventi = 0;
   let totSpese = 0;
   
-  // Calcolo ore con limite di 9h (540 min)
+  // Limite orario a 8 ore (480 minuti)
   let totBase = 0;
   let totExtra = 0;
-  const limiteGiornaliero = 9 * 60; 
+  const limiteGiornaliero = 8 * 60; 
 
   archivioCompleto.forEach(r => {
     if (r.data.startsWith(meseSelezionato) && r.dati) {
       
-      const pausa = (r.dati.pausa !== undefined) ? +r.dati.pausa : 60;
-      const viaggio = +r.dati.viaggio || 0;
-      const netto = Math.max(0, minutiGiornata(r.dati.dalle, r.dati.alle) - pausa - viaggio);
-      
-      if (netto > 0) {
-        // Separa le ore in "fino a 9" e "eccedenza oltre le 9"
-        const extra = Math.max(0, netto - limiteGiornaliero);
-        const base = netto - extra;
+      // Controllo giorno della settimana per escludere Sabato (6) e Domenica (0)
+      const [yy, mm, dd] = r.data.split('-');
+      const dataRecord = new Date(yy, mm - 1, dd);
+      const isWeekend = (dataRecord.getDay() === 6 || dataRecord.getDay() === 0);
+
+      // Le ore si contano solo nei giorni feriali
+      if (!isWeekend) {
+        const pausa = (r.dati.pausa !== undefined) ? +r.dati.pausa : 60;
+        const viaggio = +r.dati.viaggio || 0;
+        const netto = Math.max(0, minutiGiornata(r.dati.dalle, r.dati.alle) - pausa - viaggio);
         
-        totBase += base;
-        totExtra += extra;
+        if (netto > 0) {
+          const extra = Math.max(0, netto - limiteGiornaliero);
+          const base = netto - extra;
+          
+          totBase += base;
+          totExtra += extra;
+        }
       }
 
       if (r.dati.spese) {
