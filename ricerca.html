@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ricerca Interventi - Backoffice</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --primario: #2FA189;
+    --sfondo: #F2F3F4;
+    --testo: #1C1F23;
+    --bordo: #C9CDD2;
+    --bianco: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background-color: var(--sfondo);
+    color: var(--testo);
+    padding: 30px;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+  header {
+    margin-bottom: 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  h1 { font-size: 24px; color: #22262B; }
+  .search-box {
+    display: flex;
+    gap: 10px;
+    background: var(--bianco);
+    padding: 20px;
+    border-radius: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    margin-bottom: 30px;
+  }
+  input[type="text"] {
+    flex: 1;
+    padding: 12px 16px;
+    font-size: 16px;
+    border: 1.5px solid var(--bordo);
+    border-radius: 6px;
+    font-family: inherit;
+  }
+  input[type="text"]:focus {
+    outline: none;
+    border-color: var(--primario);
+  }
+  button {
+    padding: 12px 24px;
+    font-size: 16px;
+    font-weight: 600;
+    background-color: var(--primario);
+    color: var(--bianco);
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  button:hover { background-color: #24826e; }
+  
+  .loader { font-size: 14px; color: #5A6068; }
+  
+  /* Risultati */
+  .card {
+    background: var(--bianco);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+    border-left: 5px solid var(--primario);
+  }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 15px;
+    border-bottom: 1px solid var(--sfondo);
+    padding-bottom: 10px;
+  }
+  .data-badge {
+    background: #E8F5F2;
+    color: var(--primario);
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .cliente-nome { font-weight: 700; font-size: 18px; }
+  .cliente-indirizzo { font-size: 14px; color: #5A6068; margin-top: 4px; }
+  
+  .sezione { margin-bottom: 15px; }
+  .sezione-titolo {
+    font-size: 12px;
+    text-transform: uppercase;
+    font-weight: 700;
+    color: #8C97C4;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+  }
+  .dettagli-testo { white-space: pre-wrap; font-size: 15px; line-height: 1.5; }
+  .materiale-lista { list-style-type: none; }
+  .materiale-lista li {
+    font-size: 15px;
+    padding: 4px 0;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  .materiale-lista li:last-child { border-bottom: none; }
+  .qta { color: #5A6068; font-size: 14px; }
+  
+  .nessun-risultato { text-align: center; color: #5A6068; padding: 40px; font-size: 16px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <header>
+    <h1>Archivio Interventi</h1>
+    <div id="stato-db" class="loader">In attesa di connessione...</div>
+  </header>
+
+  <div class="search-box">
+    <input type="text" id="cerca-input" placeholder="Cerca nome cliente, luogo o indirizzo..." onkeyup="seInvio(event)">
+    <button onclick="eseguiRicerca()">Cerca</button>
+  </div>
+
+  <div id="risultati">
+    <!-- I risultati appariranno qui -->
+  </div>
+</div>
+
+<script>
+// ==========================================
+// 1. INSERISCI QUI I DATI DI SUPABASE
+// Devono essere identici a quelli dell'app mobile
+// ==========================================
+const SUPABASE_URL = "https://kdzgtvnimqvxfweomxdo.supabase.co"; 
+const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkemd0dm5pbXF2eGZ3ZW9teGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTg3NzgsImV4cCI6MjEwNTA3NDc3OH0.bXPzy48u_NVmQ6AO5Z0hBRQpirR_6cDt8eUf6fPHXr8"; 
+
+let archivioCompleto = [];
+
+// Formatta la data da YYYY-MM-DD a DD/MM/YYYY
+function formattaData(iso) {
+  const p = iso.split("-");
+  return `${p[2]}/${p[1]}/${p[0]}`;
+}
+
+// Carica tutti i dati all'avvio
+async function caricaDati() {
+  const statoDb = document.getElementById('stato-db');
+  
+  if (!SUPABASE_URL || SUPABASE_URL === "INSERISCI_URL_QUI") {
+    statoDb.innerHTML = "⚠️ Configura URL e KEY di Supabase nel codice";
+    statoDb.style.color = "#B3413A";
+    return;
+  }
+
+  statoDb.innerHTML = "Sincronizzazione in corso...";
+  
+  try {
+    const risposta = await fetch(SUPABASE_URL + "/rest/v1/rapporti?select=data,dati", {
+      headers: {
+        "apikey": SUPABASE_KEY,
+        "Authorization": "Bearer " + SUPABASE_KEY
+      }
+    });
+    
+    if (!risposta.ok) throw new Error("Errore di rete");
+    
+    archivioCompleto = await risposta.json();
+    
+    // Ordina dal più recente al più vecchio
+    archivioCompleto.sort((a, b) => b.data.localeCompare(a.data));
+    
+    statoDb.innerHTML = `✓ Connesso (${archivioCompleto.length} giornate in archivio)`;
+    statoDb.style.color = "var(--primario)";
+    
+  } catch(e) {
+    console.error(e);
+    statoDb.innerHTML = "❌ Errore di connessione al database";
+    statoDb.style.color = "#B3413A";
+  }
+}
+
+// Permette di cercare premendo "Invio" sulla tastiera
+function seInvio(event) {
+  if (event.key === "Enter") eseguiRicerca();
+}
+
+// Funzione di ricerca e stampa a schermo
+function eseguiRicerca() {
+  const query = document.getElementById("cerca-input").value.trim().toLowerCase();
+  const contenitore = document.getElementById("risultati");
+  contenitore.innerHTML = "";
+
+  if (query.length < 2) {
+    contenitore.innerHTML = '<div class="nessun-risultato">Inserisci almeno 2 caratteri per cercare.</div>';
+    return;
+  }
+
+  let trovati = 0;
+
+  archivioCompleto.forEach(record => {
+    const dataIso = record.data;
+    const dati = record.dati;
+    
+    if (!dati || !dati.clienti) return;
+
+    // Filtra i clienti di questa giornata che corrispondono alla ricerca
+    const clientiCorrispondenti = dati.clienti.filter(c => 
+      (c.nome && c.nome.toLowerCase().includes(query)) ||
+      (c.indirizzo && c.indirizzo.toLowerCase().includes(query))
+    );
+
+    if (clientiCorrispondenti.length > 0) {
+      clientiCorrispondenti.forEach(cliente => {
+        trovati++;
+        
+        // Costruisci l'HTML per il cliente
+        const card = document.createElement('div');
+        card.className = 'card';
+        
+        let html = `
+          <div class="card-header">
+            <div>
+              <div class="cliente-nome">${cliente.nome || "(Senza nome)"}</div>
+              ${cliente.indirizzo ? `<div class="cliente-indirizzo">📍 ${cliente.indirizzo}</div>` : ''}
+            </div>
+            <div class="data-badge">${formattaData(dataIso)}</div>
+          </div>
+        `;
+
+        // Sezione Dettagli Intervento
+        if (cliente.dettagli) {
+          html += `
+            <div class="sezione">
+              <div class="sezione-titolo">Intervento Eseguito</div>
+              <div class="dettagli-testo">${cliente.dettagli}</div>
+            </div>
+          `;
+        }
+
+        // Sezione Materiale
+        if (cliente.materiali && cliente.materiali.length > 0) {
+          let listaMateriali = cliente.materiali.map(m => 
+            `<li>${m.a} ${m.q ? `<span class="qta">(${m.q})</span>` : ''}</li>`
+          ).join('');
+          
+          html += `
+            <div class="sezione">
+              <div class="sezione-titolo">Materiale Utilizzato</div>
+              <ul class="materiale-lista">${listaMateriali}</ul>
+            </div>
+          `;
+        }
+
+        // Se non ci sono dettagli o materiali
+        if (!cliente.dettagli && (!cliente.materiali || cliente.materiali.length === 0)) {
+           html += `<div style="color: #9AA1A9; font-style: italic;">Nessun dettaglio o materiale inserito per questo intervento.</div>`;
+        }
+
+        card.innerHTML = html;
+        contenitore.appendChild(card);
+      });
+    }
+  });
+
+  if (trovati === 0) {
+    contenitore.innerHTML = `<div class="nessun-risultato">Nessun intervento trovato per "<b>${query}</b>"</div>`;
+  } else {
+    // Aggiungo un contatore in cima ai risultati
+    const infoTrovati = document.createElement('div');
+    infoTrovati.style.marginBottom = '15px';
+    infoTrovati.style.color = '#5A6068';
+    infoTrovati.style.fontSize = '14px';
+    infoTrovati.innerHTML = `Trovati ${trovati} intervent${trovati === 1 ? 'o' : 'i'}.`;
+    contenitore.insertBefore(infoTrovati, contenitore.firstChild);
+  }
+}
+
+// Avvia il caricamento appena si apre la pagina
+caricaDati();
+
+</script>
+</body>
+</html>
