@@ -14,7 +14,6 @@
     --testo: #1C1F23;
     --bordo: #C9CDD2;
     --bianco: #FFFFFF;
-    --fatturato: #3E9B3E;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -75,7 +74,7 @@
   .btn-secondario { background-color: #8C97C4; }
   .btn-secondario:hover { background-color: #717baa; }
   
-  .azioni-barra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .azioni-barra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap:10px; }
   
   /* Risultati */
   .card {
@@ -94,9 +93,9 @@
 
   .badge { color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight:600; letter-spacing: 0.5px;}
   .bg-urgente { background: #B3413A; }
-  .bg-fatturato { background: var(--fatturato); }
   
   .cliente-indirizzo { font-size: 13px; color: #5A6068; margin-top: 4px; }
+  .cliente-dettagli-prev { font-size: 13px; color: #5A6068; margin-top: 6px; font-style: italic; line-height: 1.4;}
   .nessun-risultato { text-align: center; color: #5A6068; padding: 40px; font-size: 16px; }
 
   /* Finestra Modale */
@@ -170,7 +169,10 @@
 
   <div class="azioni-barra">
     <div id="info-risultati" style="color: #5A6068; font-size: 14px;"></div>
-    <button id="btn-export" class="btn-secondario" style="display:none;" onclick="esportaMaterialiPDF()">Esporta Materiali Selezionati (PDF)</button>
+    <div style="display:flex; gap: 10px;">
+      <button id="btn-select-all" class="btn-secondario" style="display:none;" onclick="toggleSelezionaTutti()">Seleziona Tutti</button>
+      <button id="btn-export" class="btn-primario" style="display:none; background-color: #8C97C4;" onclick="esportaMaterialiPDF()">Esporta Materiali (PDF)</button>
+    </div>
   </div>
 
   <div id="risultati"></div>
@@ -193,6 +195,7 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 
 let archivioCompleto = [];
 let risultatiCorrenti = [];
+let statoSelezioneTutti = false;
 
 // Funzioni di utilità
 function formattaData(iso) { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }
@@ -217,7 +220,6 @@ function oreTesto(min) {
 async function caricaDati() {
   const statoDb = document.getElementById('stato-db');
   
-  // Imposta il mese corrente di default nel selettore
   const oggi = new Date();
   const meseCorrenteISO = oggi.toISOString().slice(0, 7);
   document.getElementById("filtro-mese").value = meseCorrenteISO;
@@ -241,7 +243,7 @@ async function caricaDati() {
     
     popolaFiltriEstrazioni();
     calcolaStatisticheMese();
-    eseguiRicerca(); // Mostra subito gli interventi del mese corrente
+    eseguiRicerca(); 
     
   } catch(e) {
     console.error(e);
@@ -277,16 +279,27 @@ function calcolaStatisticheMese() {
   const meseSelezionato = document.getElementById("filtro-mese").value; // Es: "2026-09"
   let totInterventi = 0;
   let totSpese = 0;
-  let totMinuti = 0;
+  
+  // Calcolo ore con limite di 9h (540 min)
+  let totBase = 0;
+  let totExtra = 0;
+  const limiteGiornaliero = 9 * 60; 
 
   archivioCompleto.forEach(r => {
-    // Controlla che la data (YYYY-MM-DD) inizi per il mese selezionato (YYYY-MM)
     if (r.data.startsWith(meseSelezionato) && r.dati) {
       
       const pausa = (r.dati.pausa !== undefined) ? +r.dati.pausa : 60;
       const viaggio = +r.dati.viaggio || 0;
       const netto = Math.max(0, minutiGiornata(r.dati.dalle, r.dati.alle) - pausa - viaggio);
-      totMinuti += netto;
+      
+      if (netto > 0) {
+        // Separa le ore in "fino a 9" e "eccedenza oltre le 9"
+        const extra = Math.max(0, netto - limiteGiornaliero);
+        const base = netto - extra;
+        
+        totBase += base;
+        totExtra += extra;
+      }
 
       if (r.dati.spese) {
         r.dati.spese.forEach(s => totSpese += (+s.i || 0));
@@ -300,7 +313,13 @@ function calcolaStatisticheMese() {
 
   document.getElementById("stat-interventi").textContent = totInterventi;
   document.getElementById("stat-spese").textContent = euro(totSpese);
-  document.getElementById("stat-ore").textContent = oreTesto(totMinuti);
+  
+  // Formatta le ore: "TotaleBase +TotaleExtra"
+  let testoOre = oreTesto(totBase);
+  if (totExtra > 0) {
+    testoOre += "  +" + oreTesto(totExtra);
+  }
+  document.getElementById("stat-ore").textContent = testoOre;
 }
 
 // ------------------------------------------
@@ -312,7 +331,7 @@ function pulisciRicerca() {
   document.getElementById("cerca-input").value = "";
   document.getElementById("cerca-data").value = "";
   document.getElementById("cerca-tecnico").value = "";
-  eseguiRicerca(); // Torna a mostrare tutto il mese
+  eseguiRicerca();
 }
 
 function eseguiRicerca() {
@@ -324,7 +343,13 @@ function eseguiRicerca() {
   const contenitore = document.getElementById("risultati");
   contenitore.innerHTML = "";
   document.getElementById("info-risultati").innerHTML = "";
+  
+  // Resetta pulsanti e selezioni
   document.getElementById("btn-export").style.display = "none";
+  document.getElementById("btn-select-all").style.display = "none";
+  statoSelezioneTutti = false;
+  document.getElementById("btn-select-all").textContent = "Seleziona Tutti";
+  
   risultatiCorrenti = [];
 
   archivioCompleto.forEach((record, idxGiornata) => {
@@ -332,17 +357,11 @@ function eseguiRicerca() {
     const dati = record.dati;
     if (!dati || !dati.clienti) return;
 
-    // 1. Filtro per giorno specifico (sovrascrive il mese se impostato)
     if (dataQuery && dataIso !== dataQuery) return;
-    
-    // 2. Filtro per mese selezionato (se non è stata inserita una data specifica)
     if (!dataQuery && !dataIso.startsWith(meseQuery)) return;
-
-    // 3. Filtro per tecnico
     if (tecnicoQuery && dati.tecnici !== tecnicoQuery) return;
 
     dati.clienti.forEach((cliente, idxCliente) => {
-      // 4. Filtro per testo (minimo 2 lettere per attivarlo)
       if (query.length >= 2) {
         const trovato = (cliente.nome && cliente.nome.toLowerCase().includes(query)) ||
                         (cliente.indirizzo && cliente.indirizzo.toLowerCase().includes(query)) ||
@@ -359,30 +378,33 @@ function eseguiRicerca() {
   if (risultatiCorrenti.length === 0) {
     contenitore.innerHTML = `<div class="nessun-risultato">Nessun intervento trovato per i filtri e il mese selezionato.</div>`;
   } else {
-    document.getElementById("info-risultati").innerHTML = `Trovati ${risultatiCorrenti.length} interventi. Clicca sulla scheda per i dettagli, o spunta le caselle per esportare i materiali.`;
+    document.getElementById("info-risultati").innerHTML = `Trovati ${risultatiCorrenti.length} interventi.`;
     document.getElementById("btn-export").style.display = "block";
+    document.getElementById("btn-select-all").style.display = "block";
 
     risultatiCorrenti.forEach((item, index) => {
       const c = item.cliente;
       const card = document.createElement('div');
       card.className = 'card';
-      
-      // Apri modale al click (tranne se clicco la checkbox)
       card.setAttribute('onclick', `apriModale(${index})`);
       
       let badgeHtml = c.urgente ? '<span class="badge bg-urgente">Urgente</span> ' : '';
-      if (c.fatturato) badgeHtml += '<span class="badge bg-fatturato">Fatturato</span> ';
+      
+      let shortDesc = "";
+      if (c.dettagli) {
+        shortDesc = c.dettagli.length > 90 ? c.dettagli.substring(0, 90) + "..." : c.dettagli;
+      }
 
       card.innerHTML = `
         <div class="card-header">
           <div class="cliente-nome">
-            <!-- Checkbox per selezionare l'intervento. stopPropagation evita di aprire la modale quando si clicca -->
             <input type="checkbox" class="chk-export" value="${index}" title="Seleziona per esportare materiali" onclick="event.stopPropagation()"> 
             ${c.nome || "(Senza nome)"} ${badgeHtml}
           </div>
           <div class="data-badge">${formattaData(item.dataIso)}</div>
         </div>
         ${c.indirizzo ? `<div class="cliente-indirizzo" style="margin-left:30px;">📍 ${c.indirizzo}</div>` : ''}
+        ${shortDesc ? `<div class="cliente-dettagli-prev" style="margin-left:30px;">📝 ${shortDesc}</div>` : ''}
       `;
       contenitore.appendChild(card);
     });
@@ -390,7 +412,22 @@ function eseguiRicerca() {
 }
 
 // ------------------------------------------
-// MODALE E AZIONI SUL CLIENTE
+// SELEZIONA TUTTI I CHECKBOX
+// ------------------------------------------
+function toggleSelezionaTutti() {
+  const checkboxes = document.querySelectorAll('.chk-export');
+  statoSelezioneTutti = !statoSelezioneTutti;
+  
+  checkboxes.forEach(chk => {
+    chk.checked = statoSelezioneTutti;
+  });
+  
+  const btn = document.getElementById('btn-select-all');
+  btn.textContent = statoSelezioneTutti ? "Deseleziona Tutti" : "Seleziona Tutti";
+}
+
+// ------------------------------------------
+// MODALE
 // ------------------------------------------
 function apriModale(index) {
   const item = risultatiCorrenti[index];
@@ -398,8 +435,9 @@ function apriModale(index) {
   const body = document.getElementById("modal-body");
   
   let html = `
-    <h2 style="margin-bottom: 5px;">${c.nome || "Senza nome"} 
-      ${c.fatturato ? '<span class="badge bg-fatturato">FATTURATO</span>' : ''}
+    <h2 style="margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
+      ${c.nome || "Senza nome"} 
+      ${c.urgente ? '<span class="badge bg-urgente" style="font-size:12px; padding:3px 8px;">Urgente</span>' : ''}
     </h2>
     <div style="color:#5A6068; margin-bottom:20px; font-size:14px;">📍 ${c.indirizzo || "Indirizzo mancante"}</div>
     
@@ -418,14 +456,9 @@ function apriModale(index) {
              </ul></div>`;
   }
 
-  // Pulsanti Azioni
-  const btnFatturatoTesto = c.fatturato ? "Segna come NON Fatturato" : "Segna come FATTURATO";
-  const btnFatturatoColor = c.fatturato ? "var(--bordo)" : "var(--fatturato)";
-
   html += `
     <div class="modal-azioni">
       <button class="btn-primario" onclick="generaPDFIntervento(${index})">Scarica PDF Intervento</button>
-      <button class="btn-primario" style="background-color: ${btnFatturatoColor}; color: #1C1F23;" onclick="toggleFatturato(${index})">${btnFatturatoTesto}</button>
     </div>
   `;
 
@@ -436,28 +469,6 @@ function apriModale(index) {
 function chiudiModale() { document.getElementById("modal-overlay").style.display = "none"; }
 function chiudiSeFuori(event) { if (event.target.id === 'modal-overlay') chiudiModale(); }
 
-// Toggle Fatturato su Supabase
-async function toggleFatturato(index) {
-  const item = risultatiCorrenti[index];
-  const nuovaStato = !item.cliente.fatturato;
-  item.cliente.fatturato = nuovaStato;
-  archivioCompleto[item.idxGiornata].dati.clienti[item.idxCliente].fatturato = nuovaStato;
-
-  const iso = item.dataIso;
-  const datiAggiornati = archivioCompleto[item.idxGiornata].dati;
-  
-  try {
-    await fetch(SUPABASE_URL + "/rest/v1/rapporti?data=eq." + iso, {
-      method: "PATCH",
-      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" },
-      body: JSON.stringify({ dati: datiAggiornati })
-    });
-    apriModale(index);
-    eseguiRicerca(); // Per aggiornare il badge nella lista
-  } catch(e) {
-    alert("Errore durante il salvataggio su Supabase.");
-  }
-}
 
 // PDF Singolo Intervento
 function generaPDFIntervento(index) {
@@ -504,14 +515,13 @@ function generaPDFIntervento(index) {
 }
 
 // ------------------------------------------
-// NUOVA FUNZIONE: ESPORTA MATERIALI (PDF)
+// ESPORTA MATERIALI SELEZIONATI (PDF)
 // ------------------------------------------
 function esportaMaterialiPDF() {
-  // Prendi tutti i checkbox spuntati
   const checkboxes = document.querySelectorAll('.chk-export:checked');
   
   if (checkboxes.length === 0) {
-    alert("Seleziona almeno un intervento cliccando sulle caselline a fianco del nome cliente.");
+    alert("Seleziona almeno un intervento spuntando le caselline a fianco del nome cliente.");
     return;
   }
 
@@ -519,7 +529,6 @@ function esportaMaterialiPDF() {
   const doc = new jsPDF({unit:"mm", format:"a4"});
   let y = 20;
 
-  // Intestazione
   doc.setFont("helvetica", "bold");
   doc.setFontSize(14);
   doc.text("REPORT MATERIALI SELEZIONATI", 105, y, {align: "center"});
@@ -540,7 +549,6 @@ function esportaMaterialiPDF() {
       c.materiali.forEach(m => {
         doc.text(`- ${m.a} ${m.q ? '('+m.q+')' : ''}`, 25, y);
         y += 5;
-        // Se raggiungo il fondo della pagina, ne creo una nuova
         if (y > 270) { doc.addPage(); y = 20; }
       });
     } else {
@@ -550,7 +558,7 @@ function esportaMaterialiPDF() {
       y += 5;
     }
     
-    y += 5; // Spazio extra tra un cliente e l'altro
+    y += 5;
     if (y > 270) { doc.addPage(); y = 20; }
   });
 
