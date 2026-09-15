@@ -33,6 +33,16 @@
   .loader { font-size: 14px; color: #5A6068; }
 
   /* 1. Dashboard Statistiche */
+  .stats-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
+  }
+  .stats-header h2 { font-size: 18px; color: #5A6068; }
+  .filtro-mese {
+    padding: 8px 12px; font-size: 16px; border: 1.5px solid var(--primario);
+    border-radius: 6px; font-family: inherit; color: var(--testo);
+    background: var(--bianco); outline: none; cursor: pointer;
+  }
+
   .stats-grid {
     display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;
     margin-bottom: 30px;
@@ -50,7 +60,7 @@
     background: var(--bianco); padding: 20px; border-radius: 10px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px;
   }
-  .search-box input, .search-box select {
+  .search-box input[type="text"], .search-box select, .search-box input[type="date"] {
     flex: 1; min-width: 150px; padding: 12px 16px; font-size: 15px;
     border: 1.5px solid var(--bordo); border-radius: 6px; font-family: inherit; color: var(--testo);
   }
@@ -71,13 +81,17 @@
   .card {
     background: var(--bianco); border-radius: 10px; padding: 20px; margin-bottom: 15px;
     box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid var(--primario);
-    cursor: pointer; transition: 0.1s;
+    cursor: pointer; transition: 0.1s; position: relative;
   }
   .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
   .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid var(--sfondo); padding-bottom: 10px; }
   .data-badge { background: #E8F5F2; color: var(--primario); padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 13px; height: fit-content; }
   
-  .cliente-nome { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 8px;}
+  .cliente-nome { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 10px;}
+  
+  /* Checkbox di selezione per export */
+  .chk-export { width: 20px; height: 20px; accent-color: var(--primario); cursor: pointer; }
+
   .badge { color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight:600; letter-spacing: 0.5px;}
   .bg-urgente { background: #B3413A; }
   .bg-fatturato { background: var(--fatturato); }
@@ -121,36 +135,42 @@
     <div id="stato-db" class="loader">In attesa di connessione...</div>
   </header>
 
+  <!-- Selettore Mese per le Statistiche -->
+  <div class="stats-header">
+    <h2>Riepilogo Mese</h2>
+    <input type="month" id="filtro-mese" class="filtro-mese" onchange="cambioMese()">
+  </div>
+
   <!-- Dashboard mensile -->
   <div class="stats-grid">
     <div class="stat-card">
-      <div class="stat-titolo">Da Fatturare (Mese)</div>
-      <div class="stat-valore" id="stat-fatturare">€ 0,00</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-titolo">Spese Anticipate (Mese)</div>
-      <div class="stat-valore" id="stat-spese">€ 0,00</div>
+      <div class="stat-titolo">Interventi (Mese)</div>
+      <div class="stat-valore" id="stat-interventi">0</div>
     </div>
     <div class="stat-card">
       <div class="stat-titolo">Ore Lavorate (Mese)</div>
       <div class="stat-valore" id="stat-ore">0h 0m</div>
     </div>
+    <div class="stat-card">
+      <div class="stat-titolo">Spese Anticipate (Mese)</div>
+      <div class="stat-valore" id="stat-spese">€ 0,00</div>
+    </div>
   </div>
 
   <!-- Barra Ricerca e Filtri -->
   <div class="search-box">
-    <input type="text" id="cerca-input" placeholder="Cerca cliente, indirizzo..." onkeyup="seInvio(event)">
-    <input type="date" id="cerca-data" title="Filtra per data" onchange="eseguiRicerca()">
-    <select id="cerca-tecnico" onchange="eseguiRicerca()">
+    <input type="text" id="cerca-input" placeholder="Cerca cliente, indirizzo, dettaglio..." onkeyup="seInvio(event)">
+    <input type="date" id="cerca-data" title="Giorno esatto (Ignora il mese sopra)">
+    <select id="cerca-tecnico">
       <option value="">Tutti i tecnici</option>
     </select>
     <button class="btn-primario" onclick="eseguiRicerca()">Cerca</button>
-    <button class="btn-secondario" onclick="pulisciRicerca()">Reset</button>
+    <button class="btn-secondario" onclick="pulisciRicerca()">Reset Filtri</button>
   </div>
 
   <div class="azioni-barra">
     <div id="info-risultati" style="color: #5A6068; font-size: 14px;"></div>
-    <button id="btn-export" class="btn-secondario" style="display:none;" onclick="esportaCSV()">Esporta Materiali (CSV)</button>
+    <button id="btn-export" class="btn-secondario" style="display:none;" onclick="esportaMaterialiPDF()">Esporta Materiali Selezionati (PDF)</button>
   </div>
 
   <div id="risultati"></div>
@@ -178,7 +198,7 @@ let risultatiCorrenti = [];
 function formattaData(iso) { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }
 function euro(n) { return "€ " + parseFloat(n).toFixed(2).replace('.', ','); }
 
-// Calcolo Ore (come nell'app mobile)
+// Calcolo Ore
 function toMin(t) { const p = t.split(":"); return +p[0]*60 + +p[1]; }
 function minutiGiornata(dalle, alle) {
   if(!dalle || !alle) return 0;
@@ -196,6 +216,12 @@ function oreTesto(min) {
 // ------------------------------------------
 async function caricaDati() {
   const statoDb = document.getElementById('stato-db');
+  
+  // Imposta il mese corrente di default nel selettore
+  const oggi = new Date();
+  const meseCorrenteISO = oggi.toISOString().slice(0, 7);
+  document.getElementById("filtro-mese").value = meseCorrenteISO;
+
   if (!SUPABASE_URL || SUPABASE_URL === "INSERISCI_URL_QUI") {
     statoDb.innerHTML = "⚠️ Configura URL e KEY di Supabase"; statoDb.style.color = "#B3413A"; return;
   }
@@ -208,13 +234,14 @@ async function caricaDati() {
     if (!risposta.ok) throw new Error("Errore di rete");
     
     archivioCompleto = await risposta.json();
-    archivioCompleto.sort((a, b) => b.data.localeCompare(a.data));
+    archivioCompleto.sort((a, b) => b.data.localeCompare(a.data)); // Ordina dal più recente
     
     statoDb.innerHTML = `✓ Connesso (${archivioCompleto.length} giornate)`;
     statoDb.style.color = "var(--primario)";
     
     popolaFiltriEstrazioni();
     calcolaStatisticheMese();
+    eseguiRicerca(); // Mostra subito gli interventi del mese corrente
     
   } catch(e) {
     console.error(e);
@@ -223,7 +250,6 @@ async function caricaDati() {
   }
 }
 
-// Popola il menu a tendina con i tecnici
 function popolaFiltriEstrazioni() {
   const selectTecnici = document.getElementById("cerca-tecnico");
   const tecniciSet = new Set();
@@ -239,34 +265,40 @@ function popolaFiltriEstrazioni() {
   });
 }
 
-// Calcola la Dashboard del mese in corso
+// ------------------------------------------
+// GESTIONE MESE E STATISTICHE
+// ------------------------------------------
+function cambioMese() {
+  calcolaStatisticheMese();
+  eseguiRicerca();
+}
+
 function calcolaStatisticheMese() {
-  const meseCorrente = new Date().toISOString().slice(0,7); // Es: "2026-09"
-  let totFatturare = 0;
+  const meseSelezionato = document.getElementById("filtro-mese").value; // Es: "2026-09"
+  let totInterventi = 0;
   let totSpese = 0;
   let totMinuti = 0;
 
   archivioCompleto.forEach(r => {
-    if (r.data.startsWith(meseCorrente) && r.dati) {
-      // Calcolo Ore (Dalle - Alle - Pausa)
+    // Controlla che la data (YYYY-MM-DD) inizi per il mese selezionato (YYYY-MM)
+    if (r.data.startsWith(meseSelezionato) && r.dati) {
+      
       const pausa = (r.dati.pausa !== undefined) ? +r.dati.pausa : 60;
       const viaggio = +r.dati.viaggio || 0;
       const netto = Math.max(0, minutiGiornata(r.dati.dalle, r.dati.alle) - pausa - viaggio);
       totMinuti += netto;
 
-      // Spese anticipate
       if (r.dati.spese) {
         r.dati.spese.forEach(s => totSpese += (+s.i || 0));
       }
 
-      // Da Fatturare
       if (r.dati.clienti) {
-        r.dati.clienti.forEach(c => totFatturare += (+c.importo || 0));
+        totInterventi += r.dati.clienti.length;
       }
     }
   });
 
-  document.getElementById("stat-fatturare").textContent = euro(totFatturare);
+  document.getElementById("stat-interventi").textContent = totInterventi;
   document.getElementById("stat-spese").textContent = euro(totSpese);
   document.getElementById("stat-ore").textContent = oreTesto(totMinuti);
 }
@@ -275,20 +307,19 @@ function calcolaStatisticheMese() {
 // RICERCA E VISUALIZZAZIONE
 // ------------------------------------------
 function seInvio(event) { if (event.key === "Enter") eseguiRicerca(); }
+
 function pulisciRicerca() {
   document.getElementById("cerca-input").value = "";
   document.getElementById("cerca-data").value = "";
   document.getElementById("cerca-tecnico").value = "";
-  document.getElementById("risultati").innerHTML = "";
-  document.getElementById("info-risultati").innerHTML = "";
-  document.getElementById("btn-export").style.display = "none";
-  risultatiCorrenti = [];
+  eseguiRicerca(); // Torna a mostrare tutto il mese
 }
 
 function eseguiRicerca() {
   const query = document.getElementById("cerca-input").value.trim().toLowerCase();
   const dataQuery = document.getElementById("cerca-data").value; 
   const tecnicoQuery = document.getElementById("cerca-tecnico").value;
+  const meseQuery = document.getElementById("filtro-mese").value;
   
   const contenitore = document.getElementById("risultati");
   contenitore.innerHTML = "";
@@ -296,19 +327,22 @@ function eseguiRicerca() {
   document.getElementById("btn-export").style.display = "none";
   risultatiCorrenti = [];
 
-  if (query.length < 2 && !dataQuery && !tecnicoQuery) {
-    contenitore.innerHTML = '<div class="nessun-risultato">Inserisci dei filtri per cercare.</div>'; return;
-  }
-
   archivioCompleto.forEach((record, idxGiornata) => {
     const dataIso = record.data;
     const dati = record.dati;
     if (!dati || !dati.clienti) return;
 
+    // 1. Filtro per giorno specifico (sovrascrive il mese se impostato)
     if (dataQuery && dataIso !== dataQuery) return;
+    
+    // 2. Filtro per mese selezionato (se non è stata inserita una data specifica)
+    if (!dataQuery && !dataIso.startsWith(meseQuery)) return;
+
+    // 3. Filtro per tecnico
     if (tecnicoQuery && dati.tecnici !== tecnicoQuery) return;
 
     dati.clienti.forEach((cliente, idxCliente) => {
+      // 4. Filtro per testo (minimo 2 lettere per attivarlo)
       if (query.length >= 2) {
         const trovato = (cliente.nome && cliente.nome.toLowerCase().includes(query)) ||
                         (cliente.indirizzo && cliente.indirizzo.toLowerCase().includes(query)) ||
@@ -323,15 +357,17 @@ function eseguiRicerca() {
   });
 
   if (risultatiCorrenti.length === 0) {
-    contenitore.innerHTML = `<div class="nessun-risultato">Nessun intervento trovato.</div>`;
+    contenitore.innerHTML = `<div class="nessun-risultato">Nessun intervento trovato per i filtri e il mese selezionato.</div>`;
   } else {
-    document.getElementById("info-risultati").innerHTML = `Trovati ${risultatiCorrenti.length} interventi. Clicca su una scheda per i dettagli.`;
+    document.getElementById("info-risultati").innerHTML = `Trovati ${risultatiCorrenti.length} interventi. Clicca sulla scheda per i dettagli, o spunta le caselle per esportare i materiali.`;
     document.getElementById("btn-export").style.display = "block";
 
     risultatiCorrenti.forEach((item, index) => {
       const c = item.cliente;
       const card = document.createElement('div');
       card.className = 'card';
+      
+      // Apri modale al click (tranne se clicco la checkbox)
       card.setAttribute('onclick', `apriModale(${index})`);
       
       let badgeHtml = c.urgente ? '<span class="badge bg-urgente">Urgente</span> ' : '';
@@ -339,12 +375,14 @@ function eseguiRicerca() {
 
       card.innerHTML = `
         <div class="card-header">
-          <div>
-            <div class="cliente-nome">${c.nome || "(Senza nome)"} ${badgeHtml}</div>
-            ${c.indirizzo ? `<div class="cliente-indirizzo">📍 ${c.indirizzo}</div>` : ''}
+          <div class="cliente-nome">
+            <!-- Checkbox per selezionare l'intervento. stopPropagation evita di aprire la modale quando si clicca -->
+            <input type="checkbox" class="chk-export" value="${index}" title="Seleziona per esportare materiali" onclick="event.stopPropagation()"> 
+            ${c.nome || "(Senza nome)"} ${badgeHtml}
           </div>
           <div class="data-badge">${formattaData(item.dataIso)}</div>
         </div>
+        ${c.indirizzo ? `<div class="cliente-indirizzo" style="margin-left:30px;">📍 ${c.indirizzo}</div>` : ''}
       `;
       contenitore.appendChild(card);
     });
@@ -398,16 +436,13 @@ function apriModale(index) {
 function chiudiModale() { document.getElementById("modal-overlay").style.display = "none"; }
 function chiudiSeFuori(event) { if (event.target.id === 'modal-overlay') chiudiModale(); }
 
-// --- AZIONE: SEGNA FATTURATO ---
+// Toggle Fatturato su Supabase
 async function toggleFatturato(index) {
   const item = risultatiCorrenti[index];
   const nuovaStato = !item.cliente.fatturato;
-  
-  // Modifica il dato in RAM
   item.cliente.fatturato = nuovaStato;
   archivioCompleto[item.idxGiornata].dati.clienti[item.idxCliente].fatturato = nuovaStato;
 
-  // Invia a Supabase l'intera giornata aggiornata (PATCH)
   const iso = item.dataIso;
   const datiAggiornati = archivioCompleto[item.idxGiornata].dati;
   
@@ -417,15 +452,14 @@ async function toggleFatturato(index) {
       headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY, "Content-Type": "application/json" },
       body: JSON.stringify({ dati: datiAggiornati })
     });
-    // Ridisegna
     apriModale(index);
-    eseguiRicerca();
+    eseguiRicerca(); // Per aggiornare il badge nella lista
   } catch(e) {
     alert("Errore durante il salvataggio su Supabase.");
   }
 }
 
-// --- AZIONE: CREA PDF SINGOLO INTERVENTO ---
+// PDF Singolo Intervento
 function generaPDFIntervento(index) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:"mm", format:"a4"});
@@ -466,32 +500,65 @@ function generaPDFIntervento(index) {
     });
   }
   
-  doc.save(`Intervento_${c.nome.replace(/\s+/g,'_')}_${item.dataIso}.pdf`);
+  doc.save(`Intervento_${(c.nome || 'Cliente').replace(/\s+/g,'_')}_${item.dataIso}.pdf`);
 }
 
-// Esportazione CSV
-function esportaCSV() {
-  if (risultatiCorrenti.length === 0) return;
-  let csvContent = "Data,Tecnici,Cliente,Indirizzo,Articolo,Quantita\n";
-  const formattaCSV = (testo) => `"${(testo||'').toString().replace(/"/g, '""')}"`;
-  risultatiCorrenti.forEach(item => {
-    const dataFormatted = formattaData(item.dataIso);
-    const tecnici = formattaCSV(item.datiGiorno.tecnici);
-    const cliente = formattaCSV(item.cliente.nome);
-    const indirizzo = formattaCSV(item.cliente.indirizzo);
-    if (item.cliente.materiali && item.cliente.materiali.length > 0) {
-      item.cliente.materiali.forEach(mat => csvContent += `${dataFormatted},${tecnici},${cliente},${indirizzo},${formattaCSV(mat.a)},${formattaCSV(mat.q)}\n`);
+// ------------------------------------------
+// NUOVA FUNZIONE: ESPORTA MATERIALI (PDF)
+// ------------------------------------------
+function esportaMaterialiPDF() {
+  // Prendi tutti i checkbox spuntati
+  const checkboxes = document.querySelectorAll('.chk-export:checked');
+  
+  if (checkboxes.length === 0) {
+    alert("Seleziona almeno un intervento cliccando sulle caselline a fianco del nome cliente.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  let y = 20;
+
+  // Intestazione
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(14);
+  doc.text("REPORT MATERIALI SELEZIONATI", 105, y, {align: "center"});
+  y += 15;
+
+  checkboxes.forEach(chk => {
+    const idx = chk.value;
+    const item = risultatiCorrenti[idx];
+    const c = item.cliente;
+
+    doc.setFontSize(11);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${formattaData(item.dataIso)} - ${c.nome || "Senza Nome"}`, 20, y);
+    y += 6;
+
+    doc.setFont("helvetica", "normal");
+    if (c.materiali && c.materiali.length > 0) {
+      c.materiali.forEach(m => {
+        doc.text(`- ${m.a} ${m.q ? '('+m.q+')' : ''}`, 25, y);
+        y += 5;
+        // Se raggiungo il fondo della pagina, ne creo una nuova
+        if (y > 270) { doc.addPage(); y = 20; }
+      });
     } else {
-      csvContent += `${dataFormatted},${tecnici},${cliente},${indirizzo},"", ""\n`;
+      doc.setFont("helvetica", "italic");
+      doc.text("Nessun materiale segnato", 25, y);
+      doc.setFont("helvetica", "normal");
+      y += 5;
     }
+    
+    y += 5; // Spazio extra tra un cliente e l'altro
+    if (y > 270) { doc.addPage(); y = 20; }
   });
-  const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement("a");
-  link.setAttribute("href", URL.createObjectURL(blob));
-  link.setAttribute("download", `Esportazione.csv`);
-  document.body.appendChild(link); link.click(); document.body.removeChild(link);
+
+  const mese = document.getElementById("filtro-mese").value;
+  doc.save(`Materiali_${mese}.pdf`);
 }
 
+// Avvia
 caricaDati();
 </script>
 </body>
