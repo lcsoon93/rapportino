@@ -190,6 +190,7 @@
     font-size:22px;line-height:1;cursor:pointer;
   }
   .cliente.urgente{border-color:#B3413A;border-width:2px;background:#FDF6F5}
+  .op-riga{border-left:4px solid var(--neutro);padding-left:16px}
   .cliente .badge{
     display:none;flex:none;
     font-family:'Chakra Petch',sans-serif;
@@ -437,6 +438,10 @@
         <label for="tecnici">Tecnici</label>
         <input type="text" id="tecnici" value="Luca / Francesco" autocomplete="off">
       </div>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
+        <input type="checkbox" id="escludi-monte">
+        <span>Escludi questa giornata dal monte ore</span>
+      </label>
       <div class="salvato" id="statosalvataggio"></div>
       <div id="statosinc" style="font-size:12.5px;min-height:16px"></div>
     </div>
@@ -449,34 +454,9 @@
     </div>
 
     <div class="modulo m-orario">
-      <div class="titolo">Orario della giornata <span class="tag">N</span></div>
-      <div class="due">
-        <div>
-          <label for="dalle">Dalle</label>
-          <div class="oranow">
-            <input type="time" id="dalle" value="08:00">
-            <button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button>
-          </div>
-        </div>
-        <div>
-          <label for="alle">Alle</label>
-          <div class="oranow">
-            <input type="time" id="alle" value="17:00">
-            <button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button>
-          </div>
-        </div>
-      </div>
-      <div class="due" style="margin-top:10px">
-        <div>
-          <label for="pausa">Pausa (min)</label>
-          <input type="number" id="pausa" min="0" step="5" value="60" inputmode="numeric">
-        </div>
-        <div>
-          <label for="viaggio">Viaggio (min, auto)</label>
-          <input type="number" id="viaggio" min="0" step="5" placeholder="0" inputmode="numeric">
-        </div>
-      </div>
-      <div class="totore">Totale lavoro: <b id="totore">9 ore</b><span id="totore-extra" style="font-size:13px"></span></div>
+      <div class="titolo">Orario per operaio <span class="tag">N</span></div>
+      <div id="operai"></div>
+      <button type="button" class="aggiungi" onclick="aggiungiOperaio()">+ Aggiungi operaio</button>
       <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:8px">
         <input type="checkbox" id="stampa-extra">
         <span>Stampa le ore in più nel PDF</span>
@@ -601,7 +581,7 @@
 <datalist id="indirizzi-noti"></datalist>
 
 <script>
-const LOGO_B64 = "data:image/jpeg;base64,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";
+const LOGO_B64 = "data:image/jpeg;base64,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";
 const LOGO_RAPPORTO = 2.3237; // larghezza/altezza
 const DESTINATARIO = "lcsoon93@gmail.com";
 
@@ -613,7 +593,7 @@ const SUPABASE_URL = "https://kdzgtvnimqvxfweomxdo.supabase.co";      // es. "ht
 const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkemd0dm5pbXF2eGZ3ZW9teGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTg3NzgsImV4cCI6MjEwNTA3NDc3OH0.bXPzy48u_NVmQ6AO5Z0hBRQpirR_6cDt8eUf6fPHXr8";      // la chiave "anon public"
 const SINC_ATTIVA = () => SUPABASE_URL !== "" && SUPABASE_KEY !== "";
 const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
-const ORARIO_ORDINARIO = 8 * 60;   // minuti di lavoro ordinario al giorno
+const ORARIO_ORDINARIO = 8 * 60;   // minuti di lavoro ordinario al giorno (pausa già compresa nel calcolo netto)
 const PAUSA_STANDARD = 60;         // pausa preimpostata, modificabile a mano
 function eccedenza(min){ return Math.max(0, min - ORARIO_ORDINARIO); }
 // "8h + 30m" quando si supera l'orario ordinario, altrimenti solo il totale
@@ -950,7 +930,6 @@ function togliFascia(btn){
   const cliente = btn.closest(".cliente");
   btn.parentElement.remove();
   if(!cliente.querySelector(".fascia")) aggiungiRigaFascia(cliente);
-  ricalcolaViaggio();
   salvaGiornata();
 }
 
@@ -961,7 +940,6 @@ function aggiungiUrgenza(){
   // l'urgenza parte adesso
   nuova.querySelector(".f-dalle").value = oraCorrente();
   nuova.querySelector(".c-nome").focus();
-  ricalcolaViaggio();
   salvaGiornata();
 }
 
@@ -976,7 +954,6 @@ function riprendiLavoro(btn){
   }
   const riga = aggiungiRigaFascia(scheda);
   riga.querySelector(".f-dalle").value = oraCorrente();
-  ricalcolaViaggio();
   salvaGiornata();
 }
 
@@ -1008,7 +985,7 @@ function aggiungiMateriale(btn){
   righe[righe.length-1].querySelector(".m-art").focus();
 }
 
-// ============ ora corrente nei campi cliente ============
+// ============ ora corrente nei campi cliente / operaio ============
 function oraCorrente(){
   const d = new Date();
   return String(d.getHours()).padStart(2,"0") + ":" + String(d.getMinutes()).padStart(2,"0");
@@ -1017,26 +994,6 @@ function oraAdesso(btn){
   const input = btn.parentElement.querySelector("input");
   input.value = oraCorrente();
   input.dispatchEvent(new Event("input", {bubbles:true}));
-}
-
-// il "resto" della giornata (fuori dai clienti e dalla pausa) diventa viaggio
-function minutiClienti(){
-  let t = 0;
-  document.querySelectorAll("#clienti .fascia").forEach(f=>{
-    const d = f.querySelector(".f-dalle").value, a = f.querySelector(".f-alle").value;
-    if(d && a) t += minutiGiornata(d, a);
-  });
-  return t;
-}
-function ricalcolaViaggio(){
-  const span = minutiGiornata(document.getElementById("dalle").value, document.getElementById("alle").value);
-  const pausa = +document.getElementById("pausa").value || 0;
-  const lavoro = minutiClienti();
-  if(lavoro > 0){
-    const resto = Math.max(0, span - pausa - lavoro);
-    document.getElementById("viaggio").value = resto || "";
-  }
-  calcolaOre();
 }
 
 // ============ firma touch ============
@@ -1098,6 +1055,83 @@ function caricaFirma(div, dataURL){
   img.src = dataURL;
 }
 
+// ============ operai (orario per singola persona) ============
+function aggiungiRigaOperaio(nome, dalle, alle, pausa){
+  const div = document.createElement("div");
+  div.className = "cliente op-riga";
+  div.innerHTML =
+    '<div class="testata">' +
+      '<input type="text" class="op-nome" placeholder="Nome operaio" autocomplete="off">' +
+      '<button type="button" class="togli" aria-label="Rimuovi operaio" onclick="togliOperaio(this)">&times;</button>' +
+    '</div>' +
+    '<div class="due">' +
+      '<div><label>Dalle</label><div class="oranow">' +
+        '<input type="time" class="op-dalle"><button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button></div></div>' +
+      '<div><label>Alle</label><div class="oranow">' +
+        '<input type="time" class="op-alle"><button type="button" class="btn-ora" onclick="oraAdesso(this)">Ora</button></div></div>' +
+    '</div>' +
+    '<div class="due" style="margin-top:10px">' +
+      '<div><label>Pausa (min)</label><input type="number" class="op-pausa" min="0" step="5" value="60" inputmode="numeric"></div>' +
+    '</div>' +
+    '<div class="totore" style="margin-top:8px;font-size:13.5px">Ore: <b class="op-ore">—</b></div>';
+  document.getElementById("operai").appendChild(div);
+  if(nome) div.querySelector(".op-nome").value = nome;
+  if(dalle) div.querySelector(".op-dalle").value = dalle;
+  if(alle) div.querySelector(".op-alle").value = alle;
+  div.querySelector(".op-pausa").value = (pausa === undefined || pausa === null || pausa === "") ? PAUSA_STANDARD : pausa;
+  return div;
+}
+function aggiungiOperaio(dati){
+  const div = aggiungiRigaOperaio(
+    dati && dati.nome, dati && dati.dalle, dati && dati.alle,
+    dati && dati.pausa
+  );
+  calcolaRigaOperaio(div);
+  return div;
+}
+function togliOperaio(btn){
+  btn.closest(".op-riga").remove();
+  calcolaOreGiorno();
+  salvaGiornata();
+}
+function minutiOperaio(op){
+  if(!op.dalle || !op.alle) return 0;
+  const pausa = (op.pausa === undefined || op.pausa === null || op.pausa === "") ? PAUSA_STANDARD : (+op.pausa || 0);
+  return Math.max(0, minutiGiornata(op.dalle, op.alle) - pausa);
+}
+function calcolaRigaOperaio(div){
+  const op = {
+    dalle: div.querySelector(".op-dalle").value,
+    alle: div.querySelector(".op-alle").value,
+    pausa: div.querySelector(".op-pausa").value
+  };
+  const min = minutiOperaio(op);
+  div.querySelector(".op-ore").textContent = (op.dalle && op.alle) ? oreConStraordinario(min) : "—";
+  return min;
+}
+function calcolaOreGiorno(){
+  document.querySelectorAll("#operai .op-riga").forEach(div=>{
+    calcolaRigaOperaio(div);
+  });
+}
+function elencoOperai(){
+  const out = [];
+  document.querySelectorAll("#operai .op-riga").forEach(div=>{
+    const nome = div.querySelector(".op-nome").value.trim();
+    const dalle = div.querySelector(".op-dalle").value;
+    const alle = div.querySelector(".op-alle").value;
+    const pausa = div.querySelector(".op-pausa").value;
+    if(nome || dalle || alle){
+      out.push({
+        nome: nome || "(senza nome)",
+        dalle, alle,
+        pausa: pausa === "" ? PAUSA_STANDARD : +pausa
+      });
+    }
+  });
+  return out;
+}
+
 // ============ ore ============
 function toMin(t){ const p = t.split(":"); return +p[0]*60 + +p[1]; }
 function minutiGiornata(dalle, alle){
@@ -1112,20 +1146,8 @@ function oreTesto(min){
   if(m === 0) return h + (h === 1 ? " ora" : " ore");
   return h + "h " + m + "m";
 }
-function pausaDi(d){
-  return (d.pausa === undefined || d.pausa === null || d.pausa === "") ? PAUSA_STANDARD : (+d.pausa || 0);
-}
 function minutiNetti(d){
-  return Math.max(0, minutiGiornata(d.dalle, d.alle) - pausaDi(d) - (+d.viaggio || 0));
-}
-function calcolaOre(){
-  const dalle = document.getElementById("dalle").value;
-  const alle = document.getElementById("alle").value;
-  const viaggio = +document.getElementById("viaggio").value || 0;
-  const pausa = +document.getElementById("pausa").value || 0;
-  const netto = Math.max(0, minutiGiornata(dalle, alle) - pausa - viaggio);
-  document.getElementById("totore").textContent = (dalle && alle) ? oreConStraordinario(netto) : "—";
-  document.getElementById("totore-extra").textContent = viaggio ? "  ·  " + viaggio + "m viaggio" : "";
+  return (d.operai || []).reduce((a,op)=>a + minutiOperaio(op), 0);
 }
 
 // ============ raccolta dati ============
@@ -1173,10 +1195,8 @@ function elencoClienti(){
 function datiGiornata(){
   return {
     tecnici: document.getElementById("tecnici").value.trim(),
-    dalle: document.getElementById("dalle").value,
-    alle: document.getElementById("alle").value,
-    pausa: +document.getElementById("pausa").value || 0,
-    viaggio: +document.getElementById("viaggio").value || 0,
+    escludi: document.getElementById("escludi-monte").checked,
+    operai: elencoOperai(),
     clienti: elencoClienti(),
     spese: elencoSpese()
   };
@@ -1224,7 +1244,7 @@ function salvaGiornata(){
     if(!iso) return;
     const db = leggiDB();
     const d = datiGiornata();
-    if(d.clienti.length === 0 && d.spese.length === 0){
+    if(d.clienti.length === 0 && d.spese.length === 0 && d.operai.length === 0){
       delete db[iso];
     } else {
       db[iso] = d;
@@ -1255,31 +1275,41 @@ function caricaGiornata(iso){
   const d = db[iso];
   document.getElementById("clienti").innerHTML = "";
   document.getElementById("spese").innerHTML = "";
+  document.getElementById("operai").innerHTML = "";
   if(d){
     document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
-    document.getElementById("dalle").value = d.dalle || "08:00";
-    document.getElementById("alle").value = d.alle || "17:00";
-    document.getElementById("pausa").value = (d.pausa === undefined ? PAUSA_STANDARD : d.pausa);
-    document.getElementById("viaggio").value = d.viaggio || "";
+    document.getElementById("escludi-monte").checked = !!d.escludi;
     (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
+    if(d.operai && d.operai.length){
+      d.operai.forEach(op=>aggiungiOperaio(op));
+    } else if(d.dalle || d.alle){
+      // migrazione dal vecchio formato (un solo orario condiviso per tutti)
+      const nomi = (d.tecnici || "").split("/").map(s=>s.trim()).filter(Boolean);
+      if(nomi.length){
+        nomi.forEach(n=>aggiungiOperaio({nome:n, dalle:d.dalle, alle:d.alle, pausa:d.pausa}));
+      } else {
+        aggiungiOperaio({dalle:d.dalle, alle:d.alle, pausa:d.pausa});
+      }
+    } else {
+      aggiungiOperaio({nome:"Luca", dalle:"08:00", alle:"17:00"});
+      aggiungiOperaio({nome:"Francesco", dalle:"08:00", alle:"17:00"});
+    }
     if(d.clienti && d.clienti.length) d.clienti.forEach(c=>aggiungiCliente(c));
     else aggiungiCliente();
   } else {
-    document.getElementById("dalle").value = "08:00";
-    document.getElementById("alle").value = "17:00";
-    document.getElementById("pausa").value = PAUSA_STANDARD;
-    document.getElementById("viaggio").value = "";
+    document.getElementById("tecnici").value = "Luca / Francesco";
+    document.getElementById("escludi-monte").checked = false;
+    aggiungiOperaio({nome:"Luca", dalle:"08:00", alle:"17:00"});
+    aggiungiOperaio({nome:"Francesco", dalle:"08:00", alle:"17:00"});
     aggiungiCliente();
   }
-  calcolaOre();
+  calcolaOreGiorno();
   calcolaSpese();
 }
 
 document.addEventListener("input", e=>{
   if(e.target.closest("#vista-giorno")){
-    if(e.target.classList.contains("f-dalle") || e.target.classList.contains("f-alle") ||
-       ["dalle","alle","pausa"].includes(e.target.id)) ricalcolaViaggio();
-    if(e.target.id === "viaggio") calcolaOre();
+    if(e.target.closest(".op-riga")) calcolaOreGiorno();
     if(e.target.closest(".spesa-riga")) calcolaSpese();
     if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
     salvaGiornata();
@@ -1336,7 +1366,12 @@ function testoRapporto(){
     if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
   righe.push("");
-  righe.push("ORARIO GIORNATA: " + d.dalle + " - " + d.alle);
+  righe.push("ORARIO:");
+  if(d.operai.length === 0) righe.push("-");
+  d.operai.forEach(op=>{
+    righe.push("- " + op.nome + ": " + (op.dalle || "—") + " - " + (op.alle || "—") + "  (" + oreTesto(minutiOperaio(op)) + ")");
+  });
+  if(d.escludi) righe.push("(giornata esclusa dal monte ore)");
 
   const totImp = totaleImporti(d.clienti);
   if(totImp){
@@ -1373,24 +1408,33 @@ function datiSettimana(){
   const iso = document.getElementById("settdata").value;
   const db = leggiDB();
   const giorni = giorniSettimana(iso);
-  let tot = 0, totViaggio = 0, totEcc = 0;
+  const operaiTotali = {};
+  let totGenerale = 0, giorniConteggiati = 0;
   const righe = giorni.map((g,i)=>{
     const d = db[g];
-    const min = d ? minutiNetti(d) : 0;
-    tot += min;
-    const ecc = d ? eccedenza(min) : 0;
-    totEcc += ecc;
-    if(d) totViaggio += (+d.viaggio || 0);
+    if(!d) return {iso: g, nome: GIORNI[i], dati: null};
+    const operai = (d.operai || []).map(op=>({nome: op.nome || "(senza nome)", minuti: minutiOperaio(op)}));
+    const totGiorno = operai.reduce((a,o)=>a+o.minuti, 0);
+    if(!d.escludi){
+      giorniConteggiati++;
+      operai.forEach(o=>{
+        operaiTotali[o.nome] = (operaiTotali[o.nome] || 0) + o.minuti;
+        totGenerale += o.minuti;
+      });
+    }
     return {
-      iso: g,
-      nome: GIORNI[i],
-      dati: d || null,
-      minuti: min,
-      eccedenza: ecc,
-      clienti: d ? d.clienti.map(c=>c.nome).join(", ") : ""
+      iso: g, nome: GIORNI[i], dati: d, operai, totGiorno,
+      escluso: !!d.escludi,
+      clienti: d.clienti.map(c=>c.nome).join(", ")
     };
   });
-  return {righe, tot, totViaggio, totEcc, atteso: righe.filter(r=>r.dati).length * ORARIO_ORDINARIO, giorniLavorati: righe.filter(r=>r.dati).length, dal: dataIt(giorni[0]), al: dataIt(giorni[6])};
+  return {
+    righe, operaiTotali, totGenerale,
+    giorniLavorati: righe.filter(r=>r.dati).length,
+    giorniConteggiati,
+    attesoTot: giorniConteggiati * ORARIO_ORDINARIO,
+    dal: dataIt(giorni[0]), al: dataIt(giorni[6])
+  };
 }
 function disegnaSettimana(){
   if(!document.getElementById("settdata").value){
@@ -1403,11 +1447,13 @@ function disegnaSettimana(){
     const div = document.createElement("div");
     div.className = "giorno";
     if(r.dati){
+      const opTesto = r.operai.length ? r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" · ") : "—";
       div.innerHTML =
         '<span class="gnome">' + r.nome + '</span>' +
-        '<div class="ginfo"><div>' + dataIt(r.iso) + '</div>' +
-        '<div class="gclienti">' + (r.clienti || "—") + '</div></div>' +
-        '<span class="gore">' + oreConStraordinario(r.minuti) + '</span>' +
+        '<div class="ginfo"><div>' + dataIt(r.iso) +
+        (r.escluso ? '  <span style="color:#B3413A;font-size:11px;font-weight:700">ESCLUSA</span>' : '') + '</div>' +
+        '<div class="gclienti">' + opTesto + '</div></div>' +
+        '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
         '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiorno(\'' + r.iso + '\')">&times;</button>';
     } else {
       div.innerHTML =
@@ -1417,12 +1463,18 @@ function disegnaSettimana(){
     }
     cont.appendChild(div);
   });
-  const saldo = s.tot - s.atteso;
-  document.getElementById("giornilav").innerHTML =
-    '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>' +
-    '<div class="saldo"><span>Ore lavorate</span><b>' + oreTesto(s.tot) + '</b></div>' +
-    (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '');
-  document.getElementById("monteore").textContent = oreTesto(s.tot) + (saldo ? "  " + saldoTesto(saldo) : "");
+
+  let html = '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>';
+  if(s.giorniLavorati - s.giorniConteggiati > 0){
+    html += '<div class="saldo"><span>di cui escluse dal monte ore</span><b>' + (s.giorniLavorati - s.giorniConteggiati) + '</b></div>';
+  }
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const min = s.operaiTotali[n];
+    const saldo = min - s.attesoTot;
+    html += '<div class="saldo"><span>' + n + '</span><b>' + oreTesto(min) + (saldo ? "  " + saldoTesto(saldo) : "") + '</b></div>';
+  });
+  document.getElementById("giornilav").innerHTML = html;
+  document.getElementById("monteore").textContent = oreTesto(s.totGenerale);
 }
 function eliminaGiorno(iso){
   if(!confirm("Eliminare il rapporto del " + dataIt(iso) + "?")) return;
@@ -1435,26 +1487,26 @@ function eliminaGiorno(iso){
 }
 function testoSettimana(){
   const s = datiSettimana();
+  const extra = document.getElementById("stampa-extra-sett").checked;
   const righe = [];
   righe.push("REPORT SETTIMANALE " + s.dal + " - " + s.al);
-  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
   righe.push("");
   s.righe.forEach(r=>{
     if(r.dati){
-      righe.push(r.nome + " " + dataIt(r.iso) + "  —  " +
-                 (document.getElementById("stampa-extra-sett").checked ? oreConStraordinario(r.minuti) : oreTesto(r.minuti)) +
-                 (r.clienti ? "  —  " + r.clienti : ""));
+      const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
+      righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
+                 "  —  " + opTesto + (r.clienti ? "  —  " + r.clienti : ""));
     } else {
       righe.push(r.nome + " " + dataIt(r.iso) + "  —  -");
     }
   });
-  const saldoS = s.tot - s.atteso;
   righe.push("");
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
-  righe.push("ORE LAVORATE: " + oreTesto(s.tot));
-  if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
-  righe.push("TOTALE: " + oreTesto(s.tot) +
-             (document.getElementById("stampa-extra-sett").checked && saldoS ? "  " + saldoTesto(saldoS) : ""));
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const saldo = s.operaiTotali[n] - s.attesoTot;
+    righe.push(n.toUpperCase() + ": " + oreTesto(s.operaiTotali[n]) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
+  });
+  righe.push("TOTALE: " + oreTesto(s.totGenerale));
   return righe.join("\n");
 }
 
@@ -1472,19 +1524,27 @@ function datiMese(){
   const iso = document.getElementById("mesedata").value;
   const db = leggiDB();
   const giorni = giorniMese(iso);
-  let tot = 0, totViaggio = 0, totSpese = 0;
+  const operaiTotali = {};
+  let totGenerale = 0, giorniConteggiati = 0, totSpese = 0;
   const righe = giorni.map(g=>{
     const d = db[g];
     if(!d) return null;
-    const min = minutiNetti(d);
-    tot += min;
-    totViaggio += (+d.viaggio || 0);
+    const operai = (d.operai || []).map(op=>({nome: op.nome || "(senza nome)", minuti: minutiOperaio(op)}));
+    const totGiorno = operai.reduce((a,o)=>a+o.minuti, 0);
     totSpese += totaleSpese(d.spese || []);
+    if(!d.escludi){
+      giorniConteggiati++;
+      operai.forEach(o=>{
+        operaiTotali[o.nome] = (operaiTotali[o.nome] || 0) + o.minuti;
+        totGenerale += o.minuti;
+      });
+    }
     const data = new Date(g + "T12:00:00");
     return {
       iso: g,
       nome: GIORNI[(data.getDay() + 6) % 7],
-      minuti: min,
+      operai, totGiorno,
+      escluso: !!d.escludi,
       clienti: d.clienti.map(c=>c.nome).join(", ")
     };
   }).filter(Boolean);
@@ -1492,9 +1552,10 @@ function datiMese(){
   const nomiMesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
                     "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
   return {
-    righe, tot, totViaggio, totSpese,
+    righe, operaiTotali, totGenerale, totSpese,
     giorniLavorati: righe.length,
-    atteso: righe.length * ORARIO_ORDINARIO,
+    giorniConteggiati,
+    attesoTot: giorniConteggiati * ORARIO_ORDINARIO,
     etichetta: nomiMesi[+mm - 1] + " " + aa
   };
 }
@@ -1511,22 +1572,29 @@ function disegnaMese(){
   s.righe.forEach(r=>{
     const div = document.createElement("div");
     div.className = "giorno";
+    const opTesto = r.operai.length ? r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" · ") : "—";
     div.innerHTML =
       '<span class="gnome">' + r.nome + '</span>' +
-      '<div class="ginfo"><div>' + dataIt(r.iso) + '</div>' +
-      '<div class="gclienti">' + (r.clienti || "—") + '</div></div>' +
-      '<span class="gore">' + oreConStraordinario(r.minuti) + '</span>' +
+      '<div class="ginfo"><div>' + dataIt(r.iso) +
+      (r.escluso ? '  <span style="color:#B3413A;font-size:11px;font-weight:700">ESCLUSA</span>' : '') + '</div>' +
+      '<div class="gclienti">' + opTesto + '</div></div>' +
+      '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
       '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
     cont.appendChild(div);
   });
-  const saldo = s.tot - s.atteso;
-  document.getElementById("mesericap").innerHTML =
-    '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>' +
-    '<div class="saldo"><span>Ore lavorate</span><b>' + oreTesto(s.tot) + '</b></div>' +
-    (s.totViaggio ? '<div class="saldo"><span>Ore di viaggio</span><b>' + oreTesto(s.totViaggio) + '</b></div>' : '') +
-    (s.totSpese ? '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>' : '');
-  document.getElementById("monteoremese").textContent =
-    oreTesto(s.tot) + (saldo ? "  " + saldoTesto(saldo) : "");
+
+  let html = '<div class="saldo"><span>Giorni lavorati</span><b>' + s.giorniLavorati + '</b></div>';
+  if(s.giorniLavorati - s.giorniConteggiati > 0){
+    html += '<div class="saldo"><span>di cui escluse dal monte ore</span><b>' + (s.giorniLavorati - s.giorniConteggiati) + '</b></div>';
+  }
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const min = s.operaiTotali[n];
+    const saldo = min - s.attesoTot;
+    html += '<div class="saldo"><span>' + n + '</span><b>' + oreTesto(min) + (saldo ? "  " + saldoTesto(saldo) : "") + '</b></div>';
+  });
+  if(s.totSpese) html += '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>';
+  document.getElementById("mesericap").innerHTML = html;
+  document.getElementById("monteoremese").textContent = oreTesto(s.totGenerale);
 }
 function eliminaGiornoMese(iso){
   if(!confirm("Eliminare il rapporto del " + dataIt(iso) + "?")) return;
@@ -1542,20 +1610,20 @@ function testoMese(){
   const extra = document.getElementById("stampa-extra-mese").checked;
   const righe = [];
   righe.push("REPORT MENSILE - " + s.etichetta.toUpperCase());
-  righe.push("Tecnici: " + document.getElementById("tecnici").value.trim());
   righe.push("");
   s.righe.forEach(r=>{
-    righe.push(r.nome + " " + dataIt(r.iso) + "  —  " +
-               (extra ? oreConStraordinario(r.minuti) : oreTesto(r.minuti)) +
-               (r.clienti ? "  —  " + r.clienti : ""));
+    const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
+    righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
+               "  —  " + opTesto + (r.clienti ? "  —  " + r.clienti : ""));
   });
-  const saldo = s.tot - s.atteso;
   righe.push("");
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
-  righe.push("ORE LAVORATE: " + oreTesto(s.tot));
-  if(s.totViaggio) righe.push("ORE DI VIAGGIO: " + oreTesto(s.totViaggio));
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const saldo = s.operaiTotali[n] - s.attesoTot;
+    righe.push(n.toUpperCase() + ": " + oreTesto(s.operaiTotali[n]) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
+  });
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
-  righe.push("TOTALE: " + oreTesto(s.tot) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
+  righe.push("TOTALE: " + oreTesto(s.totGenerale));
   return righe.join("\n");
 }
 
@@ -1604,23 +1672,19 @@ function eseguiRicerca(){
     clienti.forEach(cl=>{
       html += '<div style="margin-bottom:10px;padding-left:4px">';
 
-      // indirizzo
       if(cl.indirizzo)
         html += '<div class="rg-riga" style="color:#5A6068;font-size:13px">📍 ' + evidenzia(cl.indirizzo, query) + '</div>';
 
-      // orari
       const fasce = cl.fasce && cl.fasce.length ? cl.fasce
                   : ((cl.dalle || cl.alle) ? [{d: cl.dalle, a: cl.alle}] : []);
       const or = fasce.map(f=>(f.d && f.a ? f.d+" - "+f.a : f.d || f.a || "")).filter(Boolean).join(" / ");
       if(or) html += '<div class="rg-riga" style="font-size:13px">🕐 ' + or + '</div>';
 
-      // tipologia + stato
       const meta = [];
       if(cl.tipologia) meta.push(cl.tipologia);
       if(cl.stato && cl.stato !== "Completato") meta.push('<span style="color:#B3413A">' + cl.stato + '</span>');
       if(meta.length) html += '<div class="rg-riga" style="font-size:13px">' + meta.join(" · ") + '</div>';
 
-      // dettagli
       if(cl.dettagli){
         html += '<div class="rg-sezione">Lavoro</div>';
         cl.dettagli.split("\n").forEach(riga=>{
@@ -1628,7 +1692,6 @@ function eseguiRicerca(){
         });
       }
 
-      // materiali
       if(cl.materiali && cl.materiali.length){
         html += '<div class="rg-sezione">Materiale</div>';
         cl.materiali.forEach(m=>{
@@ -1636,18 +1699,15 @@ function eseguiRicerca(){
         });
       }
 
-      // importo
       if(cl.importo)
         html += '<div class="rg-riga" style="font-size:13px">💶 Da fatturare: <b>' + euro(cl.importo) + '</b></div>';
 
-      // committente
       if(cl.fatturare)
         html += '<div class="rg-riga" style="font-size:13px;color:#5A6068">Fatturare a: ' + evidenzia(cl.fatturare, query) + '</div>';
 
       html += '</div>';
     });
 
-    // link al giorno: toccando la data si torna alla giornata
     html += '<button onclick="apriGiorno(\'' + iso + '\')" style="width:100%;background:transparent;' +
             'border:1.5px solid var(--bordo);border-radius:6px;padding:8px;' +
             'font-family:Chakra Petch,sans-serif;font-weight:600;font-size:12px;' +
@@ -1658,21 +1718,18 @@ function eseguiRicerca(){
     cont.appendChild(card);
   });
 
-  // titoletto con il numero di risultati
   cont.insertAdjacentHTML("afterbegin",
     '<div style="font-size:13px;color:#5A6068;margin-bottom:12px">' +
     corrispondenze.length + ' giorn' + (corrispondenze.length === 1 ? "o" : "i") + ' trovat' +
     (corrispondenze.length === 1 ? "o" : "i") + '</div>');
 }
 
-// evidenzia il testo trovato in grassetto
 function evidenzia(testo, query){
   if(!testo || !query) return testo || "";
   const re = new RegExp("(" + query.replace(/[.*+?^${}()|[\]\\]/g,"\\$&") + ")", "gi");
   return testo.replace(re, "<b>$1</b>");
 }
 
-// bottone "Apri rapporto": passa alla giornata
 function apriGiorno(iso){
   document.getElementById("data").value = iso;
   caricaGiornata(iso);
@@ -1779,7 +1836,6 @@ function generaPDF(){
     doc.setFontSize(11.5);
     let xNome = ML;
     if(c.urgente){
-      // banda rossa a tutta larghezza dietro la riga del cliente
       doc.setFillColor(253,240,239);
       doc.rect(ML - 2, y - 5, CW + 4, 8.5, "F");
       doc.setFillColor(179,65,58);
@@ -1873,12 +1929,21 @@ function generaPDF(){
   serveNuovaPagina(20);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  doc.text("ORARIO GIORNATA", ML, y);
+  doc.text("ORARIO" + (d.escludi ? "  (esclusa dal monte ore)" : ""), ML, y);
   y += 7;
   doc.setFont("helvetica","normal");
   doc.setFontSize(11);
-  doc.text("Dalle " + d.dalle + "  alle " + d.alle, ML, y);
-  y += 6;
+  if(d.operai.length === 0){
+    doc.text("-", ML, y);
+    y += 6;
+  } else {
+    d.operai.forEach(op=>{
+      serveNuovaPagina(6);
+      doc.text(op.nome + ":  " + (op.dalle || "—") + " - " + (op.alle || "—") +
+                "   (" + oreTesto(minutiOperaio(op)) + ")", ML, y);
+      y += 6;
+    });
+  }
   y += 5;
 
   const totImporti = totaleImporti(d.clienti);
@@ -1939,60 +2004,70 @@ function generaPDFSettimana(){
 
   doc.setFontSize(11);
   doc.text("Settimana: " + s.dal + " - " + s.al, ML, y);
-  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 80, y);
   y += 11;
 
-  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50, colOre = W - MR - 42, colStr = W - MR - 20;
-  doc.setFillColor(230,231,232);
-  doc.rect(ML, y - 5, CW, 8, "F");
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(10);
-  doc.text("Giorno", colGiorno + 2, y);
-  doc.text("Data", colData + 2, y);
-  doc.text("Clienti", colClienti + 2, y);
-  doc.text("Ore", colOre + 2, y);
-  if(mostraExtra) doc.text("+/-", colStr + 2, y);
-  y += 8;
+  const colGiorno = ML, colData = ML + 22, colOperai = ML + 50, colOre = W - MR - 25;
+  function intestazioneTabella(){
+    doc.setFillColor(230,231,232);
+    doc.rect(ML, y - 5, CW, 8, "F");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.text("Giorno", colGiorno + 2, y);
+    doc.text("Data", colData + 2, y);
+    doc.text("Operai (ore)", colOperai + 2, y);
+    doc.text("Totale", colOre + 2, y);
+    y += 8;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
+  }
+  intestazioneTabella();
 
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(10.5);
+  let cEscluse = false;
   s.righe.forEach(r=>{
-    const clienti = r.dati ? (r.clienti || "—") : "—";
-    const clientiRighe = doc.splitTextToSize(clienti, colOre - colClienti - 4);
-    const altezza = Math.max(clientiRighe.length * 5, 7);
+    if(y > 265){ doc.addPage(); y = 22; intestazioneTabella(); }
+    const opTesto = r.dati ? (r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" / ") || "—") : "—";
+    const opRighe = doc.splitTextToSize(opTesto, colOre - colOperai - 4);
+    const altezza = Math.max(opRighe.length * 5, 7);
+    if(r.escluso) cEscluse = true;
     doc.text(r.nome, colGiorno + 2, y);
-    doc.text(dataIt(r.iso), colData + 2, y);
-    doc.text(clientiRighe, colClienti + 2, y);
-    doc.text(r.dati ? oreTesto(r.minuti) : "-", colOre + 2, y);
-    if(mostraExtra) doc.text(r.dati ? saldoTesto(r.minuti - ORARIO_ORDINARIO) : "-", colStr + 2, y);
+    doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), colData + 2, y);
+    doc.text(opRighe, colOperai + 2, y);
+    doc.text(r.dati ? oreTesto(r.totGiorno) : "-", colOre + 2, y);
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
     doc.line(ML, y - 4.5, W - MR, y - 4.5);
   });
 
+  if(cEscluse){
+    doc.setFontSize(8.5);
+    doc.setTextColor(130,135,140);
+    doc.text("* giornata esclusa dal monte ore", ML, y + 2);
+    doc.setTextColor(0,0,0);
+    y += 8;
+  }
+
   y += 5;
   doc.setFont("helvetica","normal");
   doc.setFontSize(10.5);
-  const voci = [
-    ["Giorni lavorati", String(s.giorniLavorati)],
-    ["Ore lavorate", oreTesto(s.tot)]
-  ];
-  if(s.totViaggio) voci.push(["Ore di viaggio", oreTesto(s.totViaggio)]);
-  voci.forEach(v=>{
-    doc.text(v[0], ML + 2, y);
-    doc.text(v[1], W - MR - 3, y, {align:"right"});
+  doc.text("Giorni lavorati", ML + 2, y);
+  doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
+  y += 6;
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const saldo = s.operaiTotali[n] - s.attesoTot;
+    doc.text(n, ML + 2, y);
+    doc.text(oreTesto(s.operaiTotali[n]) + (mostraExtra && saldo ? "  " + saldoTesto(saldo) : ""), W - MR - 3, y, {align:"right"});
     y += 6;
   });
   y += 3;
+
   doc.setFillColor(47,161,137);
   doc.rect(ML, y - 5.5, CW, 10, "F");
   doc.setTextColor(255,255,255);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  const saldoSet = s.tot - s.atteso;
   doc.text("TOTALE", ML + 3, y + 1);
-  doc.text(oreTesto(s.tot) + (mostraExtra && saldoSet ? "   " + saldoTesto(saldoSet) : ""), W - MR - 3, y + 1, {align:"right"});
+  doc.text(oreTesto(s.totGenerale), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
 
   aggiungiPiePagina(doc);
@@ -2010,11 +2085,9 @@ function generaPDFMese(){
 
   doc.setFontSize(11);
   doc.text("Mese: " + s.etichetta, ML, y);
-  doc.text("Tecnici: " + document.getElementById("tecnici").value.trim(), ML + 80, y);
   y += 11;
 
-  const colGiorno = ML, colData = ML + 22, colClienti = ML + 50,
-        colOre = W - MR - 42, colStr = W - MR - 20;
+  const colGiorno = ML, colData = ML + 22, colOperai = ML + 50, colOre = W - MR - 25;
   function intestazioneTabella(){
     doc.setFillColor(230,231,232);
     doc.rect(ML, y - 5, CW, 8, "F");
@@ -2022,9 +2095,8 @@ function generaPDFMese(){
     doc.setFontSize(10);
     doc.text("Giorno", colGiorno + 2, y);
     doc.text("Data", colData + 2, y);
-    doc.text("Clienti", colClienti + 2, y);
-    doc.text("Ore", colOre + 2, y);
-    if(mostraExtra) doc.text("+/-", colStr + 2, y);
+    doc.text("Operai (ore)", colOperai + 2, y);
+    doc.text("Totale", colOre + 2, y);
     y += 8;
     doc.setFont("helvetica","normal");
     doc.setFontSize(10.5);
@@ -2035,36 +2107,50 @@ function generaPDFMese(){
     doc.text("Nessun rapporto in questo mese.", ML + 2, y);
     y += 8;
   }
+  let cEscluse = false;
   s.righe.forEach(r=>{
     if(y > 265){ doc.addPage(); y = 22; intestazioneTabella(); }
-    const clientiRighe = doc.splitTextToSize(r.clienti || "—", colOre - colClienti - 4);
-    const altezza = Math.max(clientiRighe.length * 5, 7);
+    if(r.escluso) cEscluse = true;
+    const opTesto = r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" / ") || "—";
+    const opRighe = doc.splitTextToSize(opTesto, colOre - colOperai - 4);
+    const altezza = Math.max(opRighe.length * 5, 7);
     doc.text(r.nome, colGiorno + 2, y);
-    doc.text(dataIt(r.iso), colData + 2, y);
-    doc.text(clientiRighe, colClienti + 2, y);
-    doc.text(oreTesto(r.minuti), colOre + 2, y);
-    if(mostraExtra) doc.text(saldoTesto(r.minuti - ORARIO_ORDINARIO), colStr + 2, y);
+    doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), colData + 2, y);
+    doc.text(opRighe, colOperai + 2, y);
+    doc.text(oreTesto(r.totGiorno), colOre + 2, y);
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
     doc.line(ML, y - 4.5, W - MR, y - 4.5);
   });
 
+  if(cEscluse){
+    if(y > 260){ doc.addPage(); y = 22; }
+    doc.setFontSize(8.5);
+    doc.setTextColor(130,135,140);
+    doc.text("* giornata esclusa dal monte ore", ML, y + 2);
+    doc.setTextColor(0,0,0);
+    y += 8;
+  }
+
   if(y > 235){ doc.addPage(); y = 22; }
   y += 5;
   doc.setFont("helvetica","normal");
   doc.setFontSize(10.5);
-  const voci = [
-    ["Giorni lavorati", String(s.giorniLavorati)],
-    ["Ore lavorate", oreTesto(s.tot)]
-  ];
-  if(s.totViaggio) voci.push(["Ore di viaggio", oreTesto(s.totViaggio)]);
-  if(s.totSpese) voci.push(["Spese anticipate", euro(s.totSpese)]);
-  voci.forEach(v=>{
-    doc.text(v[0], ML + 2, y);
-    doc.text(v[1], W - MR - 3, y, {align:"right"});
+  doc.text("Giorni lavorati", ML + 2, y);
+  doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
+  y += 6;
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const saldo = s.operaiTotali[n] - s.attesoTot;
+    doc.text(n, ML + 2, y);
+    doc.text(oreTesto(s.operaiTotali[n]) + (mostraExtra && saldo ? "  " + saldoTesto(saldo) : ""), W - MR - 3, y, {align:"right"});
     y += 6;
   });
+  if(s.totSpese){
+    doc.text("Spese anticipate", ML + 2, y);
+    doc.text(euro(s.totSpese), W - MR - 3, y, {align:"right"});
+    y += 6;
+  }
   y += 3;
 
   doc.setFillColor(47,161,137);
@@ -2072,10 +2158,8 @@ function generaPDFMese(){
   doc.setTextColor(255,255,255);
   doc.setFont("helvetica","bold");
   doc.setFontSize(12);
-  const saldoM = s.tot - s.atteso;
   doc.text("TOTALE", ML + 3, y + 1);
-  doc.text(oreTesto(s.tot) + (mostraExtra && saldoM ? "   " + saldoTesto(saldoM) : ""),
-           W - MR - 3, y + 1, {align:"right"});
+  doc.text(oreTesto(s.totGenerale), W - MR - 3, y + 1, {align:"right"});
   doc.setTextColor(0,0,0);
 
   aggiungiPiePagina(doc);
@@ -2083,7 +2167,7 @@ function generaPDFMese(){
 }
 
 // ============ invio con stato di caricamento ============
-async function condividi(btn, generatore, nome, oggetto, testoAccomp){
+async function condividi(btn, generatore, nome){
   const etichetta = btn.querySelector("span");
   const originale = etichetta.textContent;
   btn.disabled = true;
@@ -2109,16 +2193,12 @@ async function condividi(btn, generatore, nome, oggetto, testoAccomp){
 }
 function inviaPDF(){
   condividi(document.getElementById("btn-pdf-giorno"), generaPDF,
-    "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf",
-    "Rapporto di lavoro " + dataIt(),
-    "In allegato il rapporto di lavoro del " + dataIt() + ". Da inviare a: " + DESTINATARIO);
+    "Rapporto_" + dataIt().replaceAll("/","-") + ".pdf");
 }
 function inviaPDFSettimana(){
   const s = datiSettimana();
   condividi(document.getElementById("btn-pdf-sett"), generaPDFSettimana,
-    "Report_settimana_" + s.dal.replaceAll("/","-") + ".pdf",
-    "Report settimanale " + s.dal + " - " + s.al,
-    "In allegato il report settimanale " + s.dal + " - " + s.al + ". Da inviare a: " + DESTINATARIO);
+    "Report_settimana_" + s.dal.replaceAll("/","-") + ".pdf");
 }
 function inviaTesto(){
   window.location.href = "mailto:" + DESTINATARIO +
@@ -2128,8 +2208,7 @@ function inviaTesto(){
 function inviaPDFMese(){
   const s = datiMese();
   condividi(document.getElementById("btn-pdf-mese"), generaPDFMese,
-    "Report_" + s.etichetta.replaceAll(" ","_") + ".pdf",
-    "Report mensile " + s.etichetta, "");
+    "Report_" + s.etichetta.replaceAll(" ","_") + ".pdf");
 }
 function inviaTestoMese(){
   const s = datiMese();
@@ -2149,17 +2228,16 @@ document.getElementById("logoimg").src = LOGO_B64;
 const oggi = new Date().toISOString().slice(0,10);
 document.getElementById("data").value = oggi;
 document.getElementById("settdata").value = oggi;
+document.getElementById("mesedata").value = oggi.slice(0,7);
 const prefExtra = leggiPrefExtra();
 ["stampa-extra","stampa-extra-sett","stampa-extra-mese"].forEach(id=>{
   document.getElementById(id).checked = prefExtra;
 });
-document.getElementById("mesedata").value = oggi.slice(0,7);
 aggiornaClientiNoti();
 caricaGiornata(oggi);
 
 if(SINC_ATTIVA()){
   sincronizza();
-  // risincronizza quando riapri l'app o torna la rete
   document.addEventListener("visibilitychange", ()=>{
     if(!document.hidden) sincronizza(true);
   });
