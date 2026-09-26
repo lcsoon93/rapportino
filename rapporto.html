@@ -1039,21 +1039,22 @@ function aggiungiMateriale(btn){
 }
 
 // ============ foto cliente ============
-// riduce dimensione/peso dell'immagine prima di salvarla (localStorage ha poco spazio)
+// riduce dimensione/peso dell'immagine prima di salvarla (localStorage ha poco spazio),
+// mantenendo le proporzioni reali cosi' nel PDF non viene mai distorta
 function comprimiImmagine(file){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
     reader.onload = ()=>{
       const img = new Image();
       img.onload = ()=>{
-        const LATO_MAX = 1400;
+        const LATO_MAX = 1600;
         let w = img.width, h = img.height;
         if(w > h && w > LATO_MAX){ h = Math.round(h * LATO_MAX / w); w = LATO_MAX; }
         else if(h >= w && h > LATO_MAX){ w = Math.round(w * LATO_MAX / h); h = LATO_MAX; }
         const canvas = document.createElement("canvas");
         canvas.width = w; canvas.height = h;
         canvas.getContext("2d").drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL("image/jpeg", 0.72));
+        resolve({src: canvas.toDataURL("image/jpeg", 0.78), w, h});
       };
       img.onerror = ()=>reject(new Error("immagine non valida"));
       img.src = reader.result;
@@ -1062,12 +1063,16 @@ function comprimiImmagine(file){
     reader.readAsDataURL(file);
   });
 }
-function aggiungiFotoThumbnail(clienteDiv, dataURL){
+function aggiungiFotoThumbnail(clienteDiv, foto){
+  // compatibile sia con {src,w,h} (nuovo formato) sia con una stringa dataURL (vecchio formato)
+  const f = (typeof foto === "string") ? {src: foto} : foto;
   const galleria = clienteDiv.querySelector(".foto-galleria");
   const item = document.createElement("div");
   item.className = "foto-item";
+  const attrW = f.w ? ' data-w="' + f.w + '"' : '';
+  const attrH = f.h ? ' data-h="' + f.h + '"' : '';
   item.innerHTML =
-    '<img src="' + dataURL + '" alt="Foto cliente" onclick="mostraFotoIntera(this.src)">' +
+    '<img src="' + f.src + '"' + attrW + attrH + ' alt="Foto cliente" onclick="mostraFotoIntera(this.src)">' +
     '<button type="button" class="foto-del" aria-label="Rimuovi foto" onclick="event.stopPropagation(); this.parentElement.remove(); salvaGiornata();">&times;</button>';
   galleria.appendChild(item);
 }
@@ -1076,8 +1081,8 @@ async function gestisciFoto(input){
   const files = Array.from(input.files || []);
   for(const file of files){
     try{
-      const dataURL = await comprimiImmagine(file);
-      aggiungiFotoThumbnail(clienteDiv, dataURL);
+      const foto = await comprimiImmagine(file);
+      aggiungiFotoThumbnail(clienteDiv, foto);
     }catch(e){
       console.error(e);
       alert("Non sono riuscito a caricare una delle foto.");
@@ -1295,7 +1300,10 @@ function elencoClienti(){
     });
     const foto = [];
     c.querySelectorAll(".foto-item img").forEach(img=>{
-      if(img.src) foto.push(img.src);
+      if(!img.src) return;
+      const w = +img.dataset.w || img.naturalWidth || 0;
+      const h = +img.dataset.h || img.naturalHeight || 0;
+      foto.push({src: img.src, w, h});
     });
     const canvas = c.querySelector(".c-firma");
     const firma = canvas.dataset.pieno === "1" ? canvas.toDataURL("image/png") : "";
@@ -2026,21 +2034,32 @@ function generaPDF(){
       y += 7;
     }
     if(c.foto && c.foto.length){
-      const largFoto = 44, altFoto = 33, gapFoto = 4, perRiga = 3;
+      const perRiga = 2, gapFoto = 5;
+      const boxW = (CW - 8 - gapFoto * (perRiga - 1)) / perRiga; // larghezza massima disponibile per foto
+      const boxH = 68; // altezza massima riservata per riga di foto
       doc.setFont("helvetica","bold");
       doc.setFontSize(10);
-      serveNuovaPagina(altFoto + 8);
+      serveNuovaPagina(boxH + 8);
       doc.text("Foto:", ML + 8, y);
-      y += 4;
+      y += 5;
       let colonna = 0;
-      c.foto.forEach(src=>{
-        if(colonna === 0) serveNuovaPagina(altFoto + 4);
-        const x = ML + 8 + colonna * (largFoto + gapFoto);
-        try{ doc.addImage(src, "JPEG", x, y, largFoto, altFoto); }catch(e){}
+      c.foto.forEach(f=>{
+        if(colonna === 0) serveNuovaPagina(boxH + 4);
+        // calcola dimensioni "contain": la foto intera visibile, senza distorsioni, dentro il riquadro
+        let dw = boxW, dh = boxH;
+        if(f.w && f.h){
+          const scala = Math.min(boxW / f.w, boxH / f.h);
+          dw = f.w * scala;
+          dh = f.h * scala;
+        }
+        const xBase = ML + 8 + colonna * (boxW + gapFoto);
+        const x = xBase + (boxW - dw) / 2;      // centrata orizzontalmente nel riquadro
+        const yFoto = y + (boxH - dh) / 2;       // centrata verticalmente nel riquadro
+        try{ doc.addImage(f.src, "JPEG", x, yFoto, dw, dh); }catch(e){}
         colonna++;
-        if(colonna >= perRiga){ colonna = 0; y += altFoto + gapFoto; }
+        if(colonna >= perRiga){ colonna = 0; y += boxH + gapFoto; }
       });
-      if(colonna !== 0) y += altFoto + gapFoto;
+      if(colonna !== 0) y += boxH + gapFoto;
       y += 2;
     }
     if(c.firma){
