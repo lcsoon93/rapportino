@@ -1709,8 +1709,9 @@ function disegnaMese(){
       '<span class="gnome">' + r.nome + '</span>' +
       '<div class="ginfo"><div>' + dataIt(r.iso) +
       (r.escluso ? '  <span style="color:#B3413A;font-size:11px;font-weight:700">ESCLUSA</span>' : '') + '</div>' +
-      '<div class="gclienti">' + opTesto + '</div></div>' +
-      '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
+      '<div class="gclienti">' + opTesto + '</div>' +
+      (r.clienti ? '<div class="gclienti" style="color:#8C5A2B">' + r.clienti + '</div>' : '') +
+      '</div>' +
       '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
     cont.appendChild(div);
   });
@@ -2248,19 +2249,37 @@ function generaPDFMese(){
   doc.text("Mese: " + s.etichetta, ML, y);
   y += 11;
 
-  const colGiorno = ML, colData = ML + 22, colOperai = ML + 50, colOre = W - MR - 25;
+  // elenco operai comparsi nel mese (anche nei giorni esclusi dal monte ore): una colonna ciascuno
+  const nomiOperai = [];
+  s.righe.forEach(r=>{
+    (r.operai || []).forEach(o=>{ if(!nomiOperai.includes(o.nome)) nomiOperai.push(o.nome); });
+  });
+  nomiOperai.sort();
+
+  const colGiorno = 13, colData = 20;
+  let colOperaio = 32, colClienti = CW - colGiorno - colData - colOperaio * nomiOperai.length;
+  if(colClienti < 42){
+    colClienti = 42;
+    colOperaio = (CW - colGiorno - colData - colClienti) / Math.max(1, nomiOperai.length);
+  }
+  const xGiorno = ML, xData = xGiorno + colGiorno, xOperai = xData + colData,
+        xClienti = xOperai + colOperaio * nomiOperai.length;
+
   function intestazioneTabella(){
     doc.setFillColor(230,231,232);
     doc.rect(ML, y - 5, CW, 8, "F");
     doc.setFont("helvetica","bold");
-    doc.setFontSize(10);
-    doc.text("Giorno", colGiorno + 2, y);
-    doc.text("Data", colData + 2, y);
-    doc.text("Operai (ore)", colOperai + 2, y);
-    doc.text("Totale", colOre + 2, y);
+    doc.setFontSize(9.5);
+    doc.text("Giorno", xGiorno + 1.5, y);
+    doc.text("Data", xData + 1.5, y);
+    nomiOperai.forEach((n,i)=>{
+      const righeNome = doc.splitTextToSize(n, colOperaio - 3);
+      doc.text(righeNome[0], xOperai + i * colOperaio + 1.5, y);
+    });
+    doc.text("Clienti", xClienti + 1.5, y);
     y += 8;
     doc.setFont("helvetica","normal");
-    doc.setFontSize(10.5);
+    doc.setFontSize(9.5);
   }
   intestazioneTabella();
 
@@ -2270,15 +2289,19 @@ function generaPDFMese(){
   }
   let cEscluse = false;
   s.righe.forEach(r=>{
-    if(y > 265){ doc.addPage(); y = 22; intestazioneTabella(); }
+    if(y > 262){ doc.addPage(); y = 22; intestazioneTabella(); }
     if(r.escluso) cEscluse = true;
-    const opTesto = r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" / ") || "—";
-    const opRighe = doc.splitTextToSize(opTesto, colOre - colOperai - 4);
-    const altezza = Math.max(opRighe.length * 5, 7);
-    doc.text(r.nome, colGiorno + 2, y);
-    doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), colData + 2, y);
-    doc.text(opRighe, colOperai + 2, y);
-    doc.text(oreTesto(r.totGiorno), colOre + 2, y);
+    const clientiRighe = doc.splitTextToSize(r.clienti || "—", colClienti - 3);
+    const altezza = Math.max(clientiRighe.length * 5, 7);
+
+    doc.text(r.nome, xGiorno + 1.5, y);
+    doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), xData + 1.5, y);
+    nomiOperai.forEach((n,i)=>{
+      const op = r.operai.find(o=>o.nome === n);
+      doc.text(op ? oreTesto(op.minuti) : "-", xOperai + i * colOperaio + 1.5, y);
+    });
+    doc.text(clientiRighe, xClienti + 1.5, y);
+
     y += altezza + 2.5;
     doc.setDrawColor(200,205,210);
     doc.setLineWidth(0.2);
