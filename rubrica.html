@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Editor citofono</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#eef0f3;--fg:#17181a;--bar:#fff;--bd:#d3d5d9;--mut:#5d636c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#101113;--fg:#eceef1;--bar:#1b1c1f;--bd:#34363b;--mut:#9aa1ab}}
+:root[data-theme="dark"]{--bg:#101113;--fg:#eceef1;--bar:#1b1c1f;--bd:#34363b;--mut:#9aa1ab}
+*,*::before,*::after{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.4 system-ui,-apple-system,"Segoe UI",Arial,sans-serif}
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bar);border-bottom:1px solid var(--bd);padding:10px 12px;display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;justify-content:center}
+button{font:inherit;font-weight:600;padding:9px 14px;border-radius:10px;border:1px solid var(--bd);background:transparent;color:var(--fg);cursor:pointer}
+button.p{background:#2ebd6b;border-color:#2ebd6b;color:#06230f}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid #2ebd6b;outline-offset:2px}
+.panel{max-width:720px;margin:12px auto 0;padding:12px;background:var(--bar);border:1px solid var(--bd);border-radius:12px;display:flex;flex-wrap:wrap;gap:12px 18px;align-items:flex-end;justify-content:center;width:calc(100% - 24px)}
+.panel label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--mut)}
+.panel input[type=number],.panel select{font:inherit;font-size:16px;padding:7px 8px;border-radius:8px;border:1px solid var(--bd);background:var(--bg);color:var(--fg);width:92px}
+.panel select{width:140px}
+.panel .rg{flex-direction:row;align-items:center;gap:8px}
+.panel input[type=range]{width:120px;accent-color:#2ebd6b}
+.panel input[type=range]:disabled{opacity:.4}
+.info{max-width:720px;margin:10px auto 0;padding:0 14px;text-align:center;font-weight:600}
+.warn{color:#c0392b;font-weight:500;font-size:13px;margin-top:2px}
+.hint{max-width:640px;margin:6px auto 0;padding:0 14px;color:var(--mut);font-size:13px;text-align:center}
+#wrap{margin:12px auto 24px}
+#label{--k:1;--m:calc(1mm*var(--k));--p:calc(1pt*var(--k));width:var(--W);height:var(--H);background:#fff;color:#17181a;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden;transform-origin:0 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.hd{height:calc(21*var(--m));flex:none;background:#17181a;color:#fff;text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;border-bottom:calc(1.2*var(--m)) solid #b8bec7}
+.hd h1{margin:0;font-size:calc(24*var(--p));font-weight:700;line-height:1.1;min-width:20mm}
+.hd p{margin:calc(1.2*var(--m)) 0 0;font-size:calc(8.5*var(--p));letter-spacing:.26em;color:#b8bec7;min-width:20mm}
+.body{flex:1;display:flex;gap:calc(4*var(--m));padding:var(--m) calc(4*var(--m));min-height:0}
+.col{flex:1;min-width:0;overflow:hidden}
+.row{height:var(--rh);display:flex;align-items:center;border-bottom:.2mm solid #d3d5d9;padding-left:calc(1.5*var(--m));position:relative}
+.row:nth-child(odd){background:#ebecee}
+.num{min-width:calc(9.5*var(--m));height:72%;padding:0 calc(1*var(--m));background:#17181a;color:#fff;border-radius:calc(2.2*var(--m));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(var(--fs)*1pt + 1pt);flex:none}
+.nm{flex:1;min-width:0;height:100%;display:flex;align-items:center;margin-left:calc(3.5*var(--m));font-weight:700;font-size:calc(var(--fs)*1pt);white-space:nowrap;overflow:hidden}
+[contenteditable]{outline:none;cursor:text}
+[contenteditable]:hover{background:rgba(46,189,107,.16)}
+[contenteditable]:focus{outline:.4mm dashed #2ebd6b;outline-offset:.2mm;background:rgba(46,189,107,.12)}
+.del{display:none;position:absolute;right:.6mm;top:50%;transform:translateY(-50%);width:6mm;height:6mm;border:0;border-radius:50%;background:#c0392b;color:#fff;font-size:11pt;line-height:1;padding:0}
+.row:focus-within .del{display:block}
+.ft{height:calc(25*var(--m));flex:none;background:#17181a;border-top:calc(1.2*var(--m)) solid #b8bec7;display:flex;flex-direction:column}
+.steps{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:calc(7*var(--m));align-items:center;padding:0 calc(3*var(--m)) 0 calc(4*var(--m))}
+.st{display:flex;align-items:center;gap:calc(2.8*var(--m));position:relative;min-width:0}
+.st+.st::before{content:"";position:absolute;left:calc(-4.6*var(--m));top:50%;width:calc(2*var(--m));height:calc(2*var(--m));border-top:.45mm solid #b8bec7;border-right:.45mm solid #b8bec7;transform:translateY(-50%) rotate(45deg)}
+.ic{width:calc(10.4*var(--m));height:calc(10.4*var(--m));border-radius:50%;background:#b8bec7;color:#17181a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(10*var(--p));flex:none}
+.ic.g{background:#2ebd6b}
+.ic svg{width:55%;height:55%;fill:#fff}
+.tx{min-width:0}
+.tx div{white-space:nowrap}
+.s0{font-size:calc(7*var(--p));font-weight:700;letter-spacing:.09em;color:#b8bec7}
+.s1{font-size:calc(9.5*var(--p));font-weight:700;color:#fff}
+.s2{font-size:calc(9.5*var(--p));color:#fff}
+.note{height:calc(7*var(--m));flex:none;display:flex;align-items:center;justify-content:center;font-size:calc(7.2*var(--p));color:#b8bec7;white-space:nowrap}
+@media print{
+ :root{padding:0}
+ html,body{background:#fff;margin:0}
+ .bar,.hint,.del,.panel,.info{display:none!important}
+ #wrap{width:var(--W)!important;height:var(--H)!important;margin:0!important}
+ #label{transform:none!important}
+ [contenteditable]:hover,[contenteditable]:focus{background:none;outline:none}
+}
+</style>
+<style id="pg"></style>
+</head>
+<body>
+<div class="bar">
+ <button class="p" id="bPrint">Stampa / Salva PDF</button>
+ <button id="bAdd">+ Aggiungi interno</button>
+ <button id="bReset">Ripristina</button>
+</div>
+<div class="panel">
+ <label>Larghezza (cm)<input type="number" id="iw" min="5" max="80" step="0.5" inputmode="decimal"></label>
+ <label>Altezza (cm)<input type="number" id="ih" min="5" max="80" step="0.5" inputmode="decimal"></label>
+ <label>Colonne<select id="cols"><option value="auto">Automatiche</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
+ <label>Grandezza nomi<span class="rg"><input type="checkbox" id="afs" aria-label="Nomi automatici"> Auto <input type="range" id="fs" min="6" max="24" step="0.5" aria-label="Grandezza dei nomi"></span></label>
+</div>
+<div class="info"><div id="info"></div><div class="warn" id="warn"></div></div>
+<p class="hint">Tocca qualsiasi testo sullâetichetta per modificarlo. Tocca un nome per far comparire la Ã rossa che elimina la riga. Per il PDF: Stampa, âSalva come PDFâ, margini nessuno, scala 100%.</p>
+<div id="wrap">
+<div id="label">
+ <div class="hd"><h1 contenteditable="true" spellcheck="false" data-b="title"></h1><p contenteditable="true" spellcheck="false" data-b="sub"></p></div>
+ <div class="body" id="body"></div>
+ <div class="ft">
+  <div class="steps">
+   <div class="st"><div class="ic">123</div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.0.a"></div><div class="s1" contenteditable="true" data-b="steps.0.b"></div><div class="s2" contenteditable="true" data-b="steps.0.c"></div></div></div>
+   <div class="st"><div class="ic g"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.1.a"></div><div class="s1" contenteditable="true" data-b="steps.1.b"></div><div class="s2" contenteditable="true" data-b="steps.1.c"></div></div></div>
+   <div class="st"><div class="ic">â¦</div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.2.a"></div><div class="s1" contenteditable="true" data-b="steps.2.b"></div><div class="s2" contenteditable="true" data-b="steps.2.c"></div></div></div>
+  </div>
+  <div class="note" contenteditable="true" spellcheck="false" data-b="note"></div>
+ </div>
+</div>
+</div>
+<script>
+const DEF={w:17,h:20,cols:"auto",afs:true,fs:13,title:"CONDOMINIO BELVEDERE",sub:"CORSO VITTORIO EMANUELE 183",
+note:"Errore? Tasto X per cancellare  Â·  In alternativa scorri la rubrica sul display e scegli il nome",
+steps:[{a:"PASSO 1",b:"Digita il codice",c:"dellâinterno"},{a:"PASSO 2",b:"Premi il tasto",c:"di chiamata"},{a:"PASSO 3",b:"Attendi: CHIAMATA",c:"IN CORSO"}],
+items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / DâAcampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"DâAnzelmo / Miele"],[9,"DâAgnese / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,""],[12,"Izzo M. / Noto"],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[15,"Borriello G. / Aurilia L."],[16,"Sorrentino"],[17,"Ermetto / Totaro"],[18,"Picardi / De Martino"],[19,"Argenziano"],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[41,"Italiana Assicurazioni"],[42,"Studio Psicologia"]]};
+const clone=o=>JSON.parse(JSON.stringify(o));
+let S;
+try{const r=localStorage.getItem("citofono-belvedere-v2")||localStorage.getItem("citofono-belvedere-v1");S=r?Object.assign(clone(DEF),JSON.parse(r)):null}catch(e){S=null}
+if(!S||!S.items)S=clone(DEF);
+const $=id=>document.getElementById(id),L=$("label"),W=$("wrap");
+function save(){try{localStorage.setItem("citofono-belvedere-v2",JSON.stringify(S))}catch(e){}}
+const getP=p=>p.split(".").reduce((o,k)=>o[k],S);
+function setP(p,v){const k=p.split(".");const l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v}
+function mk(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
+const ctx=document.createElement("canvas").getContext("2d");
+function longestEm(){ctx.font="700 100px Helvetica,Arial,sans-serif";let m=1;S.items.forEach(i=>{m=Math.max(m,ctx.measureText(i[1]).width/100)});return m}
+function plan(){
+ const w=S.w*10,h=S.h*10,k=Math.min(w/170,h/200),n=Math.max(1,S.items.length),em=longestEm();
+ const bodyH=h-48*k,res=[];
+ const cand=S.cols==="auto"?[1,2,3,4,5,6]:[+S.cols];
+ cand.forEach(c=>{
+  const rows=Math.ceil(n/c),cc=Math.ceil(n/rows),rowH=bodyH/rows,colW=(w-8*k-4*k*(cc-1))/cc;
+  const fsH=rowH/0.62,fsW=(colW-15.5*k)/(em*0.3528);
+  res.push({c:cc,rows,rowH,k,w,h,cap:Math.max(5,Math.min(fsH,fsW,30))});
+ });
+ let b=res[0];
+ if(S.cols==="auto"){
+  if(S.afs){res.forEach(r=>{if(r.cap>b.cap+0.05)b=r})}
+  else{b=res.find(r=>r.cap>=S.fs)||res.reduce((a,r)=>r.cap>a.cap?r:a)}
+ }
+ b.fs=S.afs?Math.floor(b.cap*10)/10:S.fs;
+ return b;
+}
+let lastFs=13;
+function render(){
+ const p=plan();lastFs=p.fs;
+ L.style.setProperty("--k",p.k);L.style.setProperty("--fs",p.fs);
+ L.style.setProperty("--rh",p.rowH+"mm");
+ document.documentElement.style.setProperty("--W",p.w+"mm");document.documentElement.style.setProperty("--H",p.h+"mm");
+ $("pg").textContent="@page{size:"+p.w+"mm "+p.h+"mm;margin:0}";
+ L.querySelectorAll("[data-b]").forEach(e=>{if(document.activeElement!==e)e.textContent=getP(e.dataset.b)});
+ const bd=$("body");bd.textContent="";const counts=[];
+ for(let c=0;c<p.c;c++){
+  const col=mk("div","col");const part=S.items.slice(c*p.rows,(c+1)*p.rows);counts.push(part.length);
+  part.forEach((it,j)=>{const i=c*p.rows+j;
+   const r=mk("div","row");
+   const a=mk("div","num",it[0]);a.contentEditable="true";a.dataset.i=i;a.dataset.f=0;a.spellcheck=false;
+   const b=mk("div","nm",it[1]);b.contentEditable="true";b.dataset.i=i;b.dataset.f=1;b.spellcheck=false;
+   const d=mk("button","del","Ã");d.dataset.d=i;d.setAttribute("aria-label","Elimina riga");
+   r.append(a,b,d);col.append(r)});
+  bd.append(col);
+ }
+ const f=x=>x.toLocaleString("it-IT",{maximumFractionDigits:1});
+ $("info").textContent=S.items.length+" interni Â· "+p.c+(p.c==1?" colonna":" colonne")+(p.c>1?" ("+counts.join(" + ")+")":"")+" Â· nomi "+f(p.fs)+" pt Â· "+f(S.w)+" Ã "+f(S.h)+" cm";
+ if(document.activeElement!==$("iw"))$("iw").value=S.w;
+ if(document.activeElement!==$("ih"))$("ih").value=S.h;
+ $("cols").value=S.cols;$("afs").checked=S.afs;
+ $("fs").disabled=S.afs;$("fs").value=S.afs?p.fs:S.fs;
+ fit();
+ const clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
+ $("warn").textContent=clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga lâetichetta.":"";
+}
+function fit(){const mm=px=>px*96/25.4,s=Math.min(1.4,(document.documentElement.clientWidth-24)/mm(S.w*10));
+ L.style.transform="scale("+s+")";W.style.width=mm(S.w*10)*s+"px";W.style.height=mm(S.h*10)*s+"px"}
+L.addEventListener("input",e=>{const t=e.target;
+ if(t.dataset.b)setP(t.dataset.b,t.textContent);
+ else if(t.dataset.i!=null){const v=t.textContent;S.items[t.dataset.i][t.dataset.f]=t.dataset.f=="0"&&/^\d+$/.test(v)?+v:v;if(t.dataset.f=="1"&&S.afs){const a=document.activeElement;const p=plan();if(Math.abs(p.fs-lastFs)>0.05||p.c!=$("body").children.length){const i=t.dataset.i,f=t.dataset.f,o=getSel(t);render();refocus(i,f,o)}}}
+ save()});
+function getSel(t){const s=getSelection();return s.rangeCount?s.getRangeAt(0).startOffset:0}
+function refocus(i,f,o){const e=document.querySelector('[data-i="'+i+'"][data-f="'+f+'"]');if(!e)return;e.focus();try{const r=document.createRange();const n=e.firstChild;if(n){r.setStart(n,Math.min(o,n.length));r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r)}}catch(x){}}
+L.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.isContentEditable){e.preventDefault();e.target.blur()}});
+L.addEventListener("paste",e=>{if(e.target.isContentEditable){e.preventDefault();document.execCommand("insertText",false,(e.clipboardData.getData("text/plain")||"").replace(/\s+/g," "))}});
+L.addEventListener("click",e=>{const d=e.target.closest(".del");if(d){S.items.splice(+d.dataset.d,1);save();render()}});
+$("bAdd").onclick=()=>{S.items.push([Math.max(0,...S.items.map(x=>+x[0]||0))+1,""]);save();render();const n=document.querySelectorAll(".nm");n[n.length-1].focus();n[n.length-1].scrollIntoView({block:"center"})};
+function num(id,key,min,max){$(id).addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=min&&v<=max){S[key]=v;save();render()}});
+ $(id).addEventListener("blur",()=>render())}
+num("iw","w",5,80);num("ih","h",5,80);
+$("cols").onchange=e=>{S.cols=e.target.value;save();render()};
+$("afs").onchange=e=>{S.afs=e.target.checked;if(!S.afs)S.fs=Math.round(lastFs*2)/2;save();render()};
+$("fs").oninput=e=>{S.fs=+e.target.value;save();render()};
+let armed=0;
+$("bReset").onclick=function(){if(!armed){armed=1;this.textContent="Tocca di nuovo per confermare";setTimeout(()=>{armed=0;this.textContent="Ripristina"},3000)}
+ else{armed=0;this.textContent="Ripristina";S=clone(DEF);save();render()}};
+$("bPrint").onclick=()=>{try{window.print()}catch(e){}};
+addEventListener("resize",fit);
+render();
+</script>
+</body>
+</html>
