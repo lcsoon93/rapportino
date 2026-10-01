@@ -69,9 +69,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <div class="bar">
  <button class="p" id="bPrint">Stampa / Salva PDF</button>
  <button id="bAdd">+ Aggiungi interno</button>
+ <button id="bDel"></button>
  <button id="bReset">Ripristina</button>
 </div>
 <div class="panel">
+ <label>Numero di interni<span class="rg"><input type="number" id="nn" min="1" max="200" step="1" inputmode="numeric"><button id="bGen">Genera elenco</button></span></label>
  <label>Larghezza (cm)<input type="number" id="iw" min="5" max="80" step="0.5" inputmode="decimal"></label>
  <label>Altezza (cm)<input type="number" id="ih" min="5" max="80" step="0.5" inputmode="decimal"></label>
  <label>Colonne<select id="cols"><option value="auto">Automatiche</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
@@ -87,7 +89,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <div class="steps">
    <div class="st"><div class="ic">123</div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.0.a"></div><div class="s1" contenteditable="true" data-b="steps.0.b"></div><div class="s2" contenteditable="true" data-b="steps.0.c"></div></div></div>
    <div class="st"><div class="ic g"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.1.a"></div><div class="s1" contenteditable="true" data-b="steps.1.b"></div><div class="s2" contenteditable="true" data-b="steps.1.c"></div></div></div>
-   <div class="st"><div class="ic">â¦</div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.2.a"></div><div class="s1" contenteditable="true" data-b="steps.2.b"></div><div class="s2" contenteditable="true" data-b="steps.2.c"></div></div></div>
+   <div class="st"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:#17181a"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/><path d="M14.2 3.2a6.6 6.6 0 0 1 6.6 6.6M14.2 6.9a2.9 2.9 0 0 1 2.9 2.9" fill="none" stroke="#17181a" stroke-width="1.9" stroke-linecap="round"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.2.a"></div><div class="s1" contenteditable="true" data-b="steps.2.b"></div><div class="s2" contenteditable="true" data-b="steps.2.c"></div></div></div>
   </div>
   <div class="note" contenteditable="true" spellcheck="false" data-b="note"></div>
  </div>
@@ -151,6 +153,8 @@ function render(){
  if(document.activeElement!==$("ih"))$("ih").value=S.h;
  $("cols").value=S.cols;$("afs").checked=S.afs;
  $("fs").disabled=S.afs;$("fs").value=S.afs?p.fs:S.fs;
+ if(document.activeElement!==$("nn"))$("nn").value=S.items.length;
+ const dl=S.items.length;$("bDel").disabled=!dl;$("bDel").textContent=dl?"â Elimina interno "+S.items[dl-1][0]:"Nessun interno";
  fit();
  const clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
  $("warn").textContent=clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga lâetichetta.":"";
@@ -167,6 +171,18 @@ L.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.isContentEditable)
 L.addEventListener("paste",e=>{if(e.target.isContentEditable){e.preventDefault();document.execCommand("insertText",false,(e.clipboardData.getData("text/plain")||"").replace(/\s+/g," "))}});
 L.addEventListener("click",e=>{const d=e.target.closest(".del");if(d){S.items.splice(+d.dataset.d,1);save();render()}});
 $("bAdd").onclick=()=>{S.items.push([Math.max(0,...S.items.map(x=>+x[0]||0))+1,""]);save();render();const n=document.querySelectorAll(".nm");n[n.length-1].focus();n[n.length-1].scrollIntoView({block:"center"})};
+$("bDel").onclick=()=>{if(S.items.length){S.items.pop();save();render()}};
+let garm=0;
+$("bGen").onclick=function(){
+ const n=Math.floor(+$("nn").value);
+ if(!(n>=1&&n<=200)){this.textContent="Inserisci da 1 a 200";setTimeout(()=>{this.textContent="Genera elenco"},2000);return}
+ const old={};S.items.forEach(i=>{if(!(i[0] in old))old[i[0]]=i[1]});
+ const lost=S.items.filter(i=>i[1].trim()&&!(i[0]>=1&&i[0]<=n&&Number.isInteger(i[0]))).length;
+ if(lost&&!garm){garm=1;this.textContent="Si perdono "+lost+" nomi: tocca ancora";setTimeout(()=>{garm=0;this.textContent="Genera elenco"},3500);return}
+ garm=0;this.textContent="Genera elenco";
+ S.items=Array.from({length:n},(_,i)=>[i+1,old[i+1]||""]);
+ save();render();
+};
 function num(id,key,min,max){$(id).addEventListener("input",e=>{const v=parseFloat(e.target.value);if(v>=min&&v<=max){S[key]=v;save();render()}});
  $(id).addEventListener("blur",()=>render())}
 num("iw","w",5,80);num("ih","h",5,80);
