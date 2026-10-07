@@ -138,6 +138,7 @@
   .check input[type=checkbox]{width:24px;height:24px;flex:none;accent-color:var(--terra1)}
   .check span{font-size:15px;font-weight:500}
   .spesa-riga{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .spesa-riga .s-cliente{flex-basis:100%;min-height:44px;padding:9px 11px;font-size:15px}
   .spesa-riga .s-allegato{flex-basis:100%;display:flex;align-items:center;gap:8px}
   .spesa-riga .s-bottoni{display:flex;gap:8px;flex:1}
   .spesa-riga .s-bottoni .mat-add{flex:1;padding:8px 4px}
@@ -908,6 +909,8 @@ function aggiornaClientiNoti(){
 function aggiungiCliente(dati){
   const div = document.createElement("div");
   div.className = "cliente";
+  // identificativo stabile: serve a collegare le spese al cliente anche dopo riordini/cancellazioni
+  div.dataset.id = (dati && dati.id) ? dati.id : ("c" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
   div.innerHTML =
     '<div class="testata">' +
       '<span class="num"></span>' +
@@ -1067,6 +1070,7 @@ function togliCliente(btn){
 }
 function rinumera(){
   document.querySelectorAll("#clienti .cliente .num").forEach((n,i)=>n.textContent = i+1);
+  aggiornaSelectSpese(); // numeri/ordine dei clienti cambiati: riallinea le tendine delle spese
 }
 
 // ---- riordino clienti (sposta su/giù) ----
@@ -1426,7 +1430,7 @@ function elencoClienti(){
     });
     const firma = c.querySelector(".c-firma-dato").value || "";
     if(nome || indirizzo || fasce.length || dettagli || materiali.length || firma || importo || foto.length){
-      out.push({nome: nome || "(senza nome)", indirizzo, fasce, fatturare, importo, tipologia, stato, firmatario, dettagli, materiali, foto, firma, urgente});
+      out.push({id: c.dataset.id, nome: nome || "(senza nome)", indirizzo, fasce, fatturare, importo, tipologia, stato, firmatario, dettagli, materiali, foto, firma, urgente});
     }
   });
   return out;
@@ -1442,13 +1446,14 @@ function datiGiornata(){
 }
 
 // ============ spese ============
-function aggiungiRigaSpesa(desc, imp, allegato){
+function aggiungiRigaSpesa(desc, imp, allegato, clienteId){
   const riga = document.createElement("div");
   riga.className = "spesa-riga";
   riga.innerHTML =
     '<input type="text" class="s-desc" placeholder="Es. parcheggio, autostrada" autocomplete="off">' +
     '<input type="number" class="s-imp" placeholder="0,00" min="0" step="0.01" inputmode="decimal">' +
     '<button type="button" class="s-del" aria-label="Rimuovi spesa" onclick="this.parentElement.remove(); calcolaSpese(); salvaGiornata();">&times;</button>' +
+    '<select class="s-cliente" aria-label="Cliente a cui collegare la spesa" onchange="this.closest(\'.spesa-riga\').dataset.cliente = this.value;"></select>' +
     '<div class="s-allegato">' +
       '<input type="file" class="s-file" accept="image/*" style="display:none" onchange="gestisciAllegatoSpesa(this)">' +
       '<input type="file" class="s-camera" accept="image/*" capture="environment" style="display:none" onchange="gestisciAllegatoSpesa(this)">' +
@@ -1468,6 +1473,30 @@ function aggiungiRigaSpesa(desc, imp, allegato){
   if(desc) riga.querySelector(".s-desc").value = desc;
   if(imp) riga.querySelector(".s-imp").value = imp;
   if(allegato) impostaAllegatoSpesa(riga, allegato);
+  if(clienteId) riga.dataset.cliente = clienteId;
+  costruisciOpzioniSpesa(riga);
+}
+// riempie la tendina "cliente" di una riga di spesa con i clienti attuali della giornata
+function costruisciOpzioniSpesa(riga){
+  const sel = riga.querySelector(".s-cliente");
+  const voluto = riga.dataset.cliente || "";
+  sel.innerHTML = "";
+  const vuota = document.createElement("option");
+  vuota.value = "";
+  vuota.textContent = "— Spesa non legata a un cliente —";
+  sel.appendChild(vuota);
+  document.querySelectorAll("#clienti .cliente").forEach((card, i)=>{
+    const nome = card.querySelector(".c-nome").value.trim();
+    const o = document.createElement("option");
+    o.value = card.dataset.id;
+    o.textContent = (i + 1) + ") " + (nome || "(senza nome)");
+    sel.appendChild(o);
+  });
+  sel.value = voluto;                    // se il cliente non esiste piu' resta su "non legata"
+  if(sel.value !== voluto) sel.value = "";
+}
+function aggiornaSelectSpese(){
+  document.querySelectorAll("#spese .spesa-riga").forEach(costruisciOpzioniSpesa);
 }
 // mostra/nasconde anteprima e bottoni in base alla presenza dell'allegato
 function impostaAllegatoSpesa(riga, foto){
@@ -1519,9 +1548,11 @@ function elencoSpese(){
     const allegato = (img && img.getAttribute("src"))
       ? {src: img.src, w: +img.dataset.w || img.naturalWidth || 0, h: +img.dataset.h || img.naturalHeight || 0}
       : null;
+    const clienteId = r.querySelector(".s-cliente").value || "";
     if(d || i || allegato){
       const voce = {d: d || "(senza descrizione)", i};
       if(allegato) voce.allegato = allegato;
+      if(clienteId) voce.clienteId = clienteId;
       out.push(voce);
     }
   });
@@ -1585,7 +1616,7 @@ function caricaGiornata(iso){
   if(d){
     document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
     document.getElementById("escludi-monte").checked = !!d.escludi;
-    (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i, s.allegato));
+    (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i, s.allegato, s.clienteId));
     if(d.operai && d.operai.length){
       d.operai.forEach(op=>aggiungiOperaio(op));
     } else if(d.dalle || d.alle){
@@ -1617,6 +1648,7 @@ document.addEventListener("input", e=>{
   if(e.target.closest("#vista-giorno")){
     if(e.target.closest(".op-riga")) calcolaOreGiorno();
     if(e.target.closest(".spesa-riga")) calcolaSpese();
+    if(e.target.classList.contains("c-nome")) aggiornaSelectSpese();
     if(e.target.id === "data"){ caricaGiornata(e.target.value); return; }
     salvaGiornata();
   }
@@ -2315,16 +2347,17 @@ function generaPDF(){
       y += 6.5;
     }
 
-    if(c.foto && c.foto.length){
+    // griglia di immagini (2 per riga, proporzioni reali): usata sia per le foto sia per gli scontrini
+    function disegnaGriglia(titolo, immagini){
       const perRiga = 2, gapFoto = 4;
       const boxW = (CW - 2 - gapFoto * (perRiga - 1)) / perRiga, boxH = 48;
       doc.setFont("helvetica","bold");
       doc.setFontSize(9);
       serveNuovoSlot(boxH + 7);
-      doc.text("Foto:", ML + 2, y);
+      doc.text(titolo, ML + 2, y);
       y += 4.3;
       let colonna = 0;
-      c.foto.forEach(f=>{
+      immagini.forEach(f=>{
         if(colonna === 0) serveNuovoSlot(boxH + 2);
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
@@ -2342,6 +2375,37 @@ function generaPDF(){
       if(colonna !== 0) y += boxH + gapFoto;
       y += 1;
     }
+
+    // spese collegate a questo cliente (con eventuali scontrini allegati)
+    const speseCliente = d.spese.filter(s => s.clienteId && s.clienteId === c.id);
+    if(speseCliente.length){
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(9);
+      serveNuovoSlot(6 + speseCliente.length * 4.6);
+      doc.text("Spese:", ML + 2, y);
+      y += 4.6;
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(9);
+      speseCliente.forEach(s=>{
+        const righeS = doc.splitTextToSize("- " + s.d, CW - 34);
+        serveNuovoSlot(righeS.length * 4.4 + 1);
+        doc.text(righeS, ML + 6, y);
+        doc.text(euro(s.i), W - MR, y, {align:"right"});
+        y += righeS.length * 4.4;
+      });
+      if(speseCliente.length > 1){
+        serveNuovoSlot(6);
+        doc.setFont("helvetica","bold");
+        doc.text("Totale spese", ML + 6, y + 0.5);
+        doc.text(euro(totaleSpese(speseCliente)), W - MR, y + 0.5, {align:"right"});
+        y += 5;
+      }
+      y += 1.5;
+      const scontrini = speseCliente.filter(s => s.allegato && s.allegato.src).map(s => s.allegato);
+      if(scontrini.length) disegnaGriglia(scontrini.length > 1 ? "Allegati spese:" : "Allegato spesa:", scontrini);
+    }
+
+    if(c.foto && c.foto.length) disegnaGriglia("Foto:", c.foto);
 
     if(c.firma){
       serveNuovoSlot(22);
