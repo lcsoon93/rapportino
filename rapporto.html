@@ -137,7 +137,11 @@
   .check{display:flex;align-items:center;gap:10px;padding:4px 0;cursor:pointer}
   .check input[type=checkbox]{width:24px;height:24px;flex:none;accent-color:var(--terra1)}
   .check span{font-size:15px;font-weight:500}
-  .spesa-riga{display:flex;gap:8px;margin-bottom:8px}
+  .spesa-riga{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+  .spesa-riga .s-allegato{flex-basis:100%;display:flex;align-items:center;gap:8px}
+  .spesa-riga .s-bottoni{display:flex;gap:8px;flex:1}
+  .spesa-riga .s-bottoni .mat-add{flex:1;padding:8px 4px}
+  .spesa-riga .s-anteprima{display:flex;align-items:center;gap:10px;font-size:13px;color:#5A6068}
   .spesa-riga .s-desc{flex:1;min-width:0;padding:10px 11px;font-size:16px}
   .spesa-riga .s-imp{flex:none;width:96px;padding:10px 8px;font-size:16px;text-align:right}
   .spesa-riga .s-del{flex:none;width:32px;border:none;background:transparent;color:#9AA1A9;font-size:20px;cursor:pointer}
@@ -1438,16 +1442,68 @@ function datiGiornata(){
 }
 
 // ============ spese ============
-function aggiungiRigaSpesa(desc, imp){
+function aggiungiRigaSpesa(desc, imp, allegato){
   const riga = document.createElement("div");
   riga.className = "spesa-riga";
   riga.innerHTML =
     '<input type="text" class="s-desc" placeholder="Es. parcheggio, autostrada" autocomplete="off">' +
     '<input type="number" class="s-imp" placeholder="0,00" min="0" step="0.01" inputmode="decimal">' +
-    '<button type="button" class="s-del" aria-label="Rimuovi spesa" onclick="this.parentElement.remove(); calcolaSpese(); salvaGiornata();">&times;</button>';
+    '<button type="button" class="s-del" aria-label="Rimuovi spesa" onclick="this.parentElement.remove(); calcolaSpese(); salvaGiornata();">&times;</button>' +
+    '<div class="s-allegato">' +
+      '<input type="file" class="s-file" accept="image/*" style="display:none" onchange="gestisciAllegatoSpesa(this)">' +
+      '<input type="file" class="s-camera" accept="image/*" capture="environment" style="display:none" onchange="gestisciAllegatoSpesa(this)">' +
+      '<div class="s-bottoni">' +
+        '<button type="button" class="mat-add" onclick="this.closest(\'.spesa-riga\').querySelector(\'.s-file\').click()">📁 Allega</button>' +
+        '<button type="button" class="mat-add" onclick="this.closest(\'.spesa-riga\').querySelector(\'.s-camera\').click()">📷 Scatta</button>' +
+      '</div>' +
+      '<div class="s-anteprima nascosto">' +
+        '<div class="foto-item">' +
+          '<img class="s-img" alt="Allegato spesa" onclick="mostraFotoIntera(this.src)">' +
+          '<button type="button" class="foto-del" aria-label="Rimuovi allegato" onclick="event.stopPropagation(); rimuoviAllegatoSpesa(this)">&times;</button>' +
+        '</div>' +
+        '<span>Allegato</span>' +
+      '</div>' +
+    '</div>';
   document.getElementById("spese").appendChild(riga);
   if(desc) riga.querySelector(".s-desc").value = desc;
   if(imp) riga.querySelector(".s-imp").value = imp;
+  if(allegato) impostaAllegatoSpesa(riga, allegato);
+}
+// mostra/nasconde anteprima e bottoni in base alla presenza dell'allegato
+function impostaAllegatoSpesa(riga, foto){
+  const img = riga.querySelector(".s-img");
+  const f = (typeof foto === "string") ? {src: foto} : foto;
+  if(f && f.src){
+    img.src = f.src;
+    img.dataset.w = f.w || "";
+    img.dataset.h = f.h || "";
+    riga.querySelector(".s-anteprima").classList.remove("nascosto");
+    riga.querySelector(".s-bottoni").classList.add("nascosto");
+  } else {
+    img.removeAttribute("src");
+    img.dataset.w = "";
+    img.dataset.h = "";
+    riga.querySelector(".s-anteprima").classList.add("nascosto");
+    riga.querySelector(".s-bottoni").classList.remove("nascosto");
+  }
+}
+async function gestisciAllegatoSpesa(input){
+  const riga = input.closest(".spesa-riga");
+  const file = (input.files || [])[0];
+  if(!file) return;
+  try{
+    const foto = await comprimiImmagine(file);
+    impostaAllegatoSpesa(riga, foto);
+  }catch(e){
+    console.error(e);
+    alert("Non sono riuscito a caricare l'allegato. Usa una foto o un'immagine (non un PDF).");
+  }
+  input.value = "";
+  salvaGiornata();
+}
+function rimuoviAllegatoSpesa(btn){
+  impostaAllegatoSpesa(btn.closest(".spesa-riga"), null);
+  salvaGiornata();
 }
 function aggiungiSpesa(){
   aggiungiRigaSpesa();
@@ -1459,7 +1515,15 @@ function elencoSpese(){
   document.querySelectorAll("#spese .spesa-riga").forEach(r=>{
     const d = r.querySelector(".s-desc").value.trim();
     const i = parseFloat(r.querySelector(".s-imp").value) || 0;
-    if(d || i) out.push({d: d || "(senza descrizione)", i});
+    const img = r.querySelector(".s-img");
+    const allegato = (img && img.getAttribute("src"))
+      ? {src: img.src, w: +img.dataset.w || img.naturalWidth || 0, h: +img.dataset.h || img.naturalHeight || 0}
+      : null;
+    if(d || i || allegato){
+      const voce = {d: d || "(senza descrizione)", i};
+      if(allegato) voce.allegato = allegato;
+      out.push(voce);
+    }
   });
   return out;
 }
@@ -1521,7 +1585,7 @@ function caricaGiornata(iso){
   if(d){
     document.getElementById("tecnici").value = d.tecnici || "Luca / Francesco";
     document.getElementById("escludi-monte").checked = !!d.escludi;
-    (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i));
+    (d.spese || []).forEach(s=>aggiungiRigaSpesa(s.d, s.i, s.allegato));
     if(d.operai && d.operai.length){
       d.operai.forEach(op=>aggiungiOperaio(op));
     } else if(d.dalle || d.alle){
@@ -1624,7 +1688,7 @@ function testoRapporto(){
   if(d.spese.length){
     righe.push("");
     righe.push("SPESE / EXTRA:");
-    d.spese.forEach(s=>righe.push("- " + s.d + ": " + euro(s.i)));
+    d.spese.forEach(s=>righe.push("- " + s.d + ": " + euro(s.i) + (s.allegato ? "  [con allegato]" : "")));
     righe.push("Totale spese: " + euro(totaleSpese(d.spese)));
   }
   return righe.join("\n");
@@ -2053,104 +2117,152 @@ function aggiungiPiePagina(doc){
 }
 
 // ============ intestazione/piè di pagina A5 (una scheda per cliente) ============
-function intestazionePDFCliente(doc, titolo, indice, totale){
-  const ML = 12, W = 148;
-  const larghezzaLogo = 32, altezzaLogo = 32 / LOGO_RAPPORTO;
-  try{ doc.addImage(LOGO_B64, "JPEG", ML, 9, larghezzaLogo, altezzaLogo); }catch(e){}
-  doc.setTextColor(28,31,35);
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(12);
-  doc.text(titolo, W - ML, 17, {align:"right"});
-  if(totale > 1){
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(8.5);
-    doc.setTextColor(120,125,130);
-    doc.text("Cliente " + indice + " di " + totale, W - ML, 22, {align:"right"});
-  }
-  doc.setTextColor(0,0,0);
-  doc.setDrawColor(47,161,137);
-  doc.setLineWidth(1);
-  doc.line(ML, 27, W - ML, 27);
-  doc.setDrawColor(140,151,196);
-  doc.setLineWidth(0.4);
-  doc.line(ML, 28.3, W - ML, 28.3);
-  doc.setTextColor(0,0,0);
-  return 36;
-}
-function aggiungiPiePaginaCliente(doc){
-  const totale = doc.getNumberOfPages();
-  for(let i = 1; i <= totale; i++){
-    doc.setPage(i);
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(130,135,140);
-    doc.text("COMP.HAS assistance SRL", 12, 204);
-    doc.text("Pagina " + i + " di " + totale, 148 - 12, 204, {align:"right"});
-    doc.setTextColor(0,0,0);
-  }
-}
-
-// ============ PDF giornata: una pagina A5 per cliente (da allegare alla fattura) ============
+// ============ PDF giornata: foglio A4 diviso in 2 meta' A5 (una scheda cliente per meta', ritagliabile) ============
 function generaPDF(){
   const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:"mm", format:"a5"});
-  const ML = 12, MR = 12, W = 148, CW = W - ML - MR;
+  const doc = new jsPDF({unit:"mm", format:"a4"});
+  const W = 210, H = 297, META = H / 2;         // meta' pagina = altezza di una "scheda" A5
+  const ML = 14, MR = 14, CW = W - ML - MR;
+  const MARGINE_EST = 14, MARGINE_INT = 7;        // margine dal bordo pagina / dalla linea di taglio
   const d = datiGiornata();
 
-  // giornata senza clienti: una singola pagina informativa, niente riepilogo totale
+  let unita = -1;         // indice progressivo di meta-pagina: 0=alto pag.1, 1=basso pag.1, 2=alto pag.2, ...
+  let yLimiteCorrente = 0;
+
+  function disegnaLineaTaglio(){
+    doc.setDrawColor(190,190,190);
+    doc.setLineWidth(0.3);
+    if(doc.setLineDashPattern) doc.setLineDashPattern([2,1.5], 0);
+    doc.line(6, META, W - 6, META);
+    if(doc.setLineDashPattern) doc.setLineDashPattern([], 0);
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(7);
+    doc.setTextColor(170,170,170);
+    doc.text("✂  taglia qui", W / 2, META - 1.3, {align:"center"});
+    doc.setTextColor(0,0,0);
+  }
+
+  // passa alla meta-pagina successiva (crea una nuova pagina A4 solo quando serve una nuova "meta alta")
+  function vaiAUnitaSuccessiva(){
+    unita++;
+    let yBase;
+    if(unita % 2 === 0){
+      if(unita > 0) doc.addPage("a4", "portrait");
+      yBase = MARGINE_EST;
+      yLimiteCorrente = META - MARGINE_INT;
+    } else {
+      disegnaLineaTaglio();
+      yBase = META + MARGINE_INT;
+      yLimiteCorrente = H - MARGINE_EST;
+    }
+    return yBase;
+  }
+
+  // intestazione compatta + mini piè di pagina fissati ai bordi della meta-pagina corrente
+  function intestazioneSlot(yBase, indice, totale){
+    const largLogo = 20, altLogo = 20 / LOGO_RAPPORTO;
+    try{ doc.addImage(LOGO_B64, "JPEG", ML, yBase, largLogo, altLogo); }catch(e){}
+    doc.setTextColor(28,31,35);
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(11);
+    doc.text("RAPPORTO DI LAVORO", W - MR, yBase + 5, {align:"right"});
+    if(totale > 1){
+      doc.setFont("helvetica","normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(120,125,130);
+      doc.text("Cliente " + indice + " di " + totale, W - MR, yBase + 9.5, {align:"right"});
+    }
+    doc.setTextColor(0,0,0);
+    let yy = yBase + Math.max(altLogo, 10.5) + 2;
+    doc.setDrawColor(47,161,137);
+    doc.setLineWidth(0.8);
+    doc.line(ML, yy, W - MR, yy);
+    doc.setDrawColor(140,151,196);
+    doc.setLineWidth(0.35);
+    doc.line(ML, yy + 1.2, W - MR, yy + 1.2);
+
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(7);
+    doc.setTextColor(170,170,170);
+    doc.text("COMP.HAS assistance SRL", ML, yLimiteCorrente + 4.5);
+    doc.setTextColor(0,0,0);
+
+    return yy + 6;
+  }
+
   if(d.clienti.length === 0){
-    let y = intestazionePDFCliente(doc, "RAPPORTO DI LAVORO", 1, 1);
+    const yBase = vaiAUnitaSuccessiva();
+    let y = intestazioneSlot(yBase, 1, 1);
     doc.setFont("helvetica","normal");
     doc.setFontSize(10.5);
     doc.text("Data: " + dataIt(), ML, y);
-    y += 10;
+    y += 7;
     doc.text("Nessun lavoro cliente registrato per questo giorno.", ML, y);
-    aggiungiPiePaginaCliente(doc);
     return doc;
   }
 
-  d.clienti.forEach((c, indiceCliente)=>{
-    if(indiceCliente > 0) doc.addPage("a5", "portrait");
-    let y = intestazionePDFCliente(doc, "RAPPORTO DI LAVORO", indiceCliente + 1, d.clienti.length);
+  const orarioTesto = d.operai.length
+    ? d.operai.map(op => op.nome + " " + (op.dalle || "—") + "-" + (op.alle || "—") +
+                          " (" + oreTesto(minutiOperaio(op)) + ")").join("   ·   ")
+    : "";
 
-    function serveNuovaPagina(spazio){
-      if(y + spazio > 192){ doc.addPage("a5", "portrait"); y = 16; }
+  d.clienti.forEach((c, indiceCliente)=>{
+    let yBase = vaiAUnitaSuccessiva();
+    let y = intestazioneSlot(yBase, indiceCliente + 1, d.clienti.length);
+
+    function serveNuovoSlot(spazio){
+      if(y + spazio > yLimiteCorrente){
+        yBase = vaiAUnitaSuccessiva();
+        y = intestazioneSlot(yBase, indiceCliente + 1, d.clienti.length);
+      }
     }
 
     doc.setFont("helvetica","normal");
-    doc.setFontSize(10);
-    const infoRiga = doc.splitTextToSize(
+    doc.setFontSize(9.5);
+    const infoRighe = doc.splitTextToSize(
       "Data: " + dataIt() + (d.tecnici ? "   ·   Tecnici: " + d.tecnici : ""), CW
     );
-    doc.text(infoRiga, ML, y);
-    y += infoRiga.length * 5 + 4;
+    doc.text(infoRighe, ML, y);
+    y += infoRighe.length * 4.5 + 1;
+
+    if(orarioTesto){
+      doc.setFontSize(8.5);
+      doc.setTextColor(90,96,104);
+      const orarioRighe = doc.splitTextToSize("Orario: " + orarioTesto, CW);
+      serveNuovoSlot(orarioRighe.length * 4.2 + 3);
+      doc.text(orarioRighe, ML, y);
+      doc.setTextColor(0,0,0);
+      y += orarioRighe.length * 4.2 + 3;
+    } else {
+      y += 2;
+    }
 
     doc.setFont("helvetica","bold");
-    doc.setFontSize(12);
+    doc.setFontSize(11.5);
     let xNome = ML;
     if(c.urgente){
       doc.setFillColor(253,240,239);
-      doc.rect(ML - 2, y - 5, CW + 4, 8.5, "F");
+      doc.rect(ML - 2, y - 4.5, CW + 4, 7.5, "F");
       doc.setFillColor(179,65,58);
-      doc.rect(ML - 2, y - 5, 2.5, 8.5, "F");
+      doc.rect(ML - 2, y - 4.5, 2.5, 7.5, "F");
       doc.setTextColor(179,65,58);
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.text("URGENZA", ML + 2, y);
-      xNome = ML + 22;
+      xNome = ML + 21;
       doc.setTextColor(0,0,0);
-      doc.setFontSize(12);
+      doc.setFontSize(11.5);
     }
     const largNome = CW - (xNome - ML) - (c.stato === "Da ultimare" ? 26 : 0);
     const nomeRighe = doc.splitTextToSize(c.nome + rigaOrarioCliente(c), Math.max(largNome, 30));
     doc.text(nomeRighe, xNome, y);
     if(c.stato === "Da ultimare"){
       doc.setTextColor(179,65,58);
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.text("DA ULTIMARE", W - MR, y, {align:"right"});
       doc.setTextColor(0,0,0);
-      doc.setFontSize(12);
+      doc.setFontSize(11.5);
     }
-    y += nomeRighe.length * 6 + 2;
+    y += nomeRighe.length * 5.2 + 1.5;
 
     const meta = [];
     if(c.indirizzo) meta.push(c.indirizzo);
@@ -2158,94 +2270,96 @@ function generaPDF(){
     if(c.fatturare) meta.push("Fatturare a: " + c.fatturare);
     if(meta.length){
       doc.setFont("helvetica","italic");
-      doc.setFontSize(9);
+      doc.setFontSize(8.5);
       doc.setTextColor(90,96,104);
       const righeMeta = doc.splitTextToSize(meta.join("   ·   "), CW - 2);
-      serveNuovaPagina(righeMeta.length * 4.5 + 3);
+      serveNuovoSlot(righeMeta.length * 4.2 + 3);
       doc.text(righeMeta, ML + 2, y);
       doc.setTextColor(0,0,0);
-      y += righeMeta.length * 4.5 + 3;
+      y += righeMeta.length * 4.2 + 2.5;
     }
 
     if(c.dettagli){
       doc.setFont("helvetica","normal");
-      doc.setFontSize(10.5);
+      doc.setFontSize(9.5);
       const righe = doc.splitTextToSize(c.dettagli, CW - 2);
-      serveNuovaPagina(righe.length * 5.3 + 4);
+      serveNuovoSlot(righe.length * 4.6 + 3);
       doc.text(righe, ML + 2, y);
-      y += righe.length * 5.3 + 4;
+      y += righe.length * 4.6 + 3;
     }
 
     if(c.materiali && c.materiali.length){
       doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      serveNuovaPagina(8 + c.materiali.length * 5);
+      doc.setFontSize(9);
+      serveNuovoSlot(6 + c.materiali.length * 4.3);
       doc.text("Materiale:", ML + 2, y);
-      y += 5;
+      y += 4.3;
       doc.setFont("helvetica","normal");
-      doc.setFontSize(10);
+      doc.setFontSize(9);
       c.materiali.forEach(m=>{
         const righeM = doc.splitTextToSize("- " + testoMateriale(m), CW - 8);
-        serveNuovaPagina(righeM.length * 5 + 2);
+        serveNuovoSlot(righeM.length * 4.3 + 1);
         doc.text(righeM, ML + 6, y);
-        y += righeM.length * 5;
+        y += righeM.length * 4.3;
       });
-      y += 2;
+      y += 1.5;
     }
 
     if(c.importo){
-      serveNuovaPagina(10);
+      serveNuovoSlot(8);
       doc.setFont("helvetica","bold");
-      doc.setFontSize(10.5);
+      doc.setFontSize(9.5);
       doc.text("Da fatturare:", ML + 2, y);
-      doc.text(euro(c.importo), ML + 34, y);
+      doc.text(euro(c.importo), ML + 32, y);
       doc.setFont("helvetica","normal");
-      y += 8;
+      y += 6.5;
     }
 
     if(c.foto && c.foto.length){
-      // una foto per riga, grande quanto la pagina: deve restare leggibile (es. targhette)
-      const boxW = CW - 2, boxH = 85;
+      const perRiga = 2, gapFoto = 4;
+      const boxW = (CW - 2 - gapFoto * (perRiga - 1)) / perRiga, boxH = 48;
       doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      serveNuovaPagina(13);
+      doc.setFontSize(9);
+      serveNuovoSlot(boxH + 7);
       doc.text("Foto:", ML + 2, y);
-      y += 5;
+      y += 4.3;
+      let colonna = 0;
       c.foto.forEach(f=>{
-        serveNuovaPagina(boxH + 4);
+        if(colonna === 0) serveNuovoSlot(boxH + 2);
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
           const scala = Math.min(boxW / f.w, boxH / f.h);
           dw = f.w * scala;
           dh = f.h * scala;
         }
-        const x = ML + 2 + (boxW - dw) / 2;
-        try{ doc.addImage(f.src, "JPEG", x, y, dw, dh); }catch(e){}
-        y += boxH + 4;
+        const xBase = ML + 2 + colonna * (boxW + gapFoto);
+        const x = xBase + (boxW - dw) / 2;
+        const yFoto = y + (boxH - dh) / 2;
+        try{ doc.addImage(f.src, "JPEG", x, yFoto, dw, dh); }catch(e){}
+        colonna++;
+        if(colonna >= perRiga){ colonna = 0; y += boxH + gapFoto; }
       });
+      if(colonna !== 0) y += boxH + gapFoto;
+      y += 1;
     }
 
     if(c.firma){
-      serveNuovaPagina(32);
+      serveNuovoSlot(22);
       doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      doc.text("Firma cliente:", ML + 2, y + 4);
-      try{ doc.addImage(c.firma, "PNG", ML + 36, y - 3, 44, 16); }catch(e){}
+      doc.setFontSize(9);
+      doc.text("Firma cliente:", ML + 2, y + 3.5);
+      try{ doc.addImage(c.firma, "PNG", ML + 32, y - 2, 38, 14); }catch(e){}
       doc.setDrawColor(180,184,189);
       doc.setLineWidth(0.2);
-      doc.line(ML + 36, y + 13.5, ML + 80, y + 13.5);
+      doc.line(ML + 32, y + 11.5, ML + 70, y + 11.5);
       if(c.firmatario){
         doc.setFont("helvetica","normal");
-        doc.setFontSize(8.5);
-        doc.text("Firmatario: " + c.firmatario.toUpperCase(), ML + 36, y + 17.5);
-        y += 24;
-      } else {
-        y += 20;
+        doc.setFontSize(7.5);
+        doc.text("Firmatario: " + c.firmatario.toUpperCase(), ML + 32, y + 15);
       }
     }
   });
 
-  aggiungiPiePaginaCliente(doc);
   return doc;
 }
 
