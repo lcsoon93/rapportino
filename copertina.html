@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KDP Cover Generator – AI Digital Press</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Montserrat:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
+  <!-- html2canvas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .font-mont { font-family: 'Montserrat', sans-serif; }
+
+    /* ---------- COPERTINA (dimensione base 400x640 = 1:1.6) ---------- */
+    #cover {
+      position: relative;
+      width: 400px;
+      height: 640px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      padding: 44px 38px 36px;
+      box-sizing: border-box;
+      color: #ffffff;
+    }
+    #coverFrame {
+      position: absolute;
+      inset: 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      pointer-events: none;
+    }
+    #coverCat {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      line-height: 1.5;
+      margin-bottom: 14px;
+    }
+    #coverTitle {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 800;
+      color: #ffffff;
+      line-height: 1.06;
+      letter-spacing: -0.01em;
+      word-break: normal;
+      overflow-wrap: normal;
+    }
+    #coverDivider {
+      width: 64px;
+      height: 3px;
+      margin: 20px 0 16px;
+      border-radius: 2px;
+    }
+    #coverSub {
+      font-family: 'Inter', sans-serif;
+      font-weight: 500;
+      font-size: 15px;
+      line-height: 1.45;
+      color: rgba(255,255,255,0.78);
+    }
+    #iconArea {
+      position: relative;
+      flex: 1 1 auto;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #coverGlow {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      left: 50%;
+      top: 50%;
+      margin-left: -150px;
+      margin-top: -150px;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    #coverIcon { position: relative; display: none; }
+    #coverPlaceholder {
+      position: relative;
+      width: 170px;
+      height: 170px;
+      border-radius: 50%;
+      border: 2px dashed rgba(255,255,255,0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 12px;
+      color: rgba(255,255,255,0.45);
+      padding: 20px;
+    }
+    #coverAuthor {
+      font-family: 'Montserrat', sans-serif;
+      font-weight: 600;
+      font-size: 12px;
+      letter-spacing: 0.28em;
+      text-transform: uppercase;
+      text-align: center;
+    }
+
+    /* Slider */
+    input[type=range] { accent-color: var(--accent, #47A8BD); }
+  </style>
+</head>
+
+<body class="bg-neutral-950 text-neutral-100 min-h-screen">
+  <div class="flex flex-col lg:flex-row min-h-screen">
+
+    <!-- ===================== SIDEBAR ===================== -->
+    <aside class="w-full lg:w-[380px] lg:min-w-[380px] bg-neutral-900 border-b lg:border-b-0 lg:border-r border-neutral-800 p-6 space-y-5 lg:h-screen lg:overflow-y-auto">
+      <div>
+        <h1 class="font-mont font-extrabold text-xl tracking-tight">KDP Cover Generator</h1>
+        <p class="text-xs text-neutral-400 mt-1 tracking-widest uppercase">AI Digital Press</p>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="bookSelect">Seleziona Libro</label>
+        <select id="bookSelect" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"></select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="catInput">Nome Categoria</label>
+        <input id="catInput" type="text" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="titleInput">Titolo Principale</label>
+        <input id="titleInput" type="text" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="subInput">Sottotitolo</label>
+        <input id="subInput" type="text" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+      </div>
+
+      <div class="grid grid-cols-3 gap-3">
+        <div class="col-span-2">
+          <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="authorInput">Nome Autore</label>
+          <input id="authorInput" type="text" value="AI Digital Press" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="authorColor">Colore</label>
+          <select id="authorColor" class="w-full bg-neutral-800 border border-neutral-700 rounded-lg px-2 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--accent)]">
+            <option value="white">Bianco</option>
+            <option value="accent">Accento</option>
+          </select>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-1.5" for="iconInput">Carica Icona 3D (PNG)</label>
+        <input id="iconInput" type="file" accept="image/png,image/webp,image/jpeg"
+          class="w-full text-sm text-neutral-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-neutral-700 file:text-white hover:file:bg-neutral-600 file:cursor-pointer">
+        <button id="removeIconBtn" type="button" class="hidden mt-2 text-xs text-neutral-400 hover:text-white underline">Rimuovi icona</button>
+      </div>
+
+      <div>
+        <div class="flex justify-between items-center mb-1.5">
+          <label class="text-xs font-semibold text-neutral-400 uppercase tracking-wider" for="scaleRange">Scala Icona</label>
+          <span id="scaleValue" class="text-xs font-mono text-neutral-300">100%</span>
+        </div>
+        <input id="scaleRange" type="range" min="30" max="160" value="100" class="w-full">
+      </div>
+
+      <button id="downloadBtn" type="button"
+        class="w-full py-4 rounded-xl font-mont font-extrabold text-base uppercase tracking-wider text-neutral-950 shadow-lg transition hover:brightness-110 disabled:opacity-60 disabled:cursor-wait"
+        style="background: var(--accent, #47A8BD);">
+        Genera &amp; Scarica Copertina KDP
+      </button>
+      <p class="text-[11px] text-neutral-500 text-center -mt-2">Export JPG 1600 × 2560 px (rapporto 1:1.6)</p>
+    </aside>
+
+    <!-- ===================== PREVIEW ===================== -->
+    <main id="stage" class="flex-1 flex items-start lg:items-center justify-center p-4 lg:p-8 lg:h-screen overflow-hidden">
+      <div id="scalerBox" class="shadow-2xl shadow-black/60">
+        <div id="scaler" style="width:400px;height:640px;transform-origin:top left;">
+          <div id="cover">
+            <div id="coverFrame"></div>
+
+            <div id="coverCat"></div>
+            <div id="coverTitle"></div>
+            <div id="coverDivider"></div>
+            <div id="coverSub"></div>
+
+            <div id="iconArea">
+              <div id="coverGlow"></div>
+              <img id="coverIcon" alt="">
+              <div id="coverPlaceholder">Carica un'icona 3D in PNG</div>
+            </div>
+
+            <div id="coverAuthor"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+<script>
+/* ===================== DATI ===================== */
+const CATEGORIES = [
+  {
+    name: 'SOCIAL MEDIA & PIATTAFORME', bg: '#0B132B', accent: '#47A8BD',
+    books: [
+      ['AI per Social Media Manager', 'Prompt per calendari editoriali e clienti'],
+      ['AI per Instagram', 'Script per Reels, caroselli e Storie'],
+      ['AI per LinkedIn', 'Personal branding e lead generation'],
+      ['AI per TikTok', 'Hook virali e sceneggiature brevi'],
+      ['AI per YouTube', 'SEO, tag e script per video lunghi']
+    ]
+  },
+  {
+    name: 'COPYWRITING & CONTENT', bg: '#2D112B', accent: '#FF5714',
+    books: [
+      ['AI per Copywriter', 'Landing page e schede prodotto'],
+      ['AI per Email Marketing', 'Newsletter e funnel di vendita'],
+      ['AI per Blog & SEO', 'Articoli ottimizzati e ricerca keyword'],
+      ['AI per Podcaster', 'Scalette, interviste e show notes'],
+      ['AI per PR & Ufficio Stampa', 'Comunicati stampa e media pitch']
+    ]
+  },
+  {
+    name: 'ADVERTISING & MEDIA BUYING', bg: '#0B2B1D', accent: '#00FF87',
+    books: [
+      ['AI per Meta Ads', 'Copywriting e test A/B per Facebook & IG'],
+      ['AI per Google Ads', 'Titoli, descrizioni e ricerca keyword'],
+      ['AI per TikTok Ads', 'Script UGC e video promozionali'],
+      ['AI per E-commerce Manager', 'Ottimizzare store Shopify'],
+      ['AI per Lanci ed Eventi', 'Webinar e sequenze di follow-up']
+    ]
+  },
+  {
+    name: 'STRATEGIA & AGENZIA', bg: '#1A1A1A', accent: '#B92B27',
+    books: [
+      ['AI per Strategie di Marketing', 'Analisi SWOT e Buyer Personas'],
+      ['AI per Reportistica', 'Dai dati grezzi agli insight per i clienti'],
+      ['AI per Influencer Marketing', 'Outreach e brief per creator'],
+      ['AI per Community Management', 'Moderazione gruppi e interazione'],
+      ['AI per Freelance & Agenzie', 'Acquisizione clienti e preventivi B2B']
+    ]
+  }
+];
+
+const BOOKS = [];
+CATEGORIES.forEach(cat => cat.books.forEach(([title, subtitle]) => {
+  BOOKS.push({ id: BOOKS.length, num: BOOKS.length + 1, title, subtitle, category: cat });
+}));
+
+/* ===================== STATO ===================== */
+const state = {
+  current: 0,
+  icons: {},   // icona caricata per ogni libro (dataURL)
+  scales: {}   // scala per ogni libro
+};
+
+/* ===================== ELEMENTI ===================== */
+const $ = id => document.getElementById(id);
+const els = {
+  bookSelect: $('bookSelect'), catInput: $('catInput'), titleInput: $('titleInput'),
+  subInput: $('subInput'), authorInput: $('authorInput'), authorColor: $('authorColor'),
+  iconInput: $('iconInput'), removeIconBtn: $('removeIconBtn'),
+  scaleRange: $('scaleRange'), scaleValue: $('scaleValue'), downloadBtn: $('downloadBtn'),
+  stage: $('stage'), scalerBox: $('scalerBox'), scaler: $('scaler'),
+  cover: $('cover'), coverCat: $('coverCat'), coverTitle: $('coverTitle'),
+  coverDivider: $('coverDivider'), coverSub: $('coverSub'), iconArea: $('iconArea'),
+  coverGlow: $('coverGlow'), coverIcon: $('coverIcon'),
+  coverPlaceholder: $('coverPlaceholder'), coverAuthor: $('coverAuthor')
+};
+
+/* ===================== UTILITY ===================== */
+function hexToRgba(hex, a) {
+  const h = hex.replace('#', '');
+  const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+function slugify(str) {
+  return str.toString().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase().replace(/&/g, 'e').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'copertina';
+}
+
+/* ===================== POPOLA DROPDOWN ===================== */
+CATEGORIES.forEach(cat => {
+  const group = document.createElement('optgroup');
+  group.label = cat.name;
+  BOOKS.filter(b => b.category === cat).forEach(b => {
+    const opt = document.createElement('option');
+    opt.value = b.id;
+    opt.textContent = `${String(b.num).padStart(2, '0')}. ${b.title}`;
+    group.appendChild(opt);
+  });
+  els.bookSelect.appendChild(group);
+});
+
+/* ===================== COLORI ===================== */
+function applyColors() {
+  const { bg, accent } = BOOKS[state.current].category;
+  document.documentElement.style.setProperty('--accent', accent);
+
+  els.cover.style.backgroundColor = bg;
+  els.coverCat.style.color = accent;
+  els.coverCat.style.textShadow = `0 0 10px ${hexToRgba(accent, 0.75)}, 0 0 22px ${hexToRgba(accent, 0.35)}`;
+  els.coverDivider.style.backgroundColor = accent;
+  els.coverDivider.style.boxShadow = `0 0 12px ${hexToRgba(accent, 0.8)}`;
+  els.coverGlow.style.background =
+    `radial-gradient(circle, ${hexToRgba(accent, 0.28)} 0%, ${hexToRgba(accent, 0.08)} 45%, ${hexToRgba(accent, 0)} 70%)`;
+  applyAuthorColor();
+}
+
+function applyAuthorColor() {
+  const { accent } = BOOKS[state.current].category;
+  els.coverAuthor.style.color = els.authorColor.value === 'accent' ? accent : 'rgba(255,255,255,0.92)';
+}
+
+/* ===================== TESTI ===================== */
+function fitTitle() {
+  const el = els.coverTitle;
+  const maxH = 210;           // circa 3 righe
+  let size = 58;
+  el.style.fontSize = size + 'px';
+  while ((el.scrollHeight > maxH || el.scrollWidth > el.clientWidth + 1) && size > 26) {
+    size -= 2;
+    el.style.fontSize = size + 'px';
+  }
+}
+
+function renderText() {
+  els.coverCat.textContent = els.catInput.value;
+  els.coverTitle.textContent = els.titleInput.value;
+  els.coverSub.textContent = els.subInput.value;
+  els.coverAuthor.textContent = els.authorInput.value;
+  fitTitle();
+  sizeIcon();
+}
+
+/* ===================== ICONA ===================== */
+function renderIcon() {
+  const src = state.icons[state.current];
+  if (src) {
+    els.coverIcon.onload = sizeIcon;
+    els.coverIcon.src = src;
+    els.coverIcon.style.display = 'block';
+    els.coverPlaceholder.style.display = 'none';
+    els.removeIconBtn.classList.remove('hidden');
+  } else {
+    els.coverIcon.removeAttribute('src');
+    els.coverIcon.style.display = 'none';
+    els.coverPlaceholder.style.display = 'flex';
+    els.removeIconBtn.classList.add('hidden');
+  }
+}
+
+// Dimensioni esplicite (html2canvas non supporta object-fit)
+function sizeIcon() {
+  const img = els.coverIcon;
+  if (!img.naturalWidth) return;
+  const scale = (state.scales[state.current] ?? 100) / 100;
+  const ratio = img.naturalHeight / img.naturalWidth;
+  let w = 240 * scale;
+  let h = w * ratio;
+  const maxH = Math.max(40, els.iconArea.clientHeight - 16);
+  const maxW = 400 - 40;
+  if (h > maxH) { h = maxH; w = h / ratio; }
+  if (w > maxW) { w = maxW; h = w * ratio; }
+  img.style.width = w + 'px';
+  img.style.height = h + 'px';
+}
+
+els.iconInput.addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    state.icons[state.current] = ev.target.result;
+    renderIcon();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = '';
+});
+
+els.removeIconBtn.addEventListener('click', () => {
+  delete state.icons[state.current];
+  renderIcon();
+});
+
+els.scaleRange.addEventListener('input', () => {
+  state.scales[state.current] = Number(els.scaleRange.value);
+  els.scaleValue.textContent = els.scaleRange.value + '%';
+  sizeIcon();
+});
+
+/* ===================== CAMBIO LIBRO ===================== */
+function loadBook(id) {
+  state.current = Number(id);
+  const book = BOOKS[state.current];
+  els.catInput.value = book.category.name;
+  els.titleInput.value = book.title;
+  els.subInput.value = book.subtitle;
+  const sc = state.scales[state.current] ?? 100;
+  els.scaleRange.value = sc;
+  els.scaleValue.textContent = sc + '%';
+  applyColors();
+  renderText();
+  renderIcon();
+}
+
+els.bookSelect.addEventListener('change', e => loadBook(e.target.value));
+[els.catInput, els.titleInput, els.subInput, els.authorInput].forEach(i => i.addEventListener('input', renderText));
+els.authorColor.addEventListener('change', applyAuthorColor);
+
+/* ===================== ANTEPRIMA RESPONSIVE ===================== */
+let previewScale = 1;
+function fitStage() {
+  const isDesktop = window.innerWidth >= 1024;
+  const availW = els.stage.clientWidth - (isDesktop ? 64 : 32);
+  const availH = isDesktop ? window.innerHeight - 64 : Infinity;
+  previewScale = Math.max(0.3, Math.min(availW / 400, availH / 640, 1.4));
+  els.scaler.style.transform = `scale(${previewScale})`;
+  els.scalerBox.style.width = 400 * previewScale + 'px';
+  els.scalerBox.style.height = 640 * previewScale + 'px';
+}
+window.addEventListener('resize', fitStage);
+new ResizeObserver(fitStage).observe(els.stage);
+
+/* ===================== EXPORT ===================== */
+els.downloadBtn.addEventListener('click', async () => {
+  const btn = els.downloadBtn;
+  const label = btn.innerHTML;
+  btn.disabled = true;
+  btn.textContent = 'Generazione in corso…';
+
+  try {
+    await document.fonts.ready;
+    const bg = BOOKS[state.current].category.bg;
+
+    const canvas = await html2canvas(els.cover, {
+      scale: 4,
+      width: 400,
+      height: 640,
+      backgroundColor: bg,
+      useCORS: true,
+      logging: false,
+      onclone: doc => {
+        doc.getElementById('scaler').style.transform = 'none';
+        doc.getElementById('coverPlaceholder').style.display = 'none';
+      }
+    });
+
+    // Garantisce esattamente 1600x2560
+    let out = canvas;
+    if (canvas.width !== 1600 || canvas.height !== 2560) {
+      out = document.createElement('canvas');
+      out.width = 1600; out.height = 2560;
+      const ctx = out.getContext('2d');
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, 1600, 2560);
+      ctx.drawImage(canvas, 0, 0, 1600, 2560);
+    }
+
+    out.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cover-${slugify(els.titleInput.value)}.jpg`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+    }, 'image/jpeg', 0.95);
+  } catch (err) {
+    console.error(err);
+    alert('Errore durante la generazione della copertina. Riprova.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = label;
+  }
+});
+
+/* ===================== INIT ===================== */
+loadBook(0);
+fitStage();
+document.fonts.ready.then(() => { renderText(); });
+</script>
+</body>
+</html>
