@@ -607,7 +607,7 @@
         <input type="checkbox" id="confronta-200" onchange="disegnaMese()">
         <span>Confronta con 200 ore</span>
       </label>
-      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px;display:none">
         <input type="checkbox" id="stampa-extra-mese">
         <span>Stampa le ore in più nel PDF</span>
       </label>
@@ -693,10 +693,14 @@ function oreConStraordinario(min){
   return oreTesto(ORARIO_ORDINARIO) + " +" + oreTesto(ecc);
 }
 // saldo con segno: +1h 30m oppure -45m
+// "30 ore (di cui straordinario 3 ore)" - totale lavorato, straordinario = quanto supera le 9 ore di ogni giorno
+function oreMeseTesto(info){
+  return oreTesto(info.minuti) + (info.extra ? " (di cui straordinario " + oreTesto(info.extra) + ")" : "");
+}
 function confronto200Attivo(){ return document.getElementById("confronta-200").checked; }
 function confronto200Testo(min){
   const d = min - MONTE_ORE_MENSILE;
-  return "Confronto con 200 ore: " + oreTesto(min) + " su 200h  " + (d === 0 ? "(pari)" : saldoTesto(d));
+  return "Confronto con 200 ore: " + oreTesto(min) + " totali su 200h  " + (d === 0 ? "(pari)" : saldoTesto(d));
 }
 function saldoTesto(min){
   if(min === 0) return "0";
@@ -1758,9 +1762,10 @@ function datiSettimana(){
     if(!d.escludi){
       giorniConteggiati++;
       operai.forEach(o=>{
-        if(!operaiTotali[o.nome]) operaiTotali[o.nome] = {minuti: 0, giorni: 0};
+        if(!operaiTotali[o.nome]) operaiTotali[o.nome] = {minuti: 0, giorni: 0, extra: 0};
         operaiTotali[o.nome].minuti += o.minuti;
         operaiTotali[o.nome].giorni += 1;
+        operaiTotali[o.nome].extra += eccedenza(o.minuti);
         totGenerale += o.minuti;
       });
     }
@@ -1877,9 +1882,10 @@ function datiMese(){
     if(!d.escludi){
       giorniConteggiati++;
       operai.forEach(o=>{
-        if(!operaiTotali[o.nome]) operaiTotali[o.nome] = {minuti: 0, giorni: 0};
+        if(!operaiTotali[o.nome]) operaiTotali[o.nome] = {minuti: 0, giorni: 0, extra: 0};
         operaiTotali[o.nome].minuti += o.minuti;
         operaiTotali[o.nome].giorni += 1;
+        operaiTotali[o.nome].extra += eccedenza(o.minuti);
         totGenerale += o.minuti;
       });
     }
@@ -1934,7 +1940,7 @@ function disegnaMese(){
   Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
     const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
-    html += '<div class="saldo"><span>' + n + ' (' + info.giorni + ' g.)</span><b>' + oreTesto(info.minuti) + (saldo ? "  " + saldoTesto(saldo) : "") + '</b></div>';
+    html += '<div class="saldo"><span>' + n + ' (' + info.giorni + ' g.)</span><b>' + oreMeseTesto(info) + '</b></div>';
     if(confronto200Attivo()) html += '<div class="saldo"><span>&nbsp;&nbsp;↳ ' + n + ' vs 200 ore</span><b>' + (info.minuti - MONTE_ORE_MENSILE === 0 ? "pari" : saldoTesto(info.minuti - MONTE_ORE_MENSILE)) + '</b></div>';
   });
   if(s.totSpese) html += '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>';
@@ -1965,7 +1971,7 @@ function testoMese(){
   Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
     const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
-    righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreTesto(info.minuti) + (extra && saldo ? "  " + saldoTesto(saldo) : ""));
+    righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
     if(confronto200Attivo()) righe.push("   " + confronto200Testo(info.minuti));
   });
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
@@ -2618,12 +2624,12 @@ function generaPDFMese(){
     const info = s.operaiTotali[n];
     const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
     doc.text(n + " (" + info.giorni + " g.)", ML + 2, y);
-    doc.text(oreTesto(info.minuti) + (mostraExtra && saldo ? "  " + saldoTesto(saldo) : ""), W - MR - 3, y, {align:"right"});
+    doc.text(oreMeseTesto(info), W - MR - 3, y, {align:"right"});
     y += 6;
     if(confronto200Attivo()){
       const dd = info.minuti - MONTE_ORE_MENSILE;
       doc.setFontSize(9.5);
-      doc.text("Confronto con 200 ore: " + oreTesto(info.minuti) + " su 200h", ML + 6, y);
+      doc.text("Confronto con 200 ore: " + oreTesto(info.minuti) + " totali su 200h", ML + 6, y);
       doc.text(dd === 0 ? "pari" : saldoTesto(dd), W - MR - 3, y, {align:"right"});
       doc.setFontSize(10.5);
       y += 6;
