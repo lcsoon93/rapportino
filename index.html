@@ -605,7 +605,7 @@
       <div id="mesericap" style="margin-top:12px"></div>
       <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
         <input type="checkbox" id="confronta-200" onchange="disegnaMese()">
-        <span>Confronta con 200 ore</span>
+        <span>Confronta con il monte ore del mese (giorni lavorativi x 9 ore)</span>
       </label>
       <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px;display:none">
         <input type="checkbox" id="stampa-extra-mese">
@@ -684,7 +684,6 @@ const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZ
 const SINC_ATTIVA = () => SUPABASE_URL !== "" && SUPABASE_KEY !== "";
 const GIORNI = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"];
 const ORARIO_ORDINARIO = 9 * 60;   // minuti di lavoro ordinario al giorno (nessuna pausa): oltre le 9 ore si segna l'extra
-const MONTE_ORE_MENSILE = 200 * 60;   // minuti: monte ore mensile per il confronto opzionale
 function eccedenza(min){ return Math.max(0, min - ORARIO_ORDINARIO); }
 // "9h +30m" quando si supera l'orario ordinario, altrimenti solo il totale
 function oreConStraordinario(min){
@@ -697,10 +696,31 @@ function oreConStraordinario(min){
 function oreMeseTesto(info){
   return oreTesto(info.minuti) + (info.extra ? " (di cui straordinario " + oreTesto(info.extra) + ")" : "");
 }
-function confronto200Attivo(){ return document.getElementById("confronta-200").checked; }
-function confronto200Testo(min){
-  const d = min - MONTE_ORE_MENSILE;
-  return "Confronto con 200 ore: " + oreTesto(min) + " totali su 200h  " + (d === 0 ? "(pari)" : saldoTesto(d));
+// monte ore del mese = giorni lavorativi (lun-ven) del mese x 9 ore
+function giorniLavorativiMese(iso){   // iso = "2026-09"
+  const [a, m] = iso.split("-").map(Number);
+  const ultimo = new Date(a, m, 0).getDate();
+  let n = 0;
+  for(let g = 1; g <= ultimo; g++){
+    const w = new Date(a, m - 1, g).getDay();
+    if(w !== 0 && w !== 6) n++;
+  }
+  return n;
+}
+function monteOreMese(){
+  const iso = document.getElementById("mesedata").value;
+  const giorni = giorniLavorativiMese(iso);
+  return {giorni, minuti: giorni * ORARIO_ORDINARIO};
+}
+function confrontoAttivo(){ return document.getElementById("confronta-200").checked; }
+function descrizioneMonte(){
+  const mo = monteOreMese();
+  return "Monte ore del mese: " + mo.giorni + " giorni lavorativi x 9 ore = " + oreTesto(mo.minuti);
+}
+function confrontoTesto(min){
+  const mo = monteOreMese();
+  const d = min - mo.minuti;
+  return "Confronto con monte ore (" + oreTesto(mo.minuti) + "): " + oreTesto(min) + " lavorate  " + (d === 0 ? "(pari)" : saldoTesto(d));
 }
 function saldoTesto(min){
   if(min === 0) return "0";
@@ -1937,11 +1957,14 @@ function disegnaMese(){
   if(s.giorniLavorati - s.giorniConteggiati > 0){
     html += '<div class="saldo"><span>di cui escluse dal monte ore</span><b>' + (s.giorniLavorati - s.giorniConteggiati) + '</b></div>';
   }
+  if(confrontoAttivo()) html += '<div class="saldo"><span>Monte ore del mese (' + monteOreMese().giorni + ' g. x 9 ore)</span><b>' + oreTesto(monteOreMese().minuti) + '</b></div>';
   Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
-    const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
     html += '<div class="saldo"><span>' + n + ' (' + info.giorni + ' g.)</span><b>' + oreMeseTesto(info) + '</b></div>';
-    if(confronto200Attivo()) html += '<div class="saldo"><span>&nbsp;&nbsp;↳ ' + n + ' vs 200 ore</span><b>' + (info.minuti - MONTE_ORE_MENSILE === 0 ? "pari" : saldoTesto(info.minuti - MONTE_ORE_MENSILE)) + '</b></div>';
+    if(confrontoAttivo()){
+      const dd = info.minuti - monteOreMese().minuti;
+      html += '<div class="saldo"><span>&nbsp;&nbsp;↳ ' + n + ' vs monte ore</span><b>' + (dd === 0 ? "pari" : saldoTesto(dd)) + '</b></div>';
+    }
   });
   if(s.totSpese) html += '<div class="saldo"><span>Spese anticipate</span><b>' + euro(s.totSpese) + '</b></div>';
   document.getElementById("mesericap").innerHTML = html;
@@ -1968,11 +1991,12 @@ function testoMese(){
   });
   righe.push("");
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
+  if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
   Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
     const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
     righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
-    if(confronto200Attivo()) righe.push("   " + confronto200Testo(info.minuti));
+    if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
   });
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
   return righe.join("\n");
@@ -2620,16 +2644,21 @@ function generaPDFMese(){
   doc.text("Giorni lavorati", ML + 2, y);
   doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
   y += 6;
+  if(confrontoAttivo()){
+    doc.text("Monte ore del mese (" + monteOreMese().giorni + " giorni lavorativi x 9 ore)", ML + 2, y);
+    doc.text(oreTesto(monteOreMese().minuti), W - MR - 3, y, {align:"right"});
+    y += 6;
+  }
   Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
     const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
     doc.text(n + " (" + info.giorni + " g.)", ML + 2, y);
     doc.text(oreMeseTesto(info), W - MR - 3, y, {align:"right"});
     y += 6;
-    if(confronto200Attivo()){
-      const dd = info.minuti - MONTE_ORE_MENSILE;
+    if(confrontoAttivo()){
+      const dd = info.minuti - monteOreMese().minuti;
       doc.setFontSize(9.5);
-      doc.text("Confronto con 200 ore: " + oreTesto(info.minuti) + " totali su 200h", ML + 6, y);
+      doc.text("Confronto con monte ore (" + oreTesto(monteOreMese().minuti) + "): " + oreTesto(info.minuti) + " lavorate", ML + 6, y);
       doc.text(dd === 0 ? "pari" : saldoTesto(dd), W - MR - 3, y, {align:"right"});
       doc.setFontSize(10.5);
       y += 6;
