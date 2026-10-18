@@ -478,6 +478,10 @@
       <div id="clienti"></div>
       <button type="button" class="aggiungi" onclick="aggiungiCliente()">+ Aggiungi cliente</button>
       <button type="button" class="aggiungi" style="border-color:#B3413A;color:#B3413A;margin-top:8px" onclick="aggiungiUrgenza()">+ Intervento urgente</button>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px">
+        <input type="checkbox" id="pdf-per-cliente">
+        <span>PDF con un foglio separato per ogni cliente</span>
+      </label>
     </div>
 
     <div class="modulo m-orario">
@@ -651,6 +655,13 @@ function salvaPrefExtra(v){
 }
 function stampaExtraAttivo(){
   return document.getElementById("stampa-extra").checked;
+}
+// ============ preferenza PDF: foglio unico o un foglio per cliente ============
+function leggiPrefPerCliente(){
+  try{ return localStorage.getItem("pdfPerCliente") === "1"; }catch(e){ return false; }
+}
+function salvaPrefPerCliente(v){
+  try{ localStorage.setItem("pdfPerCliente", v ? "1" : "0"); }catch(e){}
 }
 // il PDF usa questa: mostra "8 ore +1h 30m" oppure solo il totale
 function oreStampa(min){
@@ -1452,6 +1463,10 @@ document.addEventListener("change", e=>{
     salvaPrefExtra(v);
     return;
   }
+  if(e.target.id === "pdf-per-cliente"){
+    salvaPrefPerCliente(e.target.checked);
+    return;
+  }
   if(e.target.closest("#vista-giorno") && e.target.id !== "data") salvaGiornata();
 });
 
@@ -1944,16 +1959,22 @@ function generaPDF(){
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
   const d = datiGiornata();
+  // true: ogni cliente su un foglio suo, poi un foglio di riepilogo; false: foglio unico
+  const perCliente = document.getElementById("pdf-per-cliente").checked && d.clienti.length > 0;
   let y = intestazionePDF(doc, "RAPPORTO DI LAVORO GIORNALIERO");
 
   function serveNuovaPagina(spazio){
     if (y + spazio > 275){ doc.addPage(); y = 22; }
   }
+  function rigaDataTecnici(){
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(11);
+    doc.text("Data: " + dataIt(), ML, y);
+    doc.text("Tecnici: " + d.tecnici, ML + 60, y);
+    y += 11;
+  }
 
-  doc.setFontSize(11);
-  doc.text("Data: " + dataIt(), ML, y);
-  doc.text("Tecnici: " + d.tecnici, ML + 60, y);
-  y += 11;
+  rigaDataTecnici();
 
   doc.setFontSize(12);
   doc.text("LAVORI ESEGUITI", ML, y);
@@ -1963,6 +1984,11 @@ function generaPDF(){
     doc.text("-", ML, y); y += 8;
   }
   d.clienti.forEach((c,i)=>{
+    if(perCliente && i > 0){
+      doc.addPage();
+      y = intestazionePDF(doc, "RAPPORTO DI LAVORO GIORNALIERO");
+      rigaDataTecnici();
+    }
     serveNuovaPagina(25);
     doc.setFont("helvetica","bold");
     doc.setFontSize(11.5);
@@ -2086,6 +2112,13 @@ function generaPDF(){
     y += 3;
   });
   y += 4;
+
+  if(perCliente){
+    // orario, totali e spese della giornata su un foglio a parte
+    doc.addPage();
+    y = intestazionePDF(doc, "RIEPILOGO GIORNATA");
+    rigaDataTecnici();
+  }
 
   serveNuovaPagina(20);
   doc.setFont("helvetica","bold");
@@ -2408,6 +2441,7 @@ const prefExtra = leggiPrefExtra();
 ["stampa-extra","stampa-extra-sett","stampa-extra-mese"].forEach(id=>{
   document.getElementById(id).checked = prefExtra;
 });
+document.getElementById("pdf-per-cliente").checked = leggiPrefPerCliente();
 aggiornaClientiNoti();
 caricaGiornata(oggi);
 
