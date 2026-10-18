@@ -2304,7 +2304,9 @@ function generaPDFPerCliente(){
     doc.text(infoRighe, ML, y);
     y += infoRighe.length * 4.5 + 1;
 
-    if(orarioTesto){
+    // l'orario degli operai compare solo se per questo cliente e' indicata almeno una fascia oraria
+    const haOrarioCliente = (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle;
+    if(orarioTesto && haOrarioCliente){
       doc.setFontSize(8.5);
       doc.setTextColor(90,96,104);
       const orarioRighe = doc.splitTextToSize("Orario: " + orarioTesto, CW);
