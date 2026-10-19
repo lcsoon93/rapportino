@@ -147,7 +147,7 @@
   .spesa-riga .s-imp{flex:none;width:96px;padding:10px 8px;font-size:16px;text-align:right}
   .spesa-riga .s-del{flex:none;width:32px;border:none;background:transparent;color:#9AA1A9;font-size:20px;cursor:pointer}
   .due{display:flex;gap:12px}
-  .due>div{flex:1}
+  .due>div{flex:1;min-width:0}
 
   /* navigazione data */
   .datanav{display:flex;gap:8px;align-items:stretch}
@@ -320,44 +320,61 @@
   .firma-overlay.nascosto{display:none!important}
   .firma-overlay-top{
     flex:none;background:var(--quadro);color:#fff;
-    display:flex;align-items:center;justify-content:space-between;
-    padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;
+    display:flex;align-items:center;gap:12px;
+    padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;
   }
   .firma-overlay-top span{
-    font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:15px;
-    letter-spacing:1px;text-transform:uppercase;
+    font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:16px;
+    letter-spacing:1px;text-transform:uppercase;flex:1;
   }
-  .firma-overlay-top button{
-    background:transparent;border:none;color:#fff;
-    font-size:22px;line-height:1;width:34px;height:34px;cursor:pointer;
+  .firma-overlay-top .fo-annulla{
+    flex:none;background:transparent;color:#fff;
+    border:1.5px solid #6A7078;border-radius:8px;
+    padding:9px 14px;font-size:15px;font-weight:600;cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;
   }
   .firma-overlay-pad{
     flex:1;position:relative;background:#fff;touch-action:none;
   }
   .firma-overlay-pad canvas{
+    position:relative;z-index:1;
     display:block;width:100%;height:100%;touch-action:none;
   }
-  .firma-overlay-hint{
-    position:absolute;left:0;right:0;top:50%;transform:translateY(-50%);
-    text-align:center;color:#C4C8CD;font-size:18px;
-    pointer-events:none;
+  /* riga guida stile "foglio", solo a schermo: non finisce nella firma salvata */
+  .firma-overlay-riga{
+    position:absolute;left:28px;right:28px;top:62%;
+    border-bottom:2px dashed #C9CDD2;pointer-events:none;
   }
+  .firma-overlay-riga::before{
+    content:"✕";position:absolute;left:-2px;bottom:4px;
+    color:#9AA1A9;font-size:22px;font-weight:700;
+  }
+  .firma-overlay-hint{
+    position:absolute;left:0;right:0;top:38%;transform:translateY(-50%);
+    text-align:center;color:#9AA1A9;font-size:20px;font-weight:600;
+    pointer-events:none;padding:0 20px;
+  }
+  .firma-overlay-hint small{display:block;font-size:14px;font-weight:400;margin-top:6px}
   .firma-overlay-bottom{
     flex:none;display:flex;gap:10px;
-    background:var(--quadro);
-    padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));
+    background:#F2F3F4;border-top:1px solid var(--bordo);
+    padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
   }
   .firma-overlay-bottom button{
-    font-family:'Chakra Petch',sans-serif;font-weight:700;font-size:14px;
-    letter-spacing:.5px;text-transform:uppercase;
-    border-radius:8px;padding:13px 8px;cursor:pointer;
+    font-family:'IBM Plex Sans',sans-serif;font-weight:700;font-size:17px;
+    border-radius:10px;padding:16px 10px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;gap:8px;
   }
   .firma-overlay-bottom .fo-cancella{
-    flex:none;background:transparent;border:1.5px solid #4A5058;color:#C9CDD2;padding:13px 16px;
+    flex:1;background:#fff;border:2px solid #B3413A;color:#B3413A;
   }
   .firma-overlay-bottom .fo-conferma{
-    flex:1;background:var(--terra1);border:none;color:#fff;
+    flex:1.4;background:#2E8B57;border:2px solid #2E8B57;color:#fff;
   }
+  .firma-overlay-bottom button:disabled{
+    background:#E3E5E8;border-color:#E3E5E8;color:#9AA1A9;cursor:default;
+  }
+  .firma-overlay-bottom button:not(:disabled):active{transform:translateY(1px)}
 
   .aggiungi{
     margin-top:2px;width:100%;
@@ -665,16 +682,17 @@
 
 <div id="firma-overlay" class="firma-overlay nascosto">
   <div class="firma-overlay-top">
-    <span>Firma cliente</span>
-    <button type="button" aria-label="Chiudi senza salvare" onclick="chiudiFirmaOverlay(false)">&times;</button>
+    <button type="button" class="fo-annulla" onclick="annullaFirmaOverlay()">&larr; Indietro</button>
+    <span>Firma del cliente</span>
   </div>
   <div class="firma-overlay-pad">
+    <div class="firma-overlay-riga" aria-hidden="true"></div>
+    <div class="firma-overlay-hint" id="firma-overlay-hint">Firmi qui con il dito<small>sopra la linea tratteggiata</small></div>
     <canvas id="firma-overlay-canvas"></canvas>
-    <div class="firma-overlay-hint" id="firma-overlay-hint">Firma qui col dito</div>
   </div>
   <div class="firma-overlay-bottom">
-    <button type="button" class="fo-cancella" onclick="pulisciFirmaOverlay()">Cancella</button>
-    <button type="button" class="fo-conferma" onclick="chiudiFirmaOverlay(true)">Conferma firma</button>
+    <button type="button" class="fo-cancella" id="fo-cancella" onclick="pulisciFirmaOverlay()">&#10006; Cancella</button>
+    <button type="button" class="fo-conferma" id="fo-conferma" onclick="chiudiFirmaOverlay(true)">&#10004; Salva firma</button>
   </div>
 </div>
 
@@ -1289,7 +1307,9 @@ function apriFirmaOverlay(triggerEl){
   ctx.lineJoin = "round";
   ctx.strokeStyle = "#14213D";
   canvas.dataset.pieno = "";
+  canvas.dataset.modificata = "";
   hint.style.display = "";
+  aggiornaPulsantiFirma();
 
   // se il cliente ha gia' una firma salvata, la ricarico per permettere di rifarla/integrarla
   const dato = clienteFirmaCorrente.querySelector(".c-firma-dato").value;
@@ -1302,15 +1322,30 @@ function apriFirmaOverlay(triggerEl){
       ctx.drawImage(img, (rectW - dw) / 2, (rectH - dh) / 2, dw, dh);
       canvas.dataset.pieno = "1";
       hint.style.display = "none";
+      aggiornaPulsantiFirma();
     };
     img.src = dato;
   }
+}
+// "Salva" e "Cancella" attivi solo quando c'e' qualcosa di disegnato
+function aggiornaPulsantiFirma(){
+  const piena = document.getElementById("firma-overlay-canvas").dataset.pieno === "1";
+  document.getElementById("fo-conferma").disabled = !piena;
+  document.getElementById("fo-cancella").disabled = !piena;
+}
+// "Indietro": se la firma e' stata modificata chiedo conferma prima di perderla
+function annullaFirmaOverlay(){
+  const canvas = document.getElementById("firma-overlay-canvas");
+  if(canvas.dataset.modificata === "1" && !confirm("Uscire senza salvare la firma?")) return;
+  chiudiFirmaOverlay(false);
 }
 function pulisciFirmaOverlay(){
   const canvas = document.getElementById("firma-overlay-canvas");
   canvas.getContext("2d").clearRect(0, 0, canvas.width, canvas.height);
   canvas.dataset.pieno = "";
+  canvas.dataset.modificata = "1";
   document.getElementById("firma-overlay-hint").style.display = "";
+  aggiornaPulsantiFirma();
 }
 // ritaglia la firma attorno al tratto (il pad e' grande quanto lo schermo, la firma ne occupa una parte):
 // cosi' nel PDF la firma riempie il suo spazio invece di diventare minuscola
@@ -1397,8 +1432,12 @@ function chiudiFirmaOverlay(conferma){
     const ctx = canvas.getContext("2d");
     ctx.lineTo(x,y);
     ctx.stroke();
-    canvas.dataset.pieno = "1";
-    hint.style.display = "none";
+    if(canvas.dataset.pieno !== "1"){
+      canvas.dataset.pieno = "1";
+      hint.style.display = "none";
+      aggiornaPulsantiFirma();
+    }
+    canvas.dataset.modificata = "1";
   });
   function fine(){ giu = false; }
   canvas.addEventListener("pointerup", fine);
