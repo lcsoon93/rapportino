@@ -316,6 +316,10 @@
     position:fixed;inset:0;z-index:1000;
     background:#fff;
     display:flex;flex-direction:column;
+    height:100%;height:100dvh;
+    padding-left:env(safe-area-inset-left,0px);
+    padding-right:env(safe-area-inset-right,0px);
+    background-color:var(--quadro);
   }
   .firma-overlay.nascosto{display:none!important}
   .firma-overlay-top{
@@ -337,7 +341,7 @@
     flex:1;position:relative;background:#fff;touch-action:none;
   }
   .firma-overlay-pad canvas{
-    position:relative;z-index:1;
+    position:absolute;inset:0;z-index:1;
     display:block;width:100%;height:100%;touch-action:none;
   }
   /* riga guida stile "foglio", solo a schermo: non finisce nella firma salvata */
@@ -375,6 +379,31 @@
     background:#E3E5E8;border-color:#E3E5E8;color:#9AA1A9;cursor:default;
   }
   .firma-overlay-bottom button:not(:disabled):active{transform:translateY(1px)}
+
+  /* telefono in orizzontale: poca altezza, i pulsanti vanno in colonna a destra */
+  @media (orientation: landscape) and (max-height: 560px){
+    .firma-overlay{
+      display:grid;
+      grid-template-columns:1fr 190px;
+      grid-template-rows:auto 1fr;
+    }
+    .firma-overlay-top{
+      grid-column:1 / 3;
+      padding:calc(6px + env(safe-area-inset-top,0px)) 12px 6px;
+    }
+    .firma-overlay-top .fo-annulla{padding:6px 12px;font-size:14px}
+    .firma-overlay-top span{font-size:14px}
+    .firma-overlay-pad{grid-column:1;grid-row:2;min-height:0}
+    .firma-overlay-bottom{
+      grid-column:2;grid-row:2;
+      flex-direction:column-reverse;justify-content:flex-start;
+      border-top:none;border-left:1px solid var(--bordo);
+      padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));
+    }
+    .firma-overlay-bottom button{flex:1;max-height:110px;padding:10px 8px}
+    .firma-overlay-riga{top:68%}
+    .firma-overlay-hint{top:34%}
+  }
 
   .aggiungi{
     margin-top:2px;width:100%;
@@ -1285,6 +1314,45 @@ function pulisciFirma(btn){
   salvaGiornata();
 }
 
+// adatta il canvas alla superficie disponibile (nitido su schermi ad alta densita').
+// Con conserva=true (rotazione del telefono) ridisegna la firma gia' fatta, centrata e senza deformarla.
+function dimensionaPadFirma(conserva){
+  const overlay = document.getElementById("firma-overlay");
+  const canvas = document.getElementById("firma-overlay-canvas");
+  const pad = overlay.querySelector(".firma-overlay-pad");
+  const rectW = pad.clientWidth, rectH = pad.clientHeight;
+  const dpr = window.devicePixelRatio || 1;
+  if(!rectW || !rectH) return;
+  if(canvas.width === Math.round(rectW * dpr) && canvas.height === Math.round(rectH * dpr)) return;
+  let copia = null;
+  if(conserva && canvas.dataset.pieno === "1" && canvas.width && canvas.height){
+    copia = document.createElement("canvas");
+    copia.width = canvas.width; copia.height = canvas.height;
+    copia.getContext("2d").drawImage(canvas, 0, 0);
+  }
+  canvas.width = Math.round(rectW * dpr);
+  canvas.height = Math.round(rectH * dpr);
+  const ctx = canvas.getContext("2d");
+  if(copia){
+    const s = Math.min(canvas.width / copia.width, canvas.height / copia.height);
+    const dw = copia.width * s, dh = copia.height * s;
+    ctx.drawImage(copia, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
+  }
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.lineWidth = 4;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#14213D";
+}
+// rotazione / ridimensionamento mentre il pad e' aperto
+function suCambioDimensioniFirma(){
+  if(document.getElementById("firma-overlay").classList.contains("nascosto")) return;
+  // aspetto che il browser abbia finito di ruotare prima di misurare
+  setTimeout(()=>dimensionaPadFirma(true), 250);
+}
+window.addEventListener("resize", suCambioDimensioniFirma);
+window.addEventListener("orientationchange", suCambioDimensioniFirma);
+
 function apriFirmaOverlay(triggerEl){
   clienteFirmaCorrente = triggerEl.closest(".cliente");
   const overlay = document.getElementById("firma-overlay");
@@ -1292,20 +1360,10 @@ function apriFirmaOverlay(triggerEl){
   const canvas = document.getElementById("firma-overlay-canvas");
   overlay.classList.remove("nascosto");
 
-  // ridimensiona il canvas alla superficie realmente disponibile, nitido anche su schermi ad alta densita'
+  dimensionaPadFirma(false);
   const pad = overlay.querySelector(".firma-overlay-pad");
   const rectW = pad.clientWidth, rectH = pad.clientHeight;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = rectW * dpr;
-  canvas.height = rectH * dpr;
-  canvas.style.width = rectW + "px";
-  canvas.style.height = rectH + "px";
   const ctx = canvas.getContext("2d");
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.lineWidth = 4;
-  ctx.lineCap = "round";
-  ctx.lineJoin = "round";
-  ctx.strokeStyle = "#14213D";
   canvas.dataset.pieno = "";
   canvas.dataset.modificata = "";
   hint.style.display = "";
