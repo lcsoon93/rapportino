@@ -540,6 +540,10 @@
         <input type="checkbox" id="stampa-extra">
         <span>Stampa le ore in più nel PDF</span>
       </label>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:4px">
+        <input type="checkbox" id="nascondi-ore-giorno">
+        <span>Non stampare le ore totali di ogni operaio (solo dalle - alle)</span>
+      </label>
     </div>
 
     <div class="modulo m-spese">
@@ -755,6 +759,18 @@ function leggiPrefFoglioUnico(){
 }
 function salvaPrefFoglioUnico(v){
   try{ localStorage.setItem("pdfFoglioUnico", v ? "1" : "0"); }catch(e){}
+}
+// ============ preferenza: nascondere il conteggio ore giornaliero di ogni operaio ============
+function leggiPrefNascondiOre(){
+  try{ return localStorage.getItem("nascondiOreGiorno") === "1"; }catch(e){ return false; }
+}
+function salvaPrefNascondiOre(v){
+  try{ localStorage.setItem("nascondiOreGiorno", v ? "1" : "0"); }catch(e){}
+}
+// " (9 ore)" accanto a dalle-alle, oppure niente se la spunta e' attiva
+function contoOreOperaio(op, spazio){
+  if(document.getElementById("nascondi-ore-giorno").checked) return "";
+  return spazio + "(" + oreTesto(minutiOperaio(op)) + ")";
 }
 function stampaExtraAttivo(){
   return document.getElementById("stampa-extra").checked;
@@ -1698,6 +1714,10 @@ document.addEventListener("change", e=>{
     salvaPrefExtra(v);
     return;
   }
+  if(e.target.id === "nascondi-ore-giorno"){
+    salvaPrefNascondiOre(e.target.checked);
+    return;
+  }
   if(e.target.id === "pdf-foglio-unico"){
     salvaPrefFoglioUnico(e.target.checked);
     return;
@@ -1748,7 +1768,7 @@ function testoRapporto(){
   righe.push("ORARIO:");
   if(d.operai.length === 0) righe.push("-");
   d.operai.forEach(op=>{
-    righe.push("- " + op.nome + ": " + (op.dalle || "—") + " - " + (op.alle || "—") + "  (" + oreTesto(minutiOperaio(op)) + ")");
+    righe.push("- " + op.nome + ": " + (op.dalle || "—") + " - " + (op.alle || "—") + contoOreOperaio(op, "  "));
   });
   if(d.escludi) righe.push("(giornata esclusa dal monte ore)");
 
@@ -2282,7 +2302,7 @@ function generaPDFPerCliente(){
 
   const orarioTesto = d.operai.length
     ? d.operai.map(op => op.nome + " " + (op.dalle || "—") + "-" + (op.alle || "—") +
-                          " (" + oreTesto(minutiOperaio(op)) + ")").join("   ·   ")
+                          contoOreOperaio(op, " ")).join("   ·   ")
     : "";
 
   d.clienti.forEach((c, indiceCliente)=>{
@@ -2653,7 +2673,7 @@ function generaPDFFoglioUnico(){
     d.operai.forEach(op=>{
       serveNuovaPagina(6);
       doc.text(op.nome + ":  " + (op.dalle || "—") + " - " + (op.alle || "—") +
-                "   (" + oreTesto(minutiOperaio(op)) + ")", ML, y);
+                contoOreOperaio(op, "   "), ML, y);
       y += 6;
     });
   }
@@ -3009,6 +3029,7 @@ const prefExtra = leggiPrefExtra();
   document.getElementById(id).checked = prefExtra;
 });
 document.getElementById("pdf-foglio-unico").checked = leggiPrefFoglioUnico();
+document.getElementById("nascondi-ore-giorno").checked = leggiPrefNascondiOre();
 aggiornaClientiNoti();
 caricaGiornata(oggi);
 
