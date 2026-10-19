@@ -1057,6 +1057,7 @@ function aggiungiCliente(dati){
     if(dati.firma){
       div.querySelector(".c-firma-dato").value = dati.firma;
       aggiornaAnteprimaFirma(div, dati.firma);
+      ritagliaFirmaSalvata(div, dati.firma);
     }
     // fasce orarie: nuovo formato a lista, oppure vecchio formato dalle/alle
     if(dati.fasce && dati.fasce.length){
@@ -1283,7 +1284,7 @@ function apriFirmaOverlay(triggerEl){
   canvas.style.height = rectH + "px";
   const ctx = canvas.getContext("2d");
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
   ctx.strokeStyle = "#14213D";
@@ -1295,7 +1296,10 @@ function apriFirmaOverlay(triggerEl){
   if(dato){
     const img = new Image();
     img.onload = ()=>{
-      ctx.drawImage(img, 0, 0, rectW, rectH);
+      const dpr = window.devicePixelRatio || 1;
+      const s = Math.min(rectW / img.width, rectH / img.height, 1 / dpr);
+      const dw = img.width * s, dh = img.height * s;
+      ctx.drawImage(img, (rectW - dw) / 2, (rectH - dh) / 2, dw, dh);
       canvas.dataset.pieno = "1";
       hint.style.display = "none";
     };
@@ -1308,10 +1312,58 @@ function pulisciFirmaOverlay(){
   canvas.dataset.pieno = "";
   document.getElementById("firma-overlay-hint").style.display = "";
 }
+// ritaglia la firma attorno al tratto (il pad e' grande quanto lo schermo, la firma ne occupa una parte):
+// cosi' nel PDF la firma riempie il suo spazio invece di diventare minuscola
+function ritagliaFirma(sorgente){
+  const w = sorgente.width, h = sorgente.height;
+  let tela = sorgente;
+  if(!(sorgente instanceof HTMLCanvasElement)){
+    tela = document.createElement("canvas");
+    tela.width = w; tela.height = h;
+    tela.getContext("2d").drawImage(sorgente, 0, 0);
+  }
+  const px = tela.getContext("2d").getImageData(0, 0, w, h).data;
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      if(px[(y * w + x) * 4 + 3] > 20){
+        if(x < x0) x0 = x;
+        if(x > x1) x1 = x;
+        if(y < y0) y0 = y;
+        if(y > y1) y1 = y;
+      }
+    }
+  }
+  if(x1 < 0) return tela.toDataURL("image/png");      // vuota: lascio com'e'
+  const margine = Math.round(Math.max(x1 - x0, y1 - y0) * 0.04) + 4;
+  x0 = Math.max(0, x0 - margine); y0 = Math.max(0, y0 - margine);
+  x1 = Math.min(w - 1, x1 + margine); y1 = Math.min(h - 1, y1 + margine);
+  const lw = x1 - x0 + 1, lh = y1 - y0 + 1;
+  const scala = Math.min(1, 1200 / lw);                // non serve piu' di 1200 px di larghezza
+  const out = document.createElement("canvas");
+  out.width = Math.round(lw * scala); out.height = Math.round(lh * scala);
+  out.getContext("2d").drawImage(tela, x0, y0, lw, lh, 0, 0, out.width, out.height);
+  return out.toDataURL("image/png");
+}
+// firme salvate prima del ritaglio: le ritaglio al caricamento della scheda
+function ritagliaFirmaSalvata(clienteDiv, dataURL){
+  const img = new Image();
+  img.onload = ()=>{
+    try{
+      const nuova = ritagliaFirma(img);
+      if(clienteDiv.querySelector(".c-firma-dato").value === dataURL){
+        clienteDiv.querySelector(".c-firma-dato").value = nuova;
+        aggiornaAnteprimaFirma(clienteDiv, nuova);
+      }
+    }catch(e){ console.error(e); }
+  };
+  img.src = dataURL;
+}
+
 function chiudiFirmaOverlay(conferma){
   const canvas = document.getElementById("firma-overlay-canvas");
   if(conferma && clienteFirmaCorrente && canvas.dataset.pieno === "1"){
-    const dataURL = canvas.toDataURL("image/png");
+    const dataURL = ritagliaFirma(canvas);
     clienteFirmaCorrente.querySelector(".c-firma-dato").value = dataURL;
     aggiornaAnteprimaFirma(clienteFirmaCorrente, dataURL);
     salvaGiornata();
@@ -2313,6 +2365,11 @@ function generaPDFPerCliente(){
       if(y + spazio > yLimiteCorrente){
         yBase = vaiAUnitaSuccessiva();
         y = intestazioneSlot(yBase, indiceCliente + 1, d.clienti.length);
+        // la scheda continua su un'altra meta' pagina: ripeto di quale cliente si tratta
+        doc.setFont("helvetica","bold");
+        doc.setFontSize(9.5);
+        doc.text(c.nome + "  (segue)", ML, y);
+        y += 6;
       }
     }
 
@@ -2420,24 +2477,31 @@ function generaPDFPerCliente(){
     const ALTEZZA_MIN_IMG = 32;
 
     // griglia di immagini (2 per riga, proporzioni reali): usata sia per le foto sia per gli scontrini
-    function disegnaGriglia(titolo, immagini){
+    // spazio per la firma: va tenuta nella stessa scheda dell'ultima riga di foto
+    const FIRMA_MAX_W = 70, FIRMA_MAX_H = 24;
+    const ALTEZZA_FIRMA = c.firma ? FIRMA_MAX_H + (c.firmatario ? 9 : 5) : 0;
+
+    function disegnaGriglia(titolo, immagini, riserva){
+      riserva = riserva || 0;
       const perRiga = 2, gapFoto = 4;
       const boxW = (CW - 2 - gapFoto * (perRiga - 1)) / perRiga;
       let boxH = 48;
       // se le immagini stanno su una sola riga ma non c'e' spazio per l'altezza piena,
       // le rimpicciolisco per tenerle nella stessa scheda (fino a un minimo ancora leggibile)
-      const spazioLibero = yLimiteCorrente - y - 7;          // 7 = titolo + respiro
+      const spazioLibero = yLimiteCorrente - y - 7 - riserva;  // 7 = titolo + respiro
       if(immagini.length <= perRiga && spazioLibero < boxH && spazioLibero >= ALTEZZA_MIN_IMG){
         boxH = Math.floor(spazioLibero * 10) / 10;
       }
       doc.setFont("helvetica","bold");
       doc.setFontSize(9);
-      serveNuovoSlot(boxH + 7);
+      const righeTot = Math.ceil(immagini.length / perRiga);
+      serveNuovoSlot(boxH + 7 + (righeTot === 1 ? riserva : 0));
       doc.text(titolo, ML + 2, y);
       y += 4.3;
       let colonna = 0;
-      immagini.forEach(f=>{
-        if(colonna === 0) serveNuovoSlot(boxH + 2);
+      immagini.forEach((f, k)=>{
+        const ultimaRiga = Math.floor(k / perRiga) === righeTot - 1;
+        if(colonna === 0) serveNuovoSlot(boxH + 2 + (ultimaRiga ? riserva : 0));
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
           const scala = Math.min(boxW / f.w, boxH / f.h);
@@ -2451,8 +2515,31 @@ function generaPDFPerCliente(){
         colonna++;
         if(colonna >= perRiga){ colonna = 0; y += boxH + gapFoto; }
       });
+      // se l'ultima riga ha una casella libera ne restituisco posizione e misure (ci va la firma)
+      const libera = colonna !== 0
+        ? {x: ML + 2 + colonna * (boxW + gapFoto), y: y, w: boxW, h: boxH}
+        : null;
       if(colonna !== 0) y += boxH + gapFoto;
       y += 1;
+      return libera;
+    }
+
+    // firma dentro un riquadro: etichetta in alto, firma appoggiata sulla linea, firmatario sotto
+    function disegnaFirma(x, yTop, larg, alt){
+      const lineaY = yTop + alt - (c.firmatario ? 5 : 1);
+      const m = misureFirmaPDF(doc, c.firma, larg, Math.min(lineaY - yTop - 6, 30));
+      doc.setFont("helvetica","bold");
+      doc.setFontSize(9);
+      doc.text("Firma cliente:", x, yTop + 3);
+      try{ doc.addImage(c.firma, "PNG", x, lineaY - m.h - 0.5, m.w, m.h); }catch(e){}
+      doc.setDrawColor(180,184,189);
+      doc.setLineWidth(0.2);
+      doc.line(x, lineaY, x + larg, lineaY);
+      if(c.firmatario){
+        doc.setFont("helvetica","normal");
+        doc.setFontSize(7.5);
+        doc.text("Firmatario: " + c.firmatario.toUpperCase(), x, lineaY + 4);
+      }
     }
 
     // spese collegate a questo cliente (con eventuali scontrini allegati)
@@ -2488,21 +2575,18 @@ function generaPDFPerCliente(){
       if(scontrini.length) disegnaGriglia(scontrini.length > 1 ? "Allegati spese:" : "Allegato spesa:", scontrini);
     }
 
-    if(c.foto && c.foto.length) disegnaGriglia("Foto:", c.foto);
+    // con un numero dispari di foto la firma va nella casella libera accanto all'ultima foto
+    const firmaAccanto = !!(c.firma && c.foto && c.foto.length % 2 === 1);
+    let casellaLibera = null;
+    if(c.foto && c.foto.length) casellaLibera = disegnaGriglia("Foto:", c.foto, firmaAccanto ? 0 : ALTEZZA_FIRMA);
 
     if(c.firma){
-      serveNuovoSlot(22);
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(9);
-      doc.text("Firma cliente:", ML + 2, y + 3.5);
-      try{ doc.addImage(c.firma, "PNG", ML + 32, y - 2, 38, 14); }catch(e){}
-      doc.setDrawColor(180,184,189);
-      doc.setLineWidth(0.2);
-      doc.line(ML + 32, y + 11.5, ML + 70, y + 11.5);
-      if(c.firmatario){
-        doc.setFont("helvetica","normal");
-        doc.setFontSize(7.5);
-        doc.text("Firmatario: " + c.firmatario.toUpperCase(), ML + 32, y + 15);
+      if(firmaAccanto && casellaLibera){
+        disegnaFirma(casellaLibera.x + 4, casellaLibera.y, Math.min(casellaLibera.w - 4, FIRMA_MAX_W), casellaLibera.h);
+      } else {
+        serveNuovoSlot(ALTEZZA_FIRMA);
+        disegnaFirma(ML + 2, y, FIRMA_MAX_W, ALTEZZA_FIRMA);
+        y += ALTEZZA_FIRMA;
       }
     }
   });
@@ -2616,8 +2700,10 @@ function generaPDFFoglioUnico(){
       doc.text("Foto:", ML + 8, y);
       y += 5;
       let colonna = 0;
-      c.foto.forEach(f=>{
-        if(colonna === 0) serveNuovaPagina(boxH + 4);
+      const righeTot = Math.ceil(c.foto.length / perRiga);
+      const riservaFirma = c.firma ? 34 : 0;   // la firma resta sulla pagina dell'ultima riga di foto
+      c.foto.forEach((f, k)=>{
+        if(colonna === 0) serveNuovaPagina(boxH + 4 + (Math.floor(k / perRiga) === righeTot - 1 ? riservaFirma : 0));
         // calcola dimensioni "contain": la foto intera visibile, senza distorsioni, dentro il riquadro
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
@@ -2636,23 +2722,23 @@ function generaPDFFoglioUnico(){
       y += 2;
     }
     if(c.firma){
-      serveNuovaPagina(28);
+      serveNuovaPagina(34);
+      const xF = ML + 40, lineaY = y + 24;
+      const m = misureFirmaPDF(doc, c.firma, 75, 24);
       doc.setFont("helvetica","bold");
       doc.setFontSize(10);
-      doc.text("Firma cliente:", ML + 8, y + 4);
-      try{
-        doc.addImage(c.firma, "PNG", ML + 40, y - 3, 44, 16);
-      }catch(e){}
+      doc.text("Firma cliente:", ML + 8, lineaY - 1);
+      try{ doc.addImage(c.firma, "PNG", xF, lineaY - m.h - 0.5, m.w, m.h); }catch(e){}
       doc.setDrawColor(180,184,189);
       doc.setLineWidth(0.2);
-      doc.line(ML + 40, y + 13.5, ML + 84, y + 13.5);
+      doc.line(xF, lineaY, xF + 75, lineaY);
       if(c.firmatario){
         doc.setFont("helvetica","normal");
         doc.setFontSize(9);
-        doc.text("Firmatario: " + c.firmatario.toUpperCase(), ML + 40, y + 17.5);
-        y += 24;
+        doc.text("Firmatario: " + c.firmatario.toUpperCase(), xF, lineaY + 4.5);
+        y = lineaY + 9;
       } else {
-        y += 20;
+        y = lineaY + 5;
       }
     }
     y += 3;
@@ -2759,6 +2845,17 @@ function generaPDFFoglioUnico(){
 // sceglie il formato del PDF giornaliero in base alla casella nella sezione clienti
 function generaPDF(){
   return document.getElementById("pdf-foglio-unico").checked ? generaPDFFoglioUnico() : generaPDFPerCliente();
+}
+
+// misure della firma nel PDF: proporzioni reali, dentro maxW x maxH (mm)
+function misureFirmaPDF(doc, src, maxW, maxH){
+  let w = maxW, h = maxH;
+  try{
+    const p = doc.getImageProperties(src);
+    const s = Math.min(maxW / p.width, maxH / p.height);
+    w = p.width * s; h = p.height * s;
+  }catch(e){}
+  return {w, h};
 }
 
 // ============ PDF settimana ============
