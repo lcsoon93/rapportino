@@ -87,7 +87,27 @@ details.card[open] summary{margin-bottom:10px}
 .s1{font-size:calc(9.5*var(--p));font-weight:700;color:var(--c-ftt)}
 .s2{font-size:calc(9.5*var(--p));color:var(--c-ftt)}
 .note{height:calc(7*var(--m));flex:none;display:flex;align-items:center;justify-content:center;font-size:calc(7.2*var(--p));color:var(--c-det);white-space:nowrap}
+.ttl,.kb{display:none}
+@media (hover:hover){.btn:hover:not(:disabled),.pal:hover{filter:brightness(.96)}.li:hover{border-color:var(--acc)}}
+@media (min-width:1000px){
+ body{padding-bottom:24px}
+ .top{padding-left:max(20px,calc((100vw - 1500px)/2 + 16px));padding-right:max(20px,calc((100vw - 1500px)/2 + 16px));align-items:center}
+ .ttl{display:block;order:-1;flex:1;font-weight:700;font-size:18px}
+ .kb{display:block}
+ .app{display:grid;grid-template-columns:minmax(380px,460px) minmax(0,1fr);gap:24px;max-width:1500px;margin:0 auto;padding:16px;align-items:start}
+ .side{grid-column:1;grid-row:1;min-width:0}
+ #p1{grid-column:2;grid-row:1;display:block;position:sticky;top:76px;max-width:none;padding:0;margin:0}
+ .side .page{max-width:none;padding:0}
+ .tabs{position:static;border:1px solid var(--bd);border-radius:12px;overflow:hidden;margin-bottom:12px;padding:0}
+ .tabs button{flex-direction:row;gap:8px;min-height:48px;font-size:15px}
+ .tabs button b{font-size:18px}
+ #t0{display:none}
+ .toast{bottom:20px}
+}
 @media print{
+ .app{display:block!important;padding:0!important;max-width:none!important}
+ .side{display:none!important}
+ #p1{position:static!important}
  html,body{background:#fff;margin:0;padding:0}
  .top,.tabs,.toast,.meta{display:none!important}
  .page{display:none!important}
@@ -101,13 +121,15 @@ details.card[open] summary{margin-bottom:10px}
 </head>
 <body>
 <div class="top">
+ <span class="ttl">Editor citofono</span>
  <button class="btn" id="bUndo" disabled>↶ Annulla</button>
  <button class="btn p" id="bPrint">Stampa / PDF</button>
 </div>
 
+<div class="app">
 <section class="page on" id="p1">
  <div class="meta">
-  <p class="tip">Tocca un testo dell’etichetta per modificarlo.</p>
+  <p class="tip">Tocca o clicca un testo dell’etichetta per modificarlo.</p>
   <p class="info" id="info"></p>
   <p class="warn" id="warn"></p>
  </div>
@@ -127,13 +149,19 @@ details.card[open] summary{margin-bottom:10px}
 </div>
  <p class="tip s meta">Per il PDF: Stampa / PDF, poi “Salva come PDF”, margini “nessuno”, scala 100%. Con i colori scuri attiva “Grafica di sfondo”.</p>
 </section>
-
+<div class="side">
+<nav class="tabs" aria-label="Sezioni">
+ <button id="t0" aria-selected="true"><b>▭</b>Etichetta</button>
+ <button id="t1" aria-selected="false"><b>☰</b>Elenco</button>
+ <button id="t2" aria-selected="false"><b>◐</b>Aspetto</button>
+</nav>
 <section class="page" id="p2">
  <div class="bar2">
   <button class="btn p" id="bAdd">+ Aggiungi interno</button>
   <button class="btn" id="bSort">Ordina per numero</button>
  </div>
  <p class="tip">Tocca una riga per scrivere il nome o cambiare il numero: compaiono i tasti per spostarla, inserirne una sotto o eliminarla. Le frecce ↑ ↓ spostano solo il nome, i numeri restano fermi.</p>
+ <p class="tip kb">Tastiera: Invio = riga successiva · ↑ ↓ = cambia riga · Alt + ↑ ↓ = sposta il nome · Ctrl+Z = annulla.</p>
  <div id="lst"></div>
  <details class="card">
   <summary>Crea un elenco numerato</summary>
@@ -182,12 +210,8 @@ details.card[open] summary{margin-bottom:10px}
  </div>
  <button class="btn d" id="bReset" style="width:100%">Ripristina tutto</button>
 </section>
-
-<nav class="tabs" aria-label="Sezioni">
- <button id="t0" aria-selected="true"><b>▭</b>Etichetta</button>
- <button id="t1" aria-selected="false"><b>☰</b>Elenco</button>
- <button id="t2" aria-selected="false"><b>◐</b>Aspetto</button>
-</nav>
+</div>
+</div>
 <div class="toast" id="toast" role="status" hidden><span id="tm"></span><button id="tu">Annulla</button></div>
 
 <script>
@@ -208,7 +232,8 @@ try{const r=localStorage.getItem(KEY);S=r?Object.assign(clone(DEF),JSON.parse(r)
 if(!S||!S.items)S=clone(DEF);
 S.colors=Object.assign({},PRESETS.classico,S.colors||{});
 const $=id=>document.getElementById(id),L=$("label"),W=$("wrap");
-let hist=[],activeIdx=-1,tt=0,lastFs=13;
+const mq=window.matchMedia?matchMedia("(min-width:1000px)"):{matches:false,addEventListener(){}};
+let hist=[],activeIdx=-1,tt=0,lastFs=13,cur=0;
 const getP=p=>p.split(".").reduce((o,k)=>o[k],S);
 function setP(p,v){const k=p.split(".");const l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v}
 function mk(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
@@ -259,14 +284,16 @@ function renderLabel(){
  $("info").textContent=S.items.length+" interni · "+p.c+(p.c==1?" colonna":" colonne")+(p.c>1?" ("+counts.join(" + ")+")":"")+" · nomi "+f1(p.fs)+" pt · "+f1(S.w)+" × "+f1(S.h)+" cm";
  fit();
  let clipped=p.em*p.fs*0.3528>p.colW-15.5*p.k+0.3;
- if(!clipped&&$("p1").classList.contains("on"))clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
+ if(!clipped&&($("p1").classList.contains("on")||mq.matches))clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
  const d=dupList();
  $("warn").textContent=(clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga l’etichetta. ":"")+(d.length?"Numero ripetuto: "+d.join(", ")+".":"");
  syncAspect();
  return p;
 }
-function fit(){const mm=px=>px*96/25.4,s=Math.min(1.4,(document.documentElement.clientWidth-24)/mm(S.w*10));
- L.style.transform="scale("+s+")";W.style.width=mm(S.w*10)*s+"px";W.style.height=mm(S.h*10)*s+"px"}
+function fit(){const mm=px=>px*96/25.4,w=mm(S.w*10),h=mm(S.h*10);let s;
+ if(mq.matches){const aw=Math.max(240,$("p1").clientWidth||720),ah=Math.max(260,innerHeight-200);s=Math.min(2.2,aw/w,ah/h)}
+ else s=Math.min(1.4,(document.documentElement.clientWidth-24)/w);
+ L.style.transform="scale("+s+")";W.style.width=w*s+"px";W.style.height=h*s+"px"}
 function renderList(){
  const box=$("lst");box.textContent="";
  S.items.forEach((it,i)=>{
@@ -310,7 +337,11 @@ $("lst").addEventListener("click",e=>{const b=e.target.closest("button[data-a]")
 $("lst").addEventListener("focusin",e=>{const r=e.target.closest(".li");if(!r)return;activeIdx=+r.dataset.i;document.querySelectorAll("#lst .li").forEach(x=>x.classList.toggle("act",x===r))});
 $("lst").addEventListener("input",e=>{const t=e.target;if(!t.dataset||t.dataset.f==null)return;const i=+t.closest(".li").dataset.i,f=+t.dataset.f,v=t.value;
  S.items[i][f]=f===0&&/^\d+$/.test(v.trim())?+v:v;save();if(f===0)markDup();renderLabel()});
-$("lst").addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.tagName==="INPUT")e.target.blur()});
+$("lst").addEventListener("keydown",e=>{const t=e.target;if(t.tagName!=="INPUT")return;const r=t.closest(".li"),i=+r.dataset.i,k=e.key;
+ if(e.altKey&&(k==="ArrowUp"||k==="ArrowDown")){e.preventDefault();listAct(k==="ArrowUp"?"up":"dn",i);const x=$("lst").children[activeIdx];if(x)x.querySelector(".lm").focus();return}
+ if(k==="Enter"&&t.dataset.f==="0"){e.preventDefault();r.querySelector(".lm").focus();return}
+ if(k==="Enter"||k==="ArrowDown"||k==="ArrowUp"){e.preventDefault();const nx=$("lst").children[k==="ArrowUp"?i-1:i+1];if(nx)nx.querySelector(k==="Enter"||t.dataset.f==="1"?".lm":".ln").focus();else if(k==="Enter")t.blur()}});
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key.toLowerCase()==="z"){const a=document.activeElement;if(a&&((a.tagName==="INPUT"&&a.type!=="color"&&a.type!=="range")||a.isContentEditable))return;e.preventDefault();doUndo()}});
 $("bAdd").onclick=()=>{snap();const I=S.items;const mx=Math.max(0,...I.map(x=>parseInt(x[0])||0));I.push([nextNum(mx),""]);activeIdx=I.length-1;save();renderList();renderLabel();const e=$("lst").lastChild.querySelector(".lm");e.focus();e.scrollIntoView({block:"center"})};
 $("bSort").onclick=()=>{snap();const key=x=>{const n=parseInt(x[0]);return isNaN(n)?1e9:n};S.items=S.items.map((x,i)=>[x,i]).sort((a,b)=>key(a[0])-key(b[0])||a[1]-b[1]).map(x=>x[0]);activeIdx=-1;save();renderAll();toast("Elenco ordinato per numero",1)};
 $("bGen").onclick=()=>{const n=Math.floor(+$("nn").value);if(!(n>=1&&n<=200)){toast("Scrivi un numero da 1 a 200");return}
@@ -340,11 +371,13 @@ $("bReset").onclick=()=>{snap();S=clone(DEF);activeIdx=-1;save();renderAll();toa
 $("bUndo").onclick=doUndo;$("tu").onclick=()=>{doUndo()};
 $("bPrint").onclick=()=>{try{window.print()}catch(e){}};
 // schede
-function tab(n){[0,1,2].forEach(i=>{$("p"+(i+1)).classList.toggle("on",i===n);$("t"+i).setAttribute("aria-selected",i===n)});if(n===0)renderLabel();window.scrollTo(0,0)}
+function tab(n){if(mq.matches&&n===0)n=1;cur=n;[0,1,2].forEach(i=>{$("p"+(i+1)).classList.toggle("on",i===n);$("t"+i).setAttribute("aria-selected",i===n)});if(n===0)renderLabel();if(!mq.matches)window.scrollTo(0,0)}
 [0,1,2].forEach(i=>$("t"+i).onclick=()=>tab(i));
 addEventListener("resize",fit);
 setupAspect();
 renderAll();
+if(mq.matches)tab(1);
+mq.addEventListener("change",()=>{tab(cur);renderLabel()});
 </script>
 </body>
 </html>
