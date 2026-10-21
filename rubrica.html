@@ -136,17 +136,17 @@ scuro:{n:"Scuro, scritte chiare",bg:"#17181a",row:"#222428",text:"#f2f3f5",line:
 notte:{n:"Blu notte",bg:"#0f1b2d",row:"#162640",text:"#eef3fa",line:"#2b3f5e",hd:"#0a1322",hdt:"#ffffff",nb:"#4da3ff",nt:"#0a1322",ft:"#0a1322",ftt:"#ffffff",det:"#9db2cf",acc:"#2ebd6b"},
 giallo:{n:"Giallo e nero",bg:"#000000",row:"#1a1a1a",text:"#ffffff",line:"#666666",hd:"#ffe600",hdt:"#000000",nb:"#ffe600",nt:"#000000",ft:"#ffe600",ftt:"#000000",det:"#000000",acc:"#2ebd6b"}};
 const CK=[["bg","Sfondo"],["row","Righe alternate"],["text","Testo nomi"],["line","Linee"],["hd","Intestazione"],["hdt","Testo intestazione"],["nb","Sfondo numeri"],["nt","Testo numeri"],["ft","Piè di pagina"],["ftt","Testo piè"],["det","Dettagli e icone"],["acc","Tasto chiamata"]];
-const DEF={w:17,colors:Object.assign({},PRESETS.classico),h:20,cols:"auto",afs:true,fs:13,title:"CONDOMINIO BELVEDERE",sub:"CORSO VITTORIO EMANUELE 183",
+const DEF={w:20,colors:Object.assign({},PRESETS.classico),h:17,cols:"auto",afs:true,fs:13,title:"COND C.SO VITTORIO EMANUELE 183",sub:"",
 note:"Errore? Tasto X per cancellare  ·  In alternativa scorri la rubrica sul display e scegli il nome",
 steps:[{a:"PASSO 1",b:"Digita il codice",c:"dell’interno"},{a:"PASSO 2",b:"Premi il tasto",c:"di chiamata"},{a:"PASSO 3",b:"Attendi: CHIAMATA",c:"IN CORSO"}],
-items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / D’Acampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"D’Anzelmo / Miele"],[9,"D’Agnese / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,""],[12,"Izzo M. / Noto"],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[15,"Borriello G. / Aurilia L."],[16,"Sorrentino"],[17,"Ermetto / Totaro"],[18,"Picardi / De Martino"],[19,"Argenziano"],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[41,"Italiana Assicurazioni"],[42,"Studio Psicologia"]]};
+items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Pecoraro / Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / D’Acampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"D’Anzelmo / Miele"],[9,"D’Agnese L. / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,"Borriello G. / Aurilia L."],[12,"Izzo M. / Noto V."],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[16,"Sorrentino"],[17,"Ermetto S. / Totaro M."],[18,"Picardi Alba"],[19,"Argenziano D."],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T. / Visciano A."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M. / Maiella V."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia S."],[36,"Russo Pietro"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[42,"Studio Psicologia"]]};
 const clone=o=>JSON.parse(JSON.stringify(o));
 let S;
-try{const r=localStorage.getItem("citofono-belvedere-v2")||localStorage.getItem("citofono-belvedere-v1");S=r?Object.assign(clone(DEF),JSON.parse(r)):null}catch(e){S=null}
+try{const r=localStorage.getItem("citofono-belvedere-v3");S=r?Object.assign(clone(DEF),JSON.parse(r)):null}catch(e){S=null}
 if(!S||!S.items)S=clone(DEF);
 S.colors=Object.assign({},PRESETS.classico,S.colors||{});
 const $=id=>document.getElementById(id),L=$("label"),W=$("wrap");
-function save(){try{localStorage.setItem("citofono-belvedere-v2",JSON.stringify(S))}catch(e){}}
+function save(){try{localStorage.setItem("citofono-belvedere-v3",JSON.stringify(S))}catch(e){}}
 const getP=p=>p.split(".").reduce((o,k)=>o[k],S);
 function setP(p,v){const k=p.split(".");const l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v}
 function mk(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
