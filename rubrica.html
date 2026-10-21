@@ -80,7 +80,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  <label>Grandezza nomi<span class="rg"><input type="checkbox" id="afs" aria-label="Nomi automatici"> Auto <input type="range" id="fs" min="6" max="24" step="0.5" aria-label="Grandezza dei nomi"></span></label>
 </div>
 <div class="info"><div id="info"></div><div class="warn" id="warn"></div></div>
-<p class="hint">Tocca qualsiasi testo sullâetichetta per modificarlo. Tocca un nome per far comparire la Ã rossa che elimina la riga. Per il PDF: Stampa, âSalva come PDFâ, margini nessuno, scala 100%.</p>
+<p class="hint">Tocca qualsiasi testo sull’etichetta per modificarlo. Tocca un nome per far comparire la × rossa che elimina la riga. Per il PDF: Stampa, “Salva come PDF”, margini nessuno, scala 100%.</p>
 <div id="wrap">
 <div id="label">
  <div class="hd"><h1 contenteditable="true" spellcheck="false" data-b="title"></h1><p contenteditable="true" spellcheck="false" data-b="sub"></p></div>
@@ -97,9 +97,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 </div>
 <script>
 const DEF={w:17,h:20,cols:"auto",afs:true,fs:13,title:"CONDOMINIO BELVEDERE",sub:"CORSO VITTORIO EMANUELE 183",
-note:"Errore? Tasto X per cancellare  Â·  In alternativa scorri la rubrica sul display e scegli il nome",
-steps:[{a:"PASSO 1",b:"Digita il codice",c:"dellâinterno"},{a:"PASSO 2",b:"Premi il tasto",c:"di chiamata"},{a:"PASSO 3",b:"Attendi: CHIAMATA",c:"IN CORSO"}],
-items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / DâAcampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"DâAnzelmo / Miele"],[9,"DâAgnese / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,""],[12,"Izzo M. / Noto"],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[15,"Borriello G. / Aurilia L."],[16,"Sorrentino"],[17,"Ermetto / Totaro"],[18,"Picardi / De Martino"],[19,"Argenziano"],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[41,"Italiana Assicurazioni"],[42,"Studio Psicologia"]]};
+note:"Errore? Tasto X per cancellare  ·  In alternativa scorri la rubrica sul display e scegli il nome",
+steps:[{a:"PASSO 1",b:"Digita il codice",c:"dell’interno"},{a:"PASSO 2",b:"Premi il tasto",c:"di chiamata"},{a:"PASSO 3",b:"Attendi: CHIAMATA",c:"IN CORSO"}],
+items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / D’Acampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"D’Anzelmo / Miele"],[9,"D’Agnese / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,""],[12,"Izzo M. / Noto"],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[15,"Borriello G. / Aurilia L."],[16,"Sorrentino"],[17,"Ermetto / Totaro"],[18,"Picardi / De Martino"],[19,"Argenziano"],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[41,"Italiana Assicurazioni"],[42,"Studio Psicologia"]]};
 const clone=o=>JSON.parse(JSON.stringify(o));
 let S;
 try{const r=localStorage.getItem("citofono-belvedere-v2")||localStorage.getItem("citofono-belvedere-v1");S=r?Object.assign(clone(DEF),JSON.parse(r)):null}catch(e){S=null}
@@ -143,21 +143,21 @@ function render(){
    const r=mk("div","row");
    const a=mk("div","num",it[0]);a.contentEditable="true";a.dataset.i=i;a.dataset.f=0;a.spellcheck=false;
    const b=mk("div","nm",it[1]);b.contentEditable="true";b.dataset.i=i;b.dataset.f=1;b.spellcheck=false;
-   const d=mk("button","del","Ã");d.dataset.d=i;d.setAttribute("aria-label","Elimina riga");
+   const d=mk("button","del","×");d.dataset.d=i;d.setAttribute("aria-label","Elimina riga");
    r.append(a,b,d);col.append(r)});
   bd.append(col);
  }
  const f=x=>x.toLocaleString("it-IT",{maximumFractionDigits:1});
- $("info").textContent=S.items.length+" interni Â· "+p.c+(p.c==1?" colonna":" colonne")+(p.c>1?" ("+counts.join(" + ")+")":"")+" Â· nomi "+f(p.fs)+" pt Â· "+f(S.w)+" Ã "+f(S.h)+" cm";
+ $("info").textContent=S.items.length+" interni · "+p.c+(p.c==1?" colonna":" colonne")+(p.c>1?" ("+counts.join(" + ")+")":"")+" · nomi "+f(p.fs)+" pt · "+f(S.w)+" × "+f(S.h)+" cm";
  if(document.activeElement!==$("iw"))$("iw").value=S.w;
  if(document.activeElement!==$("ih"))$("ih").value=S.h;
  $("cols").value=S.cols;$("afs").checked=S.afs;
  $("fs").disabled=S.afs;$("fs").value=S.afs?p.fs:S.fs;
  if(document.activeElement!==$("nn"))$("nn").value=S.items.length;
- const dl=S.items.length;$("bDel").disabled=!dl;$("bDel").textContent=dl?"â Elimina interno "+S.items[dl-1][0]:"Nessun interno";
+ const dl=S.items.length;$("bDel").disabled=!dl;$("bDel").textContent=dl?"− Elimina interno "+S.items[dl-1][0]:"Nessun interno";
  fit();
  const clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
- $("warn").textContent=clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga lâetichetta.":"";
+ $("warn").textContent=clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga l’etichetta.":"";
 }
 function fit(){const mm=px=>px*96/25.4,s=Math.min(1.4,(document.documentElement.clientWidth-24)/mm(S.w*10));
  L.style.transform="scale("+s+")";W.style.width=mm(S.w*10)*s+"px";W.style.height=mm(S.h*10)*s+"px"}
