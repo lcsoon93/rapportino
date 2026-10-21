@@ -26,15 +26,15 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .warn{color:#c0392b;font-weight:500;font-size:13px;margin-top:2px}
 .hint{max-width:640px;margin:6px auto 0;padding:0 14px;color:var(--mut);font-size:13px;text-align:center}
 #wrap{margin:12px auto 24px}
-#label{--k:1;--m:calc(1mm*var(--k));--p:calc(1pt*var(--k));width:var(--W);height:var(--H);background:#fff;color:#17181a;font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden;transform-origin:0 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
-.hd{height:calc(21*var(--m));flex:none;background:#17181a;color:#fff;text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;border-bottom:calc(1.2*var(--m)) solid #b8bec7}
+#label{--k:1;--m:calc(1mm*var(--k));--p:calc(1pt*var(--k));width:var(--W);height:var(--H);background:var(--c-bg);color:var(--c-text);font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;display:flex;flex-direction:column;overflow:hidden;transform-origin:0 0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.hd{height:calc(21*var(--m));flex:none;background:var(--c-hd);color:var(--c-hdt);text-align:center;display:flex;flex-direction:column;justify-content:center;align-items:center;border-bottom:calc(1.2*var(--m)) solid var(--c-det)}
 .hd h1{margin:0;font-size:calc(24*var(--p));font-weight:700;line-height:1.1;min-width:20mm}
-.hd p{margin:calc(1.2*var(--m)) 0 0;font-size:calc(8.5*var(--p));letter-spacing:.26em;color:#b8bec7;min-width:20mm}
+.hd p{margin:calc(1.2*var(--m)) 0 0;font-size:calc(8.5*var(--p));letter-spacing:.26em;color:var(--c-det);min-width:20mm}
 .body{flex:1;display:flex;gap:calc(4*var(--m));padding:var(--m) calc(4*var(--m));min-height:0}
 .col{flex:1;min-width:0;overflow:hidden}
-.row{height:var(--rh);display:flex;align-items:center;border-bottom:.2mm solid #d3d5d9;padding-left:calc(1.5*var(--m));position:relative}
-.row:nth-child(odd){background:#ebecee}
-.num{min-width:calc(9.5*var(--m));height:72%;padding:0 calc(1*var(--m));background:#17181a;color:#fff;border-radius:calc(2.2*var(--m));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(var(--fs)*1pt + 1pt);flex:none}
+.row{height:var(--rh);display:flex;align-items:center;border-bottom:.2mm solid var(--c-line);padding-left:calc(1.5*var(--m));position:relative}
+.row:nth-child(odd){background:var(--c-row)}
+.num{min-width:calc(9.5*var(--m));height:72%;padding:0 calc(1*var(--m));background:var(--c-nb);color:var(--c-nt);border-radius:calc(2.2*var(--m));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(var(--fs)*1pt + 1pt);flex:none}
 .nm{flex:1;min-width:0;height:100%;display:flex;align-items:center;margin-left:calc(3.5*var(--m));font-weight:700;font-size:calc(var(--fs)*1pt);white-space:nowrap;overflow:hidden}
 [contenteditable]{outline:none;cursor:text}
 [contenteditable]:hover{background:rgba(46,189,107,.16)}
@@ -43,22 +43,29 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 .row.on{box-shadow:inset 0 0 0 .5mm #2ebd6b}
 .row.on .sel{background:#2ebd6b;border-color:#2ebd6b}
 .row.on .sel::after{content:"\2713"}
+details.panel{display:block}
+details.panel summary{cursor:pointer;font-weight:600;text-align:center;list-style:none}
+.cg{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px 14px;margin-top:12px}
+.cg label{flex-direction:row;align-items:center;justify-content:space-between;gap:8px}
+.cg input[type=color]{width:46px;height:34px;padding:2px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);cursor:pointer}
+.pr{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px}
+.pr button.on{background:#2ebd6b;border-color:#2ebd6b;color:#06230f}
 .panel h2{flex:1 0 100%;margin:0;font-size:13px;color:var(--mut);font-weight:600;text-align:center}
 .panel button:disabled{opacity:.4;cursor:default}
 .panel button.d{border-color:#c0392b;color:#c0392b}
-.ft{height:calc(25*var(--m));flex:none;background:#17181a;border-top:calc(1.2*var(--m)) solid #b8bec7;display:flex;flex-direction:column}
+.ft{height:calc(25*var(--m));flex:none;background:var(--c-ft);border-top:calc(1.2*var(--m)) solid var(--c-det);display:flex;flex-direction:column}
 .steps{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:calc(7*var(--m));align-items:center;padding:0 calc(3*var(--m)) 0 calc(4*var(--m))}
 .st{display:flex;align-items:center;gap:calc(2.8*var(--m));position:relative;min-width:0}
-.st+.st::before{content:"";position:absolute;left:calc(-4.6*var(--m));top:50%;width:calc(2*var(--m));height:calc(2*var(--m));border-top:.45mm solid #b8bec7;border-right:.45mm solid #b8bec7;transform:translateY(-50%) rotate(45deg)}
-.ic{width:calc(10.4*var(--m));height:calc(10.4*var(--m));border-radius:50%;background:#b8bec7;color:#17181a;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(10*var(--p));flex:none}
-.ic.g{background:#2ebd6b}
+.st+.st::before{content:"";position:absolute;left:calc(-4.6*var(--m));top:50%;width:calc(2*var(--m));height:calc(2*var(--m));border-top:.45mm solid var(--c-det);border-right:.45mm solid var(--c-det);transform:translateY(-50%) rotate(45deg)}
+.ic{width:calc(10.4*var(--m));height:calc(10.4*var(--m));border-radius:50%;background:var(--c-det);color:var(--c-ft);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:calc(10*var(--p));flex:none}
+.ic.g{background:var(--c-acc)}
 .ic svg{width:55%;height:55%;fill:#fff}
 .tx{min-width:0}
 .tx div{white-space:nowrap}
-.s0{font-size:calc(7*var(--p));font-weight:700;letter-spacing:.09em;color:#b8bec7}
-.s1{font-size:calc(9.5*var(--p));font-weight:700;color:#fff}
-.s2{font-size:calc(9.5*var(--p));color:#fff}
-.note{height:calc(7*var(--m));flex:none;display:flex;align-items:center;justify-content:center;font-size:calc(7.2*var(--p));color:#b8bec7;white-space:nowrap}
+.s0{font-size:calc(7*var(--p));font-weight:700;letter-spacing:.09em;color:var(--c-det)}
+.s1{font-size:calc(9.5*var(--p));font-weight:700;color:var(--c-ftt)}
+.s2{font-size:calc(9.5*var(--p));color:var(--c-ftt)}
+.note{height:calc(7*var(--m));flex:none;display:flex;align-items:center;justify-content:center;font-size:calc(7.2*var(--p));color:var(--c-det);white-space:nowrap}
 @media print{
  :root{padding:0}
  html,body{background:#fff;margin:0}
@@ -101,6 +108,11 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  <label>Colonne<select id="cols"><option value="auto">Automatiche</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label>
  <label>Grandezza nomi<span class="rg"><input type="checkbox" id="afs" aria-label="Nomi automatici"> Auto <input type="range" id="fs" min="6" max="24" step="0.5" aria-label="Grandezza dei nomi"></span></label>
 </div>
+<details class="panel" id="colp">
+ <summary>Colori dell’etichetta</summary>
+ <div class="pr" id="pr"></div>
+ <div class="cg" id="cg"></div>
+</details>
 <div class="info"><div id="info"></div><div class="warn" id="warn"></div></div>
 <p class="hint">Tocca qualsiasi testo sull’etichetta per modificarlo. Tocca il cerchio a destra di una riga per selezionarla, poi spostala o eliminala. Per il PDF: Stampa, “Salva come PDF”, margini nessuno, scala 100%.</p>
 <div id="wrap">
@@ -111,14 +123,20 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
   <div class="steps">
    <div class="st"><div class="ic">123</div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.0.a"></div><div class="s1" contenteditable="true" data-b="steps.0.b"></div><div class="s2" contenteditable="true" data-b="steps.0.c"></div></div></div>
    <div class="st"><div class="ic g"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.1.a"></div><div class="s1" contenteditable="true" data-b="steps.1.b"></div><div class="s2" contenteditable="true" data-b="steps.1.c"></div></div></div>
-   <div class="st"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:#17181a"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/><path d="M14.2 3.2a6.6 6.6 0 0 1 6.6 6.6M14.2 6.9a2.9 2.9 0 0 1 2.9 2.9" fill="none" stroke="#17181a" stroke-width="1.9" stroke-linecap="round"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.2.a"></div><div class="s1" contenteditable="true" data-b="steps.2.b"></div><div class="s2" contenteditable="true" data-b="steps.2.c"></div></div></div>
+   <div class="st"><div class="ic"><svg viewBox="0 0 24 24" aria-hidden="true" style="fill:var(--c-ft)"><path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/><path d="M14.2 3.2a6.6 6.6 0 0 1 6.6 6.6M14.2 6.9a2.9 2.9 0 0 1 2.9 2.9" style="fill:none;stroke:var(--c-ft)" stroke-width="1.9" stroke-linecap="round"/></svg></div><div class="tx"><div class="s0" contenteditable="true" data-b="steps.2.a"></div><div class="s1" contenteditable="true" data-b="steps.2.b"></div><div class="s2" contenteditable="true" data-b="steps.2.c"></div></div></div>
   </div>
   <div class="note" contenteditable="true" spellcheck="false" data-b="note"></div>
  </div>
 </div>
 </div>
 <script>
-const DEF={w:17,h:20,cols:"auto",afs:true,fs:13,title:"CONDOMINIO BELVEDERE",sub:"CORSO VITTORIO EMANUELE 183",
+const PRESETS={
+classico:{n:"Classico (chiaro)",bg:"#ffffff",row:"#ebecee",text:"#17181a",line:"#d3d5d9",hd:"#17181a",hdt:"#ffffff",nb:"#17181a",nt:"#ffffff",ft:"#17181a",ftt:"#ffffff",det:"#b8bec7",acc:"#2ebd6b"},
+scuro:{n:"Scuro, scritte chiare",bg:"#17181a",row:"#222428",text:"#f2f3f5",line:"#3a3d43",hd:"#0b0c0d",hdt:"#ffffff",nb:"#f2f3f5",nt:"#17181a",ft:"#0b0c0d",ftt:"#ffffff",det:"#b8bec7",acc:"#2ebd6b"},
+notte:{n:"Blu notte",bg:"#0f1b2d",row:"#162640",text:"#eef3fa",line:"#2b3f5e",hd:"#0a1322",hdt:"#ffffff",nb:"#4da3ff",nt:"#0a1322",ft:"#0a1322",ftt:"#ffffff",det:"#9db2cf",acc:"#2ebd6b"},
+giallo:{n:"Giallo e nero",bg:"#000000",row:"#1a1a1a",text:"#ffffff",line:"#666666",hd:"#ffe600",hdt:"#000000",nb:"#ffe600",nt:"#000000",ft:"#ffe600",ftt:"#000000",det:"#000000",acc:"#2ebd6b"}};
+const CK=[["bg","Sfondo"],["row","Righe alternate"],["text","Testo nomi"],["line","Linee"],["hd","Intestazione"],["hdt","Testo intestazione"],["nb","Sfondo numeri"],["nt","Testo numeri"],["ft","Piè di pagina"],["ftt","Testo piè"],["det","Dettagli e icone"],["acc","Tasto chiamata"]];
+const DEF={w:17,colors:Object.assign({},PRESETS.classico),h:20,cols:"auto",afs:true,fs:13,title:"CONDOMINIO BELVEDERE",sub:"CORSO VITTORIO EMANUELE 183",
 note:"Errore? Tasto X per cancellare  ·  In alternativa scorri la rubrica sul display e scegli il nome",
 steps:[{a:"PASSO 1",b:"Digita il codice",c:"dell’interno"},{a:"PASSO 2",b:"Premi il tasto",c:"di chiamata"},{a:"PASSO 3",b:"Attendi: CHIAMATA",c:"IN CORSO"}],
 items:[[1,"Maio G. / Sorrentino S."],[2,"Palumbo / Di Benedetto"],[3,"Studio Sana"],[4,"Mennella Raffaella"],[5,"Bianco / D’Acampo"],[6,"Delbi Giuseppe"],[7,"Serpe D. / Mennella I."],[8,"D’Anzelmo / Miele"],[9,"D’Agnese / Sorrentino G."],[10,"Maresca A. / Langella A."],[11,""],[12,"Izzo M. / Noto"],[13,"Petito / Savino"],[14,"Esposito / Cigliano"],[15,"Borriello G. / Aurilia L."],[16,"Sorrentino"],[17,"Ermetto / Totaro"],[18,"Picardi / De Martino"],[19,"Argenziano"],[20,"Ingrosso F. / Aquilini M."],[21,"Oriunto T."],[22,"Berardo A. / Facciuto A.E."],[23,"Marrazzo F. / Di Sauro M."],[24,"Guida S. / Raiola M.R."],[25,"Palomba Virginia"],[26,"Palomba Rosa"],[27,"Apparenza V. / Aurilia A."],[28,"Rossi M."],[29,"Leone / Villa"],[30,"Perna"],[34,"Rapicano C. / Aurilia"],[38,"Panoramic Tower"],[40,"Di Somma A. / Licenziato G."],[41,"Italiana Assicurazioni"],[42,"Studio Psicologia"]]};
@@ -126,6 +144,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
 let S;
 try{const r=localStorage.getItem("citofono-belvedere-v2")||localStorage.getItem("citofono-belvedere-v1");S=r?Object.assign(clone(DEF),JSON.parse(r)):null}catch(e){S=null}
 if(!S||!S.items)S=clone(DEF);
+S.colors=Object.assign({},PRESETS.classico,S.colors||{});
 const $=id=>document.getElementById(id),L=$("label"),W=$("wrap");
 function save(){try{localStorage.setItem("citofono-belvedere-v2",JSON.stringify(S))}catch(e){}}
 const getP=p=>p.split(".").reduce((o,k)=>o[k],S);
@@ -154,6 +173,7 @@ function plan(){
 let lastFs=13;
 function render(){
  const p=plan();lastFs=p.fs;
+ CK.forEach(c=>L.style.setProperty("--c-"+c[0],S.colors[c[0]]));
  L.style.setProperty("--k",p.k);L.style.setProperty("--fs",p.fs);
  L.style.setProperty("--rh",p.rowH+"mm");
  document.documentElement.style.setProperty("--W",p.w+"mm");document.documentElement.style.setProperty("--H",p.h+"mm");
@@ -182,7 +202,15 @@ function render(){
  const clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
  const cnt={};S.items.forEach(i=>{cnt[i[0]]=(cnt[i[0]]||0)+1});const dup=Object.keys(cnt).filter(k=>cnt[k]>1);
  $("warn").textContent=(clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga l’etichetta. ":"")+(dup.length?"Numero ripetuto: "+dup.join(", ")+".":"");
- updateSel();
+ updateSel();syncColors();
+}
+function syncColors(){
+ CK.forEach(c=>{const i=$("cp_"+c[0]);if(i&&i.value!==S.colors[c[0]])i.value=S.colors[c[0]]});
+ document.querySelectorAll("#pr button").forEach(b=>{const pr=PRESETS[b.dataset.p];b.classList.toggle("on",CK.every(c=>pr[c[0]]===S.colors[c[0]]))});
+}
+function setupColors(){
+ Object.keys(PRESETS).forEach(k=>{const b=mk("button",null,PRESETS[k].n);b.dataset.p=k;b.onclick=()=>{CK.forEach(c=>{S.colors[c[0]]=PRESETS[k][c[0]]});save();render()};$("pr").append(b)});
+ CK.forEach(c=>{const l=document.createElement("label");l.append(c[1]);const i=document.createElement("input");i.type="color";i.id="cp_"+c[0];i.setAttribute("aria-label",c[1]);i.oninput=()=>{S.colors[c[0]]=i.value;L.style.setProperty("--c-"+c[0],i.value);save();syncColors()};l.append(i);$("cg").append(l)});
 }
 function updateSel(){
  document.querySelectorAll(".row").forEach(r=>{const on=sel.has(+r.dataset.r);r.classList.toggle("on",on);r.querySelector(".sel").setAttribute("aria-pressed",on)});
@@ -246,6 +274,7 @@ $("bReset").onclick=function(){if(!armed){armed=1;this.textContent="Tocca di nuo
  else{armed=0;this.textContent="Ripristina";S=clone(DEF);sel.clear();save();render()}};
 $("bPrint").onclick=()=>{try{window.print()}catch(e){}};
 addEventListener("resize",fit);
+setupColors();
 render();
 </script>
 </body>
