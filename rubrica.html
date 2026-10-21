@@ -39,8 +39,13 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 [contenteditable]{outline:none;cursor:text}
 [contenteditable]:hover{background:rgba(46,189,107,.16)}
 [contenteditable]:focus{outline:.4mm dashed #2ebd6b;outline-offset:.2mm;background:rgba(46,189,107,.12)}
-.del{display:none;position:absolute;right:.6mm;top:50%;transform:translateY(-50%);width:6mm;height:6mm;border:0;border-radius:50%;background:#c0392b;color:#fff;font-size:11pt;line-height:1;padding:0}
-.row:focus-within .del{display:block}
+.sel{flex:none;width:calc(5*var(--m));height:calc(5*var(--m));margin:0 calc(1*var(--m)) 0 calc(1*var(--m));padding:0;border-radius:50%;border:.4mm solid #8a919b;background:#fff;color:#fff;font-size:calc(3.4*var(--m));line-height:1;font-weight:700}
+.row.on{box-shadow:inset 0 0 0 .5mm #2ebd6b}
+.row.on .sel{background:#2ebd6b;border-color:#2ebd6b}
+.row.on .sel::after{content:"\2713"}
+.panel h2{flex:1 0 100%;margin:0;font-size:13px;color:var(--mut);font-weight:600;text-align:center}
+.panel button:disabled{opacity:.4;cursor:default}
+.panel button.d{border-color:#c0392b;color:#c0392b}
 .ft{height:calc(25*var(--m));flex:none;background:#17181a;border-top:calc(1.2*var(--m)) solid #b8bec7;display:flex;flex-direction:column}
 .steps{flex:1;display:grid;grid-template-columns:repeat(3,1fr);gap:calc(7*var(--m));align-items:center;padding:0 calc(3*var(--m)) 0 calc(4*var(--m))}
 .st{display:flex;align-items:center;gap:calc(2.8*var(--m));position:relative;min-width:0}
@@ -57,7 +62,9 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 @media print{
  :root{padding:0}
  html,body{background:#fff;margin:0}
- .bar,.hint,.del,.panel,.info{display:none!important}
+ .bar,.hint,.panel,.info{display:none!important}
+ .sel{visibility:hidden}
+ .row.on{box-shadow:none}
  #wrap{width:var(--W)!important;height:var(--H)!important;margin:0!important}
  #label{transform:none!important}
  [contenteditable]:hover,[contenteditable]:focus{background:none;outline:none}
@@ -68,9 +75,24 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
 <body>
 <div class="bar">
  <button class="p" id="bPrint">Stampa / Salva PDF</button>
- <button id="bAdd">+ Aggiungi interno</button>
- <button id="bDel"></button>
  <button id="bReset">Ripristina</button>
+</div>
+<div class="panel">
+ <h2>Aggiungi un interno</h2>
+ <label>Posizione<input type="number" id="pp" min="1" step="1" inputmode="numeric" placeholder="in fondo"></label>
+ <label>Numero nuovo<input type="number" id="pn" min="1" step="1" inputmode="numeric" placeholder="automatico"></label>
+ <button class="p" id="bAdd">+ Aggiungi</button>
+</div>
+<div class="panel">
+ <h2 id="sc"></h2>
+ <button id="bUp">↑ Su</button>
+ <button id="bDn">↓ Giù</button>
+ <button id="bMv">Sposta nella posizione</button>
+ <label class="rg"><input type="checkbox" id="mn"> Sposta anche i numeri</label>
+ <button id="bAll">Seleziona tutti</button>
+ <button id="bNo">Deseleziona</button>
+ <button class="d" id="bRm">Elimina selezionati</button>
+ <button class="d" id="bDel"></button>
 </div>
 <div class="panel">
  <label>Numero di interni<span class="rg"><input type="number" id="nn" min="1" max="200" step="1" inputmode="numeric"><button id="bGen">Genera elenco</button></span></label>
@@ -80,7 +102,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid 
  <label>Grandezza nomi<span class="rg"><input type="checkbox" id="afs" aria-label="Nomi automatici"> Auto <input type="range" id="fs" min="6" max="24" step="0.5" aria-label="Grandezza dei nomi"></span></label>
 </div>
 <div class="info"><div id="info"></div><div class="warn" id="warn"></div></div>
-<p class="hint">Tocca qualsiasi testo sull’etichetta per modificarlo. Tocca un nome per far comparire la × rossa che elimina la riga. Per il PDF: Stampa, “Salva come PDF”, margini nessuno, scala 100%.</p>
+<p class="hint">Tocca qualsiasi testo sull’etichetta per modificarlo. Tocca il cerchio a destra di una riga per selezionarla, poi spostala o eliminala. Per il PDF: Stampa, “Salva come PDF”, margini nessuno, scala 100%.</p>
 <div id="wrap">
 <div id="label">
  <div class="hd"><h1 contenteditable="true" spellcheck="false" data-b="title"></h1><p contenteditable="true" spellcheck="false" data-b="sub"></p></div>
@@ -110,6 +132,7 @@ const getP=p=>p.split(".").reduce((o,k)=>o[k],S);
 function setP(p,v){const k=p.split(".");const l=k.pop();k.reduce((o,x)=>o[x],S)[l]=v}
 function mk(t,c,x){const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e}
 const ctx=document.createElement("canvas").getContext("2d");
+const sel=new Set();let rmArm=0;
 function longestEm(){ctx.font="700 100px Helvetica,Arial,sans-serif";let m=1;S.items.forEach(i=>{m=Math.max(m,ctx.measureText(i[1]).width/100)});return m}
 function plan(){
  const w=S.w*10,h=S.h*10,k=Math.min(w/170,h/200),n=Math.max(1,S.items.length),em=longestEm();
@@ -117,7 +140,7 @@ function plan(){
  const cand=S.cols==="auto"?[1,2,3,4,5,6]:[+S.cols];
  cand.forEach(c=>{
   const rows=Math.ceil(n/c),cc=Math.ceil(n/rows),rowH=bodyH/rows,colW=(w-8*k-4*k*(cc-1))/cc;
-  const fsH=rowH/0.62,fsW=(colW-15.5*k)/(em*0.3528);
+  const fsH=rowH/0.62,fsW=(colW-20.5*k)/(em*0.3528);
   res.push({c:cc,rows,rowH,k,w,h,cap:Math.max(5,Math.min(fsH,fsW,30))});
  });
  let b=res[0];
@@ -140,10 +163,10 @@ function render(){
  for(let c=0;c<p.c;c++){
   const col=mk("div","col");const part=S.items.slice(c*p.rows,(c+1)*p.rows);counts.push(part.length);
   part.forEach((it,j)=>{const i=c*p.rows+j;
-   const r=mk("div","row");
+   const r=mk("div","row");r.dataset.r=i;
    const a=mk("div","num",it[0]);a.contentEditable="true";a.dataset.i=i;a.dataset.f=0;a.spellcheck=false;
    const b=mk("div","nm",it[1]);b.contentEditable="true";b.dataset.i=i;b.dataset.f=1;b.spellcheck=false;
-   const d=mk("button","del","×");d.dataset.d=i;d.setAttribute("aria-label","Elimina riga");
+   const d=mk("button","sel");d.setAttribute("aria-label","Seleziona riga");d.setAttribute("aria-pressed","false");
    r.append(a,b,d);col.append(r)});
   bd.append(col);
  }
@@ -157,7 +180,17 @@ function render(){
  const dl=S.items.length;$("bDel").disabled=!dl;$("bDel").textContent=dl?"− Elimina interno "+S.items[dl-1][0]:"Nessun interno";
  fit();
  const clipped=[...document.querySelectorAll(".nm")].some(e=>e.scrollWidth>e.clientWidth+1);
- $("warn").textContent=clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga l’etichetta.":"";
+ const cnt={};S.items.forEach(i=>{cnt[i[0]]=(cnt[i[0]]||0)+1});const dup=Object.keys(cnt).filter(k=>cnt[k]>1);
+ $("warn").textContent=(clipped?"Alcuni nomi sono tagliati: riduci i nomi, usa meno colonne o allarga l’etichetta. ":"")+(dup.length?"Numero ripetuto: "+dup.join(", ")+".":"");
+ updateSel();
+}
+function updateSel(){
+ document.querySelectorAll(".row").forEach(r=>{const on=sel.has(+r.dataset.r);r.classList.toggle("on",on);r.querySelector(".sel").setAttribute("aria-pressed",on)});
+ const n=sel.size;
+ $("sc").textContent=n?(n==1?"1 riga selezionata":n+" righe selezionate"):"Nessuna riga selezionata";
+ ["bUp","bDn","bMv","bNo","bRm"].forEach(id=>$(id).disabled=!n);
+ $("bAll").disabled=!S.items.length;
+ $("bRm").textContent=rmArm?"Tocca ancora per confermare":(n?"Elimina selezionati ("+n+")":"Elimina selezionati");
 }
 function fit(){const mm=px=>px*96/25.4,s=Math.min(1.4,(document.documentElement.clientWidth-24)/mm(S.w*10));
  L.style.transform="scale("+s+")";W.style.width=mm(S.w*10)*s+"px";W.style.height=mm(S.h*10)*s+"px"}
@@ -169,9 +202,28 @@ function getSel(t){const s=getSelection();return s.rangeCount?s.getRangeAt(0).st
 function refocus(i,f,o){const e=document.querySelector('[data-i="'+i+'"][data-f="'+f+'"]');if(!e)return;e.focus();try{const r=document.createRange();const n=e.firstChild;if(n){r.setStart(n,Math.min(o,n.length));r.collapse(true);const s=getSelection();s.removeAllRanges();s.addRange(r)}}catch(x){}}
 L.addEventListener("keydown",e=>{if(e.key==="Enter"&&e.target.isContentEditable){e.preventDefault();e.target.blur()}});
 L.addEventListener("paste",e=>{if(e.target.isContentEditable){e.preventDefault();document.execCommand("insertText",false,(e.clipboardData.getData("text/plain")||"").replace(/\s+/g," "))}});
-L.addEventListener("click",e=>{const d=e.target.closest(".del");if(d){S.items.splice(+d.dataset.d,1);save();render()}});
-$("bAdd").onclick=()=>{S.items.push([Math.max(0,...S.items.map(x=>+x[0]||0))+1,""]);save();render();const n=document.querySelectorAll(".nm");n[n.length-1].focus();n[n.length-1].scrollIntoView({block:"center"})};
-$("bDel").onclick=()=>{if(S.items.length){S.items.pop();save();render()}};
+L.addEventListener("click",e=>{const b=e.target.closest(".sel");if(!b)return;const i=+b.parentNode.dataset.r;sel.has(i)?sel.delete(i):sel.add(i);rmArm=0;updateSel()});
+$("bAdd").onclick=()=>{const n=S.items.length;let p=Math.floor(+$("pp").value);p=p>=1?Math.min(p,n+1):n+1;
+ let num=Math.floor(+$("pn").value);if(!(num>=1))num=Math.max(0,...S.items.map(x=>+x[0]||0))+1;
+ S.items.splice(p-1,0,[num,""]);sel.clear();rmArm=0;$("pn").value="";save();render();
+ const e=document.querySelector('[data-i="'+(p-1)+'"][data-f="1"]');if(e){e.focus();e.scrollIntoView({block:"center"})}};
+$("bDel").onclick=()=>{if(S.items.length){S.items.pop();sel.clear();rmArm=0;save();render()}};
+const namesOnly=()=>!$("mn").checked;
+function swapRows(a,b){const I=S.items;if(namesOnly()){const t=I[a][1];I[a][1]=I[b][1];I[b][1]=t}else{const t=I[a];I[a]=I[b];I[b]=t}}
+function shift(d){const idx=[...sel].sort((a,b)=>a-b);if(d>0)idx.reverse();const ns=new Set(),n=S.items.length;
+ idx.forEach(i=>{const j=i+d;if(j>=0&&j<n&&!ns.has(j)){swapRows(i,j);ns.add(j)}else ns.add(i)});
+ sel.clear();ns.forEach(x=>sel.add(x));save();render()}
+$("bUp").onclick=()=>shift(-1);
+$("bDn").onclick=()=>shift(1);
+$("bMv").onclick=()=>{const n=S.items.length,idx=[...sel].sort((a,b)=>a-b),k=idx.length;if(!k)return;
+ let p=Math.floor(+$("pp").value);if(!(p>=1))p=n-k+1;p=Math.min(Math.max(p,1),n-k+1);
+ if(namesOnly()){const nm=S.items.map(x=>x[1]),mv=idx.map(i=>nm[i]),rest=nm.filter((_,i)=>!sel.has(i));rest.splice(p-1,0,...mv);S.items.forEach((x,i)=>{x[1]=rest[i]})}
+ else{const mv=idx.map(i=>S.items[i]),rest=S.items.filter((_,i)=>!sel.has(i));rest.splice(p-1,0,...mv);S.items=rest}
+ sel.clear();for(let i=0;i<k;i++)sel.add(p-1+i);save();render()};
+$("bAll").onclick=()=>{S.items.forEach((_,i)=>sel.add(i));rmArm=0;updateSel()};
+$("bNo").onclick=()=>{sel.clear();rmArm=0;updateSel()};
+$("bRm").onclick=()=>{if(!sel.size)return;if(!rmArm){rmArm=1;updateSel();setTimeout(()=>{rmArm=0;updateSel()},3000);return}
+ rmArm=0;S.items=S.items.filter((_,i)=>!sel.has(i));sel.clear();save();render()};
 let garm=0;
 $("bGen").onclick=function(){
  const n=Math.floor(+$("nn").value);
@@ -179,7 +231,7 @@ $("bGen").onclick=function(){
  const old={};S.items.forEach(i=>{if(!(i[0] in old))old[i[0]]=i[1]});
  const lost=S.items.filter(i=>i[1].trim()&&!(i[0]>=1&&i[0]<=n&&Number.isInteger(i[0]))).length;
  if(lost&&!garm){garm=1;this.textContent="Si perdono "+lost+" nomi: tocca ancora";setTimeout(()=>{garm=0;this.textContent="Genera elenco"},3500);return}
- garm=0;this.textContent="Genera elenco";
+ garm=0;this.textContent="Genera elenco";sel.clear();
  S.items=Array.from({length:n},(_,i)=>[i+1,old[i+1]||""]);
  save();render();
 };
@@ -191,7 +243,7 @@ $("afs").onchange=e=>{S.afs=e.target.checked;if(!S.afs)S.fs=Math.round(lastFs*2)
 $("fs").oninput=e=>{S.fs=+e.target.value;save();render()};
 let armed=0;
 $("bReset").onclick=function(){if(!armed){armed=1;this.textContent="Tocca di nuovo per confermare";setTimeout(()=>{armed=0;this.textContent="Ripristina"},3000)}
- else{armed=0;this.textContent="Ripristina";S=clone(DEF);save();render()}};
+ else{armed=0;this.textContent="Ripristina";S=clone(DEF);sel.clear();save();render()}};
 $("bPrint").onclick=()=>{try{window.print()}catch(e){}};
 addEventListener("resize",fit);
 render();
