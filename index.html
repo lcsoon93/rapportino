@@ -661,6 +661,10 @@
         <input type="checkbox" id="confronta-200" onchange="disegnaMese()">
         <span>Confronta con il monte ore del mese (giorni lavorativi x 9 ore)</span>
       </label>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:4px">
+        <input type="checkbox" id="nascondi-ore-mese">
+        <span>Non stampare le ore lavorate nel riepilogo del PDF</span>
+      </label>
       <label class="check" style="text-transform:none;letter-spacing:0;font-size:14px;margin-top:10px;display:none">
         <input type="checkbox" id="stampa-extra-mese">
         <span>Stampa le ore in più nel PDF</span>
@@ -766,6 +770,14 @@ function monteOreMese(){
   const iso = document.getElementById("mesedata").value;
   const giorni = giorniLavorativiMese(iso);
   return {giorni, minuti: giorni * ORARIO_ORDINARIO};
+}
+// spunta: nel riepilogo finale del report mensile (PDF e testo) niente ore per operaio
+function oreMeseNascoste(){ return document.getElementById("nascondi-ore-mese").checked; }
+function leggiPrefNascondiOreMese(){
+  try{ return localStorage.getItem("nascondiOreMese") === "1"; }catch(e){ return false; }
+}
+function salvaPrefNascondiOreMese(v){
+  try{ localStorage.setItem("nascondiOreMese", v ? "1" : "0"); }catch(e){}
 }
 function confrontoAttivo(){ return document.getElementById("confronta-200").checked; }
 function descrizioneMonte(){
@@ -1951,6 +1963,10 @@ document.addEventListener("change", e=>{
     salvaPrefExtra(v);
     return;
   }
+  if(e.target.id === "nascondi-ore-mese"){
+    salvaPrefNascondiOreMese(e.target.checked);
+    return;
+  }
   if(e.target.id === "nascondi-ore-giorno"){
     salvaPrefNascondiOre(e.target.checked);
     return;
@@ -2263,13 +2279,14 @@ function testoMese(){
   });
   righe.push("");
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
-  if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
-  Object.keys(s.operaiTotali).sort().forEach(n=>{
-    const info = s.operaiTotali[n];
-    const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
-    righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
-    if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
-  });
+  if(!oreMeseNascoste()){
+    if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
+    Object.keys(s.operaiTotali).sort().forEach(n=>{
+      const info = s.operaiTotali[n];
+      righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
+      if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
+    });
+  }
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
   return righe.join("\n");
 }
@@ -3213,14 +3230,14 @@ function generaPDFMese(){
   doc.text("Giorni lavorati", ML + 2, y);
   doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
   y += 6;
-  if(confrontoAttivo()){
+  const mostraOre = !oreMeseNascoste();
+  if(mostraOre && confrontoAttivo()){
     doc.text("Monte ore del mese (" + monteOreMese().giorni + " giorni lavorativi x 9 ore)", ML + 2, y);
     doc.text(oreTesto(monteOreMese().minuti), W - MR - 3, y, {align:"right"});
     y += 6;
   }
-  Object.keys(s.operaiTotali).sort().forEach(n=>{
+  if(mostraOre) Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
-    const saldo = info.minuti - (info.giorni * ORARIO_ORDINARIO);
     doc.text(n + " (" + info.giorni + " g.)", ML + 2, y);
     doc.text(oreMeseTesto(info), W - MR - 3, y, {align:"right"});
     y += 6;
@@ -3312,6 +3329,7 @@ const prefExtra = leggiPrefExtra();
 });
 document.getElementById("pdf-foglio-unico").checked = leggiPrefFoglioUnico();
 document.getElementById("nascondi-ore-giorno").checked = leggiPrefNascondiOre();
+document.getElementById("nascondi-ore-mese").checked = leggiPrefNascondiOreMese();
 // l'archivio si legge da IndexedDB (asincrono): la giornata si disegna quando e' pronto
 caricaArchivio().then(()=>{
   aggiornaClientiNoti();
