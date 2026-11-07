@@ -6,6 +6,7 @@ begin;
 drop trigger if exists rapporti_controllo on public.rapporti;
 drop function if exists public.controlla_rapporto();
 drop function if exists public.operai_assegnabili();
+drop function if exists public.salva_giornata(text, jsonb, timestamptz);
 drop policy if exists rapporti_lettura on public.rapporti;
 drop policy if exists rapporti_inserimento on public.rapporti;
 drop policy if exists rapporti_modifica on public.rapporti;

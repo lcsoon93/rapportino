@@ -175,3 +175,27 @@ language sql stable security definer set search_path = '' as $$
 $$;
 revoke execute on function public.operai_assegnabili() from public, anon;
 grant execute on function public.operai_assegnabili() to authenticated;
+
+-- ---------------------------------------------------------------- salvataggio con controllo di concorrenza
+-- Il telefono indica la versione ("aggiornato") da cui e' partito. Se nel frattempo qualcuno ha salvato,
+-- non sovrascrive: restituisce la versione attuale e il telefono unisce le modifiche e riprova.
+-- SECURITY INVOKER: valgono RLS e trigger dell'utente che chiama. La versione la decide il server.
+create or replace function public.salva_giornata(p_data text, p_dati jsonb, p_base timestamptz)
+returns jsonb language plpgsql security invoker set search_path = '' as $$
+declare
+  attuale public.rapporti%rowtype;
+begin
+  select * into attuale from public.rapporti where data = p_data for update;
+  if not found then
+    -- nuova giornata (se esiste ma l'utente non la vede, l'inserimento fallisce: chiave duplicata)
+    insert into public.rapporti (data, dati, aggiornato) values (p_data, p_dati, now()) returning * into attuale;
+    return jsonb_build_object('esito', 'ok', 'aggiornato', attuale.aggiornato);
+  end if;
+  if p_base is null or attuale.aggiornato <> p_base then
+    return jsonb_build_object('esito', 'conflitto', 'dati', attuale.dati, 'aggiornato', attuale.aggiornato);
+  end if;
+  update public.rapporti set dati = p_dati, aggiornato = now() where data = p_data returning * into attuale;
+  return jsonb_build_object('esito', 'ok', 'aggiornato', attuale.aggiornato);
+end $$;
+revoke execute on function public.salva_giornata(text, jsonb, timestamptz) from public, anon;
+grant execute on function public.salva_giornata(text, jsonb, timestamptz) to authenticated;

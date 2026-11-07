@@ -6,6 +6,7 @@ import { client } from "../core/sessione.js";
 import { leggiDB, leggiMappa, leggiTimbri, scriviDB, scriviMappa, scriviTimbri } from "../core/storage.js";
 import { registraVista } from "../core/navigation.js";
 import { emetti } from "../core/eventi.js";
+import { confermaVersione, registraBase } from "../services/sync.js";
 import { schedaCompilata, statoScheda } from "../services/stato-schede.js";
 import { etichettaGiorno, isoDi, oggiIso } from "../utils/dates.js";
 import { esc } from "../utils/formatters.js";
@@ -33,6 +34,8 @@ function aggiornaCache(r){
   const db = leggiDB(); db[r.data] = r.dati; scriviDB(db);
   const t = leggiTimbri(); t[r.data] = r.aggiornato; scriviTimbri(t);
   const a = leggiMappa("assegnazioni"); a[r.data] = r.assegnati || []; scriviMappa("assegnazioni", a);
+  registraBase(r.data, r.dati, r.aggiornato);
+  confermaVersione(r.data, r.aggiornato);
   emetti("archivio-aggiornato", "sincronizzazione");
 }
 

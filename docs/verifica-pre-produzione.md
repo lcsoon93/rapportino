@@ -2,10 +2,20 @@
 
 Data: 7 novembre 2026 · Ramo: `utenti-ruoli` · **Produzione non modificata** (solo letture di schema e statistiche).
 
-## Raccomandazione: NON PRONTO
+## Raccomandazione: PRONTO CON RISCHI (aggiornata dopo la correzione della concorrenza)
 
-Motivo bloccante: **modifiche concorrenti sulla stessa giornata si perdono** (riprodotto, vedi §4).
-Sicurezza, permessi, storico, PDF, account e rollback sono verificati.
+La perdita di modifiche concorrenti (bloccante nella prima verifica) è corretta e ritestata: 6 scenari superati.
+Rischi residui: nessuna prova su iPhone/Safari reale e sulle Edge Functions nel runtime di Supabase (vedi §5);
+si verificano subito dopo il rilascio, con rollback pronto.
+
+### Correzione della concorrenza
+- Database: funzione `salva_giornata(p_data, p_dati, p_base)` (SECURITY INVOKER: RLS e trigger restano).
+  Scrive solo se la giornata è ancora alla versione `p_base`; altrimenti restituisce la versione attuale.
+  La versione (`aggiornato`) la decide il server.
+- Telefono (`js/services/unione.js`): unione a tre vie rispetto all'ultima versione confermata dal server,
+  scheda per scheda e campo per campo (operai, spese, tecnici…); una firma non si perde mai; schede nuove
+  da entrambe le parti restano; rimozioni rispettate. Senza versione di partenza (dati della vecchia app):
+  un campo pieno vince sul vuoto. Il modulo si ridisegna con il risultato quando non si sta scrivendo.
 
 ## 1. Migrazioni SQL
 
@@ -247,7 +257,8 @@ Data di modifica nel futuro (> 5 min) → riportata all'ora del server.
 
 ## 4. Test eseguiti (stack Supabase locale, credenziali di prova)
 
-- **Backend** 73/73 · **E2E browser** 46/46 · **Verifica pre-produzione** 42/46 (i 4 falliti sono la concorrenza).
+- **Backend** 73/73 · **E2E browser** 46/46 · **Verifica pre-produzione** 50/50 · **Unione** 15/15.
+- Prima verifica: 42/46, i 4 falliti erano la concorrenza (descritti sotto); ora superati insieme a C5, C6 e al caso "vecchia app".
 - Migrazione su 51 giornate sintetiche (151 schede, 97 senza id, 13 non compilate, 1 firmata, 1 formato vecchio): storico intatto.
 - Storico: admin e company vedono 51 giornate; operaio non assegnato 0; Clienti elenca 151 clienti; PDF di tutte le 51 giornate (anche foglio unico e formato vecchio) senza errori; aprire e fare PDF non modifica il server.
 - Tentativi di aggiramento respinti: cambio data, assegnazioni da operaio, data nel futuro, rimozione schede compilate da company, cambio ruolo (operaio e company), token contraffatto, token con ruolo alterato, admin che crea admin, company che reimposta password.
@@ -255,14 +266,17 @@ Data di modifica nel futuro (> 5 min) → riportata all'ora del server.
 - Telefoni (Chromium): sessione dopo ricarica, logout anche offline, login, cambio password, cambio utente con dati non inviati (backup scaricato), GitHub Pages in sottocartella `/rapportino/`.
 - Rollback provato: dati identici, la vecchia app torna a leggere e scrivere.
 
-**Concorrenza (falliti):**
+**Concorrenza — prima della correzione (falliti), ora tutti superati:**
 - C1 due operai su schede diverse della stessa giornata: vince l'ultimo salvataggio, il lavoro dell'altro sparisce.
 - C2 company aggiunge una scheda mentre l'operaio ha la giornata aperta: al salvataggio dell'operaio la scheda sparisce.
 - C3 firma mentre un altro salva: si perde la modifica dell'altro.
 - C4 senza rete: la modifica arriva al server al ritorno della rete (ok), ma si perdono le modifiche altrui nel frattempo.
 
-Causa: il telefono salva l'intera giornata ("vince l'ultimo"). Esisteva già prima (due telefoni sulla stessa giornata),
-ma con company e più operai diventa lo scenario normale.
+Causa: il telefono salvava l'intera giornata ("vince l'ultimo").
+
+**Dopo la correzione, superati:** C1–C4 come sopra; C5 due salvataggi ravvicinati mentre arriva un'unione
+(modulo non ancora aggiornato); C6 un operaio toglie una scheda mentre un altro ne modifica un'altra;
+primo accesso con modifiche della vecchia app mai inviate (conservate e unite a quelle del server).
 
 ## 5. Test non eseguiti
 
@@ -274,7 +288,8 @@ ma con company e più operai diventa lo scenario normale.
 
 ## 6. Problemi residui
 
-1. **Bloccante** — concorrenza (sopra).
+1. Concorrenza corretta; caso limite rimasto: due persone cambiano **lo stesso campo** della stessa scheda
+   nello stesso momento → vince l'ultimo che salva (la firma invece non si perde mai).
 2. Un operaio assegnato può modificare tutte le schede della giornata, anche firmate da un collega (sarà coperto dal flusso degli stati).
 3. Il blocco dopo 5 errori rivela che uno username esiste e permette a qualcuno di bloccare un account per 15 minuti.
 4. Tutti i login passano dall'IP della Edge Function: i limiti di Supabase Auth sono condivisi.
@@ -287,7 +302,7 @@ ma con company e più operai diventa lo scenario normale.
 
 - Migrazione: nessuna modifica alle righe (verificato). Rischio basso.
 - Finestra tra migrazione e pubblicazione della nuova app: la vecchia app non sincronizza (nessuna perdita, i dati restano sul telefono).
-- Dopo il rilascio: perdita di modifiche concorrenti (residuo 1).
+- Dopo il rilascio: solo il caso "stesso campo, stesso momento" (residuo 1).
 - **Già oggi**: la chiave pubblica è nel repository e la policy `"accesso app"` permette a chiunque di leggere, modificare e cancellare le 51 giornate.
 
 ## 8. Backup (prima del rilascio)
@@ -323,7 +338,7 @@ create policy "accesso app" on public.rapporti for all to public using (true) wi
 commit;
 ```
 
-## 10. Sequenza di rilascio (dopo la correzione della concorrenza e la tua approvazione)
+## 10. Sequenza di rilascio (dopo la tua approvazione)
 
 0. Tu: backup (§8.1–8.2), disattivi "Allow new users to sign up", imposti i segreti `CODICE_INIZIALE_LUCA` e `CODICE_INIZIALE_COMPHAS`.
 1. Copia `rapporti_backup_20261107` + verifica conteggio/MD5.

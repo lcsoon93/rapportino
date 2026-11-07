@@ -53,6 +53,7 @@ js/
     immagini.js            compressione foto, foto a schermo intero
     sync.js                sincronizzazione Supabase con la sessione dell'utente
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
+    unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON
     condivisione.js        invio PDF (condivisione Mail/Gmail) e testo (mailto)
     pdf/comune.js          intestazione, piè di pagina, misure firma
@@ -91,6 +92,8 @@ supabase/                  backend (Supabase Free)
   | eliminare | sì | no | no |
 
   Le regole che le policy non possono esprimere stanno nel trigger `controlla_rapporto`.
+- **Modifiche concorrenti**: il salvataggio passa da `salva_giornata` (scrive solo se la giornata è ancora
+  alla versione da cui si è partiti); in caso contrario il telefono unisce le modifiche (`unione.js`) e riprova.
 - **Account disattivati**: non entrano, e le sessioni già aperte non leggono né scrivono più nulla.
 - **Interfaccia**: `js/core/permessi.js` nasconde ciò che il ruolo non può usare; la protezione vera
   resta il database.

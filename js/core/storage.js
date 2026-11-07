@@ -126,5 +126,5 @@ export function svuotaArchivioLocale(){
   const db = leggiDB();
   Object.keys(db).forEach(k=>{ delete db[k]; });
   scriviDB(db);
-  ["timbri", "assegnazioni", "inSospeso", "rifiutati"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+  ["timbri", "assegnazioni", "inSospeso", "rifiutati", "basi", "confermati"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
 }
