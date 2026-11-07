@@ -516,6 +516,23 @@
     color:#9AA1A9;font-size:18px;pointer-events:none;
   }
   .nascosto{display:none!important}
+  /* suggerimenti cliente/indirizzo */
+  .suggerimenti{
+    position:absolute;z-index:500;
+    background:#fff;border:1.5px solid var(--neutro);border-radius:8px;
+    box-shadow:0 6px 18px rgba(0,0,0,.25);overflow:hidden;
+  }
+  .sugg-voce{
+    display:block;width:100%;text-align:left;
+    background:#fff;border:none;border-bottom:1px solid #E3E5E8;
+    padding:13px 12px;font-family:'IBM Plex Sans',sans-serif;
+    font-size:16px;color:var(--testo);cursor:pointer;
+  }
+  .sugg-voce:active{background:#E8F1FB}
+  .sugg-chiudi{
+    display:block;width:100%;background:#F2F3F4;border:none;
+    padding:9px 12px;font-size:13px;font-weight:600;color:#5A6068;cursor:pointer;
+  }
   @media (prefers-reduced-motion: reduce){
     *{transition:none!important;animation:none!important}
   }
@@ -710,8 +727,7 @@
   <div class="avviso">Riepilogo del mese con giorni, ore e totale.</div>
 </div>
 
-<datalist id="clienti-noti"></datalist>
-<datalist id="indirizzi-noti"></datalist>
+<div id="suggerimenti" class="suggerimenti nascosto" role="listbox"></div>
 
 <div id="firma-overlay" class="firma-overlay nascosto">
   <div class="firma-overlay-top">
@@ -1094,25 +1110,95 @@ function aggiornaClientiNoti(){
       if(c.nome && c.nome !== "(senza nome)") nomi.add(c.nome);
     });
   });
-  const dl = document.getElementById("clienti-noti");
-  dl.innerHTML = "";
-  [...nomi].sort().forEach(n=>{
-    const o = document.createElement("option");
-    o.value = n;
-    dl.appendChild(o);
-  });
+  nomiNoti = [...nomi].sort();
   const indirizzi = new Set();
   Object.values(db).forEach(d=>{
     (d.clienti || []).forEach(c=>{ if(c.indirizzo) indirizzi.add(c.indirizzo); });
   });
-  const dli = document.getElementById("indirizzi-noti");
-  dli.innerHTML = "";
-  [...indirizzi].sort().forEach(n=>{
-    const o = document.createElement("option");
-    o.value = n;
-    dli.appendChild(o);
-  });
+  indirizziNoti = [...indirizzi].sort();
 }
+
+// Suggerimenti fatti a mano al posto del <datalist>: quello di Safari si apre a ogni lettera
+// e si finiva per toccarlo per sbaglio. Questi compaiono solo dopo una pausa nella scrittura,
+// spariscono appena si riprende a scrivere e ignorano i tocchi arrivati subito dopo la comparsa.
+let nomiNoti = [], indirizziNoti = [];
+const SUGG_MIN_LETTERE = 3;     // lettere da scrivere prima di vedere suggerimenti
+const SUGG_PAUSA = 900;         // ms di pausa nella scrittura prima di mostrarli
+const SUGG_MAX = 4;             // quanti al massimo
+const SUGG_BLOCCO_TOCCO = 400;  // ms dopo la comparsa in cui un tocco viene ignorato
+let suggTimer = null, suggCampo = null, suggMostratiAlle = 0;
+
+function chiudiSuggerimenti(){
+  clearTimeout(suggTimer);
+  const box = document.getElementById("suggerimenti");
+  box.classList.add("nascosto");
+  box.innerHTML = "";
+  suggCampo = null;
+}
+function programmaSuggerimenti(campo){
+  chiudiSuggerimenti();
+  suggTimer = setTimeout(()=>mostraSuggerimenti(campo), SUGG_PAUSA);
+}
+function mostraSuggerimenti(campo){
+  if(document.activeElement !== campo) return;
+  const testo = campo.value.trim().toLowerCase();
+  if(testo.length < SUGG_MIN_LETTERE) return;
+  const elenco = campo.classList.contains("c-nome") ? nomiNoti : indirizziNoti;
+  // prima quelli che iniziano con il testo, poi quelli che lo contengono; esclusa la corrispondenza esatta
+  const trovati = elenco.filter(v=>v.toLowerCase() !== testo && v.toLowerCase().includes(testo))
+    .sort((a,b)=>(b.toLowerCase().startsWith(testo) - a.toLowerCase().startsWith(testo)) || a.localeCompare(b))
+    .slice(0, SUGG_MAX);
+  if(!trovati.length) return;
+  const box = document.getElementById("suggerimenti");
+  box.innerHTML = "";
+  trovati.forEach(v=>{
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "sugg-voce";
+    b.textContent = v;
+    b.addEventListener("mousedown", e=>e.preventDefault());   // il campo non perde il fuoco
+    b.addEventListener("click", ()=>{
+      if(Date.now() - suggMostratiAlle < SUGG_BLOCCO_TOCCO) return;   // tocco troppo ravvicinato: era per la tastiera
+      campo.value = v;
+      chiudiSuggerimenti();
+      campo.dispatchEvent(new Event("input", {bubbles:true}));
+      chiudiSuggerimenti();                                        // l'evento input li riprogrammerebbe
+    });
+    box.appendChild(b);
+  });
+  const chiudi = document.createElement("button");
+  chiudi.type = "button";
+  chiudi.className = "sugg-chiudi";
+  chiudi.textContent = "Chiudi suggerimenti";
+  chiudi.addEventListener("mousedown", e=>e.preventDefault());
+  chiudi.addEventListener("click", chiudiSuggerimenti);
+  box.appendChild(chiudi);
+  // larghezza della scheda cliente (il campo nome e' stretto), subito sotto il campo
+  const r = campo.getBoundingClientRect();
+  const rs = (campo.closest(".cliente") || campo).getBoundingClientRect();
+  box.style.left = (rs.left + window.scrollX) + "px";
+  box.style.top = (r.bottom + window.scrollY + 4) + "px";
+  box.style.width = rs.width + "px";
+  box.classList.remove("nascosto");
+  suggCampo = campo;
+  suggMostratiAlle = Date.now();
+  // se finisce sotto la tastiera o la barra in basso, faccio scorrere la pagina
+  const altezzaVisibile = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+  const barra = document.querySelector(".barra:not(.nascosto)");
+  const limite = Math.min(altezzaVisibile, window.innerHeight - (barra ? barra.offsetHeight : 0));
+  const sporgenza = box.getBoundingClientRect().bottom - limite + 8;
+  if(sporgenza > 0) window.scrollBy(0, Math.min(sporgenza, r.top - 70));   // il campo resta visibile
+}
+document.addEventListener("input", e=>{
+  const t = e.target;
+  if(t.classList && (t.classList.contains("c-nome") || t.classList.contains("c-indirizzo"))) programmaSuggerimenti(t);
+});
+document.addEventListener("focusout", e=>{
+  if(e.target === suggCampo || (e.target.classList && (e.target.classList.contains("c-nome") || e.target.classList.contains("c-indirizzo")))){
+    setTimeout(()=>{ if(!suggCampo || document.activeElement !== suggCampo) chiudiSuggerimenti(); }, 150);
+  }
+});
+window.addEventListener("resize", ()=>{ if(suggCampo) chiudiSuggerimenti(); });
 
 // ============ schede cliente ============
 function aggiungiCliente(dati){
@@ -1128,12 +1214,12 @@ function aggiungiCliente(dati){
         '<button type="button" class="riord-btn" aria-label="Sposta giù" onclick="spostaCliente(this,1)">&#9660;</button>' +
       '</div>' +
       '<span class="badge">Urgenza</span>' +
-      '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off" list="clienti-noti">' +
+      '<input type="text" class="c-nome" placeholder="Cliente / luogo" autocomplete="off">' +
       '<button type="button" class="riprendi" title="Riprendi questo lavoro dopo un\'interruzione" onclick="riprendiLavoro(this)">Riprendi</button>' +
       '<button type="button" class="togli" aria-label="Rimuovi cliente" onclick="togliCliente(this)">&times;</button>' +
     '</div>' +
     '<label>Indirizzo / posizione</label>' +
-    '<input type="text" class="c-indirizzo" placeholder="Via, numero, citta" autocomplete="off" list="indirizzi-noti">' +
+    '<input type="text" class="c-indirizzo" placeholder="Via, numero, citta" autocomplete="off">' +
     '<label>Orari (una riga per ogni fascia)</label>' +
     '<div class="fasce"></div>' +
     '<button type="button" class="fasce-add" onclick="aggiungiFascia(this)">+ Fascia oraria</button>' +
