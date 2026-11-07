@@ -2,16 +2,20 @@
 // Bozza / completato; collegato a un intervento o autonomo. Il salvataggio passa da salva_rapportino
 // (una transazione, con controllo di versione). Finche' non e' salvato sul server, il contenuto
 // resta anche sul telefono (localStorage) per non perderlo senza rete.
+// Foto: file nel bucket privato di Supabase Storage + metadati in "allegati". Una foto nuova va
+// prima nella coda del telefono (IndexedDB, services/coda-foto.js) e ne esce solo quando file e
+// metadati sono confermati dal server; "Completa" e' possibile solo con tutte le foto inviate.
 import { mostraVista, registraVista, vistaCorrente } from "../core/navigation.js";
 import { puo } from "../core/permessi.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
 import {
-  aggiungiAllegato, elencoAllegati, elencoRapportini, eliminaAllegato, leggiIntervento, leggiRapportino,
-  minutiTra, nomeOperaio, operaiAttivi, riapriRapportino, salvaRapportino,
+  caricaFotoStorage, elencoAllegati, elencoRapportini, eliminaAllegato, leggiIntervento, leggiRapportino,
+  minutiTra, nomeOperaio, operaiAttivi, registraAllegato, riapriRapportino, rimuoviFotoStorage, salvaRapportino, scaricaFoto,
 } from "../services/api-lavori.js";
 import { aggiornaAnteprimaFirma } from "../services/signature.js";
-import { comprimiImmagine, mostraFotoIntera } from "../services/immagini.js";
+import { blobInDataUrl, improntaFile, mostraFotoIntera, preparaFoto } from "../services/immagini.js";
+import { aggiornaIndice, codaPersistente, fotoDelRapportino, leggiIndice, metti, togli } from "../services/coda-foto.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
@@ -21,7 +25,9 @@ import { PRIORITA, STATO_RAPPORTINO, oraBreve } from "./gestione-interventi.js";
 
 const $ = id=>document.getElementById(id);
 let corrente = null;         // { id, salvato, versione, intervento_id, intervento, stato, autore_id, aggiornato_il }
-let allegati = [];
+let allegati = [];           // foto sul server: metadati + src (data URL dopo il download autenticato) / errore
+let inAttesa = [];           // foto in coda sul telefono per il rapportino aperto (+ _src in memoria)
+let scaricamenti = null;     // download in corso delle foto del server
 let sporco = false;
 let vistaDiRitorno = "lavoro";
 
@@ -104,20 +110,81 @@ function riempiModulo(r, ore){
   aggiornaTotale();
 }
 function disegnaAllegati(){
-  $("rf-foto").innerHTML = "";
-  allegati.forEach(a=>{
+  const cont = $("rf-foto");
+  cont.innerHTML = "";
+  const elimina = async (ev, fn)=>{
+    ev.stopPropagation();
+    if(!confirm("Rimuovere la foto?")) return;
+    try{ await fn(); disegnaAllegati(); }catch(e){ messaggio(e.message, "err"); }
+  };
+  const tessera = (src, cls, testoStato, statoErr, onDel, dataAttr)=>{
     const item = document.createElement("div");
-    item.className = "foto-item";
-    item.innerHTML = '<img alt="Foto del rapportino"><button type="button" class="foto-del rf-solo-bozza" aria-label="Rimuovi foto">&times;</button>';
-    item.querySelector("img").src = a.contenuto;
-    item.querySelector("img").onclick = ()=>mostraFotoIntera(a.contenuto);
-    item.querySelector(".foto-del").onclick = async ev=>{
-      ev.stopPropagation();
-      if(!confirm("Rimuovere la foto?")) return;
-      try{ await eliminaAllegato(a.id); allegati = allegati.filter(x=>x.id !== a.id); disegnaAllegati(); }catch(e){ messaggio(e.message, "err"); }
-    };
-    $("rf-foto").appendChild(item);
+    item.className = "foto-item" + (cls ? " " + cls : "");
+    Object.entries(dataAttr || {}).forEach(([k, v])=>{ item.dataset[k] = v; });
+    item.innerHTML = (src ? '<img alt="Foto del rapportino">' : '<span>' + esc(testoStato || "") + '</span>') +
+      (src && testoStato ? '<span class="foto-stato' + (statoErr ? " err" : "") + '"></span>' : '') +
+      '<button type="button" class="foto-del rf-solo-bozza' + (modificabile() ? "" : " nascosto") + '" aria-label="Rimuovi foto">&times;</button>';
+    if(src){
+      const img = item.querySelector("img");
+      img.src = src;
+      img.onclick = ()=>mostraFotoIntera(src);
+      if(testoStato){ item.querySelector(".foto-stato").textContent = testoStato; item.title = testoStato; }
+    }
+    item.querySelector(".foto-del").onclick = ev=>elimina(ev, onDel);
+    cont.appendChild(item);
+    return item;
+  };
+  allegati.forEach(a=>{
+    const src = a.src || a.contenuto || "";
+    const onDel = async()=>{ await eliminaAllegato(a); allegati = allegati.filter(x=>x.id !== a.id); };
+    if(src) tessera(src, "", "", false, onDel, { allegato: a.id, stato: "inviata" });
+    else if(a.errore){
+      const t = tessera("", "manca", a.errore + " Tocca per riprovare.", true, onDel, { allegato: a.id, stato: "errore" });
+      t.onclick = ()=>{ a.errore = null; disegnaAllegati(); scaricaFotoServer(); };
+    }
+    else tessera("", "carica", "Caricamento…", false, onDel, { allegato: a.id, stato: "caricamento" });
   });
+  inAttesa.forEach(v=>{
+    tessera(v._src, "", v.stato === "errore" ? "Non inviata" : "Da inviare", v.stato === "errore", async()=>{
+      await togli(v.id); inAttesa = inAttesa.filter(x=>x.id !== v.id); aggiornaIndiceFoto();
+    }, { attesa: v.id, stato: v.stato });
+  });
+  const n = inAttesa.length;
+  const err = inAttesa.find(v=>v.errore);
+  $("rf-foto-stato").className = "msg-info att" + (n ? "" : " nascosto");
+  $("rf-foto-stato").textContent = n ? (n === 1 ? "1 foto" : n + " foto") + " sul telefono, non ancora inviate" +
+    (err ? " (ultimo errore: " + err.errore + ")" : "") + ". Restano qui finché non sono confermate dal server." : "";
+  $("rf-foto-invia").classList.toggle("nascosto", !n || !modificabile());
+}
+// scarica (con la sessione dell'utente) le foto del server non ancora in memoria, 3 alla volta
+function scaricaFotoServer(){
+  const id = corrente && corrente.id;
+  const daFare = allegati.filter(a=>a.percorso && !a.src && !a.errore);
+  if(!daFare.length) return scaricamenti || Promise.resolve();
+  const coda = [...daFare];
+  const lavora = async()=>{
+    while(coda.length){
+      const a = coda.shift();
+      try{
+        const blob = await scaricaFoto(a.percorso);
+        a.src = await blobInDataUrl(blob);
+      }catch(e){
+        a.errore = /connessione/i.test(e.message) ? "Offline." : /trovata/i.test(e.message) ? "Foto mancante." : "Foto non disponibile.";
+      }
+      if(corrente && corrente.id === id) disegnaAllegati();
+    }
+  };
+  scaricamenti = Promise.all([lavora(), lavora(), lavora()]).then(()=>{ scaricamenti = null; });
+  return scaricamenti;
+}
+function aggiornaIndiceFoto(){
+  if(!corrente || !profilo) return;
+  aggiornaIndice(corrente.id, { autore: profilo.id, cliente: $("rf-cliente").value.trim(), data: $("rf-data").value }, inAttesa.length);
+}
+async function caricaCodaLocale(id){
+  const voci = (await fotoDelRapportino(id).catch(()=>[])).filter(v=>profilo && v.autore === profilo.id);
+  for(const v of voci){ try{ v._src = await blobInDataUrl(v.blob); }catch(e){ v._src = ""; } }
+  return voci;
 }
 function aggiornaStatoUI(){
   const scrivibile = modificabile();
@@ -128,6 +195,7 @@ function aggiornaStatoUI(){
   $("rf-pdf").classList.toggle("nascosto", !corrente || !corrente.salvato);
   const stato = corrente.salvato ? STATO_RAPPORTINO[corrente.stato] : '<span class="badge neutro">Non ancora inviato</span>';
   $("rap-sottotitolo").innerHTML = stato + (corrente.autore_id && profilo && corrente.autore_id !== profilo.id ? ' <span class="badge pervinca">di ' + esc(nomeOperaio(corrente.autore_id)) + '</span>' : '');
+  $("rf-foto-invia").classList.toggle("nascosto", !inAttesa.length || !scrivibile);
   const i = corrente.intervento;
   $("rap-intervento").classList.toggle("nascosto", !i);
   if(i){
@@ -143,7 +211,7 @@ function salvaLocale(){
   if(!corrente || !modificabile()) return;
   try{
     localStorage.setItem(chiaveLocale(), JSON.stringify({
-      quando: new Date().toISOString(), base: corrente.aggiornato_il || null, salvato: !!corrente.salvato,
+      quando: new Date().toISOString(), base: corrente.aggiornato_il || null, salvato: !!corrente.salvato, versione: corrente.versione || null,
       autore: profilo && profilo.id, intervento_id: corrente.intervento_id || null, ...leggiModulo(),
     }));
   }catch(e){}
@@ -164,6 +232,12 @@ export function bozzeLocali(){
         cliente: l.rapportino.cliente, data: l.rapportino.data, intervento_id: l.intervento_id });
     }
   }catch(e){}
+  // rapportini gia' salvati ma con foto ancora sul telefono
+  leggiIndice().filter(f=>profilo && f.autore === profilo.id).forEach(f=>{
+    const b = out.find(x=>x.id === f.id);
+    if(b) b.foto = f.numero;
+    else out.push({ id: f.id, quando: f.quando, salvato: true, cliente: f.cliente, data: f.data, foto: f.numero, soloFoto: true });
+  });
   return out.sort((a, b)=>b.quando.localeCompare(a.quando));
 }
 function recuperaLocale(){
@@ -194,23 +268,35 @@ async function prepara(){
   try{ operai = await operaiAttivi(); }catch(e){ operai = []; }
   mostraVista("rapportino");
   messaggio("");
-  allegati = []; disegnaAllegati();
+  allegati = []; inAttesa = []; scaricamenti = null;
+  $("rf-foto").innerHTML = ""; $("rf-foto-stato").className = "msg-info nascosto"; $("rf-foto-invia").classList.add("nascosto");
 }
 export async function apriRapportino(id){
   await prepara();
   messaggio("Caricamento…");
   try{
-    const r = await leggiRapportino(id);
+    let r;
+    try{ r = await leggiRapportino(id); }
+    catch(e){
+      // senza rete: si riprende la copia del telefono, se c'e'
+      if(!/connessione/i.test(e.message) || !leggiLocale(id)) throw e;
+      r = null;
+      messaggio("Senza rete: si riprende la copia salvata sul telefono.", "att");
+    }
     if(!r){
       const l = leggiLocale(id);
       if(l && profilo && l.autore === profilo.id){
         // mai arrivato al server: si riprende dal telefono
         corrente = { id, salvato: false, versione: null, intervento_id: l.intervento_id, intervento: null, stato: "bozza", autore_id: profilo.id };
         if(l.intervento_id) corrente.intervento = await leggiIntervento(l.intervento_id).catch(()=>null);
+        if(l.salvato) corrente.salvato = true;     // esiste gia' sul server (aperto senza rete)
+        if(l.versione) corrente.versione = l.versione;
         riempiModulo(l.rapportino, l.ore);
         sporco = true;
-        messaggio("Rapportino non ancora inviato: salva quando c'è rete.", "att");
+        if(!/Senza rete/.test($("rap-msg").textContent)) messaggio("Rapportino non ancora inviato: salva quando c'è rete.", "att");
+        inAttesa = await caricaCodaLocale(id);
         aggiornaStatoUI();
+        disegnaAllegati();
         return;
       }
       messaggio("Rapportino non trovato o non autorizzato.", "err"); return;
@@ -222,9 +308,11 @@ export async function apriRapportino(id){
     messaggio("");
     if(r.stato === "bozza") recuperaLocale();
     aggiornaStatoUI();
+    inAttesa = await caricaCodaLocale(r.id);
     allegati = await elencoAllegati(r.id);
     disegnaAllegati();
     aggiornaStatoUI();
+    scaricaFotoServer();
   }catch(e){ messaggio(e.message, "err"); }
 }
 // dall'intervento: riapre la propria bozza se c'e', altrimenti ne prepara una nuova
@@ -270,7 +358,7 @@ function stessoContenuto(mio, oreMie, srv, oreSrv){
   return norma(oreMie) === norma(oreSrv);
 }
 async function salva(completa){
-  const { rapportino, ore } = leggiModulo();
+  let { rapportino, ore } = leggiModulo();
   if(!rapportino.data || !rapportino.cliente){ messaggio("Data e cliente sono obbligatori.", "err"); return false; }
   if(completa){
     if(!rapportino.attivita){ messaggio("Per completare descrivi le attività svolte.", "err"); $("rf-attivita").focus(); return false; }
@@ -278,6 +366,29 @@ async function salva(completa){
     if(ore.some(o=>o.dalle && o.alle && o.alle <= o.dalle)){ messaggio("Controlla le ore: \"alle\" deve essere dopo \"dalle\".", "err"); return false; }
     if(!confirm("Completare il rapportino? Dopo non potrai più modificarlo.")) return false;
   }
+  // completare con foto ancora sul telefono: prima si salva la bozza e si inviano le foto; si completa
+  // solo se TUTTE sono confermate dal server (dopo il completamento non si possono piu' aggiungere)
+  if(completa && inAttesa.length){
+    if(!(await salvaTesto(rapportino, ore, false))) return false;
+    ({ rapportino, ore } = leggiModulo());      // ora con la versione appena salvata
+    const f = await inviaFotoInAttesa();
+    if(f.rimaste){
+      messaggio("Rapportino NON completato: " + f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") +
+        ". È salvato in bozza e le foto restano sul telefono: riprova quando c'è rete.", "err");
+      return false;
+    }
+  }
+  const ok = await salvaTesto(rapportino, ore, completa);
+  if(ok && !completa && inAttesa.length){
+    const f = await inviaFotoInAttesa();
+    messaggio(f.rimaste
+      ? "Bozza salvata, ma " + f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") + ": restano sul telefono. Riprova con \"Invia foto\"."
+      : "Bozza salvata con le foto.", f.rimaste ? "att" : "");
+  }
+  return ok;
+}
+// salvataggio di testata e ore (salva_rapportino, controllo di versione e conflitti: invariato)
+async function salvaTesto(rapportino, ore, completa){
   const chiavePrima = chiaveLocale();
   const pulsanti = [$("rf-salva"), $("rf-completa")];
   pulsanti.forEach(b=>{ b.disabled = true; b.classList.add("in-corso"); });
@@ -320,26 +431,91 @@ export async function riapriRapportinoAperto(){
   try{ await riapriRapportino(corrente.id); await apriRapportino(corrente.id); messaggio("Rapportino riaperto."); }catch(e){ messaggio(e.message, "err"); }
 }
 
-// foto: servono un rapportino gia' salvato (si salva la bozza se serve)
+// ---------------------------------------------------------------- foto
+const nomeSicuro = n=>String(n || "foto").replace(/[^\w.\- ]+/g, "_").slice(0, 120);
+// nuove foto: controllo (tipo, dimensione, immagine valida), compressione e coda sul telefono;
+// poi invio se il rapportino puo' gia' essere salvato sul server
 export async function aggiungiFotoRapportino(input){
   const files = [...(input.files || [])];
   input.value = "";
-  if(!files.length) return;
-  if(!corrente.salvato && !(await salva(false))) return;
+  if(!files.length || !corrente || !modificabile()) return;
+  const scartate = [];
+  let aggiunte = 0;
   for(const f of files){
     try{
-      const foto = await comprimiImmagine(f);
-      const a = await aggiungiAllegato(corrente.id, foto);
-      allegati.push({ id: a.id, contenuto: foto.src, larghezza: foto.w, altezza: foto.h });
-    }catch(e){ messaggio("Foto non caricata: " + e.message, "err"); }
+      const impronta = await improntaFile(f);
+      if(allegati.some(a=>a.impronta === impronta) || inAttesa.some(v=>v.impronta === impronta)){
+        scartate.push(nomeSicuro(f.name) + ": già presente"); continue;
+      }
+      const p = await preparaFoto(f);
+      const id = nuovoId();
+      const voce = { id, rapportino_id: corrente.id, autore: profilo.id, percorso: corrente.id + "/" + id + ".jpg", blob: p.blob,
+        nome: nomeSicuro(f.name), mime: p.mime, dimensione: p.blob.size, larghezza: p.w, altezza: p.h, impronta,
+        stato: "in_attesa", errore: null, creato: new Date().toISOString() };
+      await metti(voce);
+      voce._src = await blobInDataUrl(p.blob);
+      inAttesa.push(voce);
+      aggiunte++;
+    }catch(e){ scartate.push(nomeSicuro(f.name) + ": " + e.message); }
   }
+  aggiornaIndiceFoto();
+  salvaLocale();
   disegnaAllegati();
-  aggiornaStatoUI();
+  if(scartate.length) messaggio("Foto non aggiunte — " + scartate.join("; ") + ".", "err");
+  if(aggiunte && !(await codaPersistente())) messaggio("Attenzione: questo browser non conserva le foto se chiudi l'app prima dell'invio.", "att");
+  if(aggiunte) await inviaFotoOra(!!scartate.length);
+}
+// "Invia foto": serve il rapportino sul server (si salva la bozza se necessario)
+export async function inviaFotoOra(silenzioso){
+  if(!corrente || !inAttesa.length || !modificabile()) return;
+  if(!corrente.salvato || sporco){ await salva(false); return; }
+  $("rf-foto-invia").disabled = true;
+  try{
+    const f = await inviaFotoInAttesa();
+    if(!silenzioso || f.rimaste) messaggio(f.rimaste
+      ? f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") + ": restano sul telefono, riprova più tardi."
+      : "Foto inviate.", f.rimaste ? "att" : "");
+  }finally{ $("rf-foto-invia").disabled = false; }
+}
+// invio della coda: 1) file nello Storage (gia' presente = ok), 2) metadati (il database verifica il
+// file), 3) solo allora la foto esce dalla coda. Stesso id a ogni tentativo: nessun doppione.
+async function inviaFotoInAttesa(){
+  if(!corrente || !corrente.salvato) return { inviate: 0, rimaste: inAttesa.length };
+  let inviate = 0, errore = "";
+  for(const v of [...inAttesa]){
+    try{
+      await caricaFotoStorage(v.percorso, v.blob, v.mime);
+      const r = await registraAllegato({ id: v.id, rapportino_id: v.rapportino_id, percorso: v.percorso, nome: v.nome, mime: v.mime,
+        dimensione: v.dimensione, larghezza: v.larghezza, altezza: v.altezza, impronta: v.impronta });
+      if(r.esito === "duplicato"){ try{ await rimuoviFotoStorage([v.percorso]); }catch(e){} }
+      else if(!allegati.some(a=>a.id === r.allegato.id)) allegati.push({ ...r.allegato, src: v._src });
+      await togli(v.id);
+      inAttesa = inAttesa.filter(x=>x.id !== v.id);
+      inviate++;
+    }catch(e){
+      errore = e.message;
+      v.stato = "errore"; v.errore = e.message;
+      const { _src, ...daSalvare } = v;
+      await metti(daSalvare).catch(()=>{});
+      if(/connessione/i.test(e.message)) break;     // senza rete inutile provare le altre
+    }
+  }
+  aggiornaIndiceFoto();
+  disegnaAllegati();
+  return { inviate, rimaste: inAttesa.length, errore };
 }
 
 // PDF: stessa impaginazione delle schede del foglio giornaliero
-export function pdfRapportino(btn){
+// Foto: quelle del server (scaricate con la sessione dell'utente), le vecchie in base64 e quelle ancora
+// sul telefono. Le foto non disponibili vengono saltate e segnalate (nessun URL nel PDF).
+export async function pdfRapportino(btn){
   if(!corrente || !corrente.salvato) return;
+  if(allegati.some(a=>a.errore)){ allegati.forEach(a=>{ a.errore = null; }); scaricaFotoServer(); }
+  if(scaricamenti) await scaricamenti;
+  const foto = [];
+  let mancanti = 0;
+  allegati.forEach(a=>{ const src = a.src || a.contenuto; if(src) foto.push({ src, w: a.larghezza, h: a.altezza }); else mancanti++; });
+  inAttesa.forEach(v=>{ if(v._src) foto.push({ src: v._src, w: v.larghezza, h: v.altezza }); });
   const { rapportino: r, ore } = leggiModulo();
   const dati = {
     tecnici: ore.map(o=>nomeOperaio(o.operaio_id)).join(" / "),
@@ -347,8 +523,9 @@ export function pdfRapportino(btn){
     spese: [],
     clienti: [{ id: corrente.id, nome: r.cliente, indirizzo: r.indirizzo, fasce: [], fatturare: "", importo: 0, tipologia: r.tipologia,
       stato: r.esito, firmatario: r.firmatario, dettagli: r.attivita + (r.note ? "\n\nNote: " + r.note : ""), materiali: r.materiali,
-      foto: allegati.map(a=>({ src: a.contenuto, w: a.larghezza, h: a.altezza })), firma: r.firma, urgente: false }],
+      foto, firma: r.firma, urgente: false }],
   };
+  if(mancanti) messaggio("PDF creato senza " + (mancanti === 1 ? "1 foto non disponibile" : mancanti + " foto non disponibili") + " (rete o autorizzazione).", "att");
   condividi(btn, ()=>generaPDFPerCliente(dati, r.data), "Rapportino_" + r.data + "_" + r.cliente.replace(/[^\w]+/g, "_").slice(0, 40) + ".pdf");
 }
 

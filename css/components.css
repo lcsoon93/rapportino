@@ -695,3 +695,17 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .op-sub{display:block;font-size:13px;color:var(--testo-2);margin-top:2px}
 .op-stato>.op-sub{margin:0}
 .int-avanz{display:inline-flex;align-items:center;gap:5px;color:var(--testo)}
+/* foto a schermo intero: tocco = ingrandimento (dimensione reale, si scorre) */
+.foto-vuoto-overlay .foto-chiudi{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:44px;height:44px;border-radius:12px;
+  border:none;background:rgba(255,255,255,.16);color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.foto-vuoto-overlay img{cursor:zoom-in}
+.foto-vuoto-overlay.zoom{overflow:auto;align-items:flex-start;justify-content:flex-start}
+.foto-vuoto-overlay.zoom img{max-width:none;max-height:none;cursor:zoom-out}
+/* foto del rapportino: stato di invio */
+.foto-item .foto-stato{position:absolute;left:4px;right:4px;bottom:4px;border-radius:8px;padding:2px 6px;font-size:11px;font-weight:700;
+  text-align:center;background:var(--att-chiaro);color:var(--att-testo)}
+.foto-item .foto-stato.err{background:var(--err-chiaro);color:var(--err-testo)}
+.foto-item.manca{display:flex;align-items:center;justify-content:center;background:var(--neutro-chiaro);color:var(--testo-2);
+  font-size:12px;text-align:center;padding:6px;cursor:pointer}
+.foto-item.carica{background:var(--sfondo)}
+#rf-foto-stato{margin:8px 0 0}

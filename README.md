@@ -52,10 +52,11 @@ js/
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
-    immagini.js            compressione foto, foto a schermo intero
+    immagini.js            compressione foto (foglio giornaliero e rapportini: tipo, dimensione, impronta), schermo intero con ingrandimento
     sync.js                sincronizzazione Supabase con la sessione dell'utente
     api-lavori.js          accesso a interventi, rapportini, ore e allegati (tabelle nuove)
     avanzamento.js         chi ha completato e chi manca su un intervento con più operai (stessa regola del database)
+    coda-foto.js           foto dei rapportini in attesa di invio (IndexedDB), finché Storage e database non le confermano
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON

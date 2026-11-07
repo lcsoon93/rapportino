@@ -10,7 +10,7 @@ Ramo `interventi-rapportini` · SQL **non ancora applicato** a Supabase (il fron
 | `intervento_operai` | assegnazioni (uno o più operai); dalla Fase B `rimosso_il`/`rimosso_da` = storico delle assegnazioni tolte | admin, company; operaio per i propri interventi (solo assegnazione attiva) | admin, company (togliere = rimozione logica) |
 | `rapportini` | collegato a un intervento o autonomo; attività, materiali, note, esito, firma, stato bozza/completato, versione | admin, company; operaio se autore o indicato nelle ore | autore (operaio o admin) finché è bozza; admin sempre (anche riapre) |
 | `rapportino_operai` | ore (dalle/alle) per operaio | come il rapportino | come il rapportino |
-| `allegati` | foto (immagine compressa) | come il rapportino | come il rapportino |
+| `allegati` | metadati delle foto (Fase C: file nel bucket privato `allegati-rapportini`; righe vecchie con `contenuto` base64 ancora leggibili) | come il rapportino | come il rapportino |
 
 Regole imposte dal database (non falsificabili dal browser): `creato_da`, `assegnato_da`, `autore_id`,
 `caricato_da` = `auth.uid()`; un operaio scrive rapportini solo per interventi a cui è assegnato (o autonomi);
@@ -109,6 +109,83 @@ nessuna policy RLS, non aggiunge stati.
 - **Compatibilità**: il frontend della Fase B legge `rimosso_il`, quindi va pubblicato insieme alla
   migrazione (senza migrazione mostra "non ancora attivi", come per la Fase A).
 
+## Foto nello Storage (Fase C)
+
+Migrazione `supabase/migrations/20261110090000_allegati_storage.sql`
+(rollback `supabase/rollback/20261110090000_allegati_storage_rollback.sql`). Riusa la tabella
+`allegati` (nessun sistema parallelo); non cambia `salva_rapportino` né le policy delle altre tabelle.
+
+- **Bucket** `allegati-rapportini`: **privato** (nessun URL pubblico), limite 3 MB per file (come il
+  limite già previsto per una foto: `contenuto` ≤ 3.000.000 caratteri), tipi `image/jpeg`, `image/png`,
+  `image/webp`. Percorso `<id rapportino>/<id allegato>.jpg`: l'id dell'allegato è un UUID casuale
+  generato dal telefono (non prevedibile); nomi di altra forma sono rifiutati.
+- **Policy Storage** (su `storage.objects`, solo questo bucket), coerenti con quelle RLS di `allegati`:
+  lettura = `vede_rapportino(rapportino del percorso)` (autore, operaio indicato nelle ore, admin,
+  company); caricamento e cancellazione = `modifica_rapportino(...)` (autore con rapportino in bozza,
+  oppure admin); **nessuna policy di UPDATE**: un file caricato non si sovrascrive (neanche con upsert).
+  Utente non autenticato: niente. La service role key non è mai nel frontend.
+- **Metadati** in `allegati`: `percorso`, `nome` (nome originale ripulito), `mime`, `dimensione`,
+  `larghezza`, `altezza`, `impronta` (SHA-256 del file originale), `caricato_da`, `creato_il` (questi due
+  imposti dal database). Indici unici su `percorso` e su (`rapportino_id`, `impronta`).
+- **Controlli del database** (trigger `controlla_allegato`): una nuova foto in base64 è rifiutata; il
+  percorso deve corrispondere a rapportino e id; tipo consentito; **il file deve esistere nello Storage
+  con la stessa dimensione** dichiarata → nessun riferimento a file non caricati o caricati a metà.
+- **Registrazione idempotente** `registra_allegato(jsonb)` (SECURITY INVOKER): stesso id già registrato
+  → `ok` (nuovo tentativo dopo una risposta persa); stessa foto già presente nel rapportino con un altro
+  id → `duplicato` (l'app toglie il file appena caricato). Nessun doppione.
+- **App** (`services/coda-foto.js`, `modules/modulo-rapportino.js`, `services/immagini.js`):
+  1. foto scelta → controllo tipo (JPEG/PNG/WebP/HEIC…), massimo 25 MB in ingresso, immagine
+     leggibile; impronta; compressione a 1600 px JPEG 0,78 (come prima; se superasse 3 MB qualità
+     minore); nome ripulito;
+  2. la foto va nella **coda del telefono** (IndexedDB `rapportino-foto`, sopravvive alla chiusura
+     dell'app) e compare con "Da inviare";
+  3. se il rapportino non è ancora sul server si salva la bozza; poi per ogni foto: upload (file già
+     presente = ok) → registrazione dei metadati → **solo allora** esce dalla coda;
+  4. errori (rete, Storage, metadati, autorizzazione): la foto resta in coda con l'errore, messaggio
+     chiaro, pulsante "Invia foto" per riprovare; stesso id a ogni tentativo → nessun doppione;
+  5. **"Completa" solo con tutte le foto confermate**: prima bozza + invio foto; se ne resta anche una
+     il rapportino rimane in bozza ("Rapportino NON completato") e nulla è dichiarato inviato.
+- **Senza rete**: si compila e si aggiungono foto; testo e firma restano nella bozza del telefono, le
+  foto nella coda; il rapportino è in Lavoro → "Da inviare" (con "N foto da inviare"), anche dopo aver
+  chiuso e riaperto l'app; riaprendolo si riprendono testo, firma e foto; con la rete "Salva" o "Invia
+  foto" riprendono l'invio. Nessun invio automatico in background (come per il resto dell'app).
+  Aprire un rapportino già sul server senza rete usa la copia del telefono, se c'è.
+- **Visualizzazione**: le foto del rapportino aperto si scaricano con la sessione dell'utente (3 alla
+  volta) e si mostrano da memoria: **nessun URL** (né pubblico né firmato) viene creato o salvato, quindi
+  niente URL scaduti; gli elenchi non scaricano foto. Foto mancante / non autorizzata / offline: riquadro
+  con il motivo (tocco = riprova). Tocco su una foto: schermo intero; altro tocco: ingrandimento.
+- **PDF** (`generaPDFPerCliente`, invariato): riceve le foto già scaricate (server), quelle in base64 e
+  quelle ancora sul telefono; le foto non disponibili vengono saltate e segnalate ("PDF creato senza N
+  foto non disponibili"); nessun URL nel PDF.
+- **Cancellazione**: si tolgono prima i metadati, poi il file (il rapportino non punta mai a un file
+  mancante). Se il file non si riesce a togliere resta orfano nel bucket, senza riferimenti; eliminando
+  un rapportino l'app toglie prima i suoi file. Per trovare file orfani (sola lettura):
+  `select o.name from storage.objects o where o.bucket_id = 'allegati-rapportini' and not exists (select 1 from public.allegati a where a.percorso = o.name);`
+- **Compatibilità**: le righe `allegati` con `contenuto` (base64, formato Fase A) restano leggibili, nel
+  modulo e nel PDF. Con il frontend nuovo su un database **senza** questa migrazione: le foto vecchie si
+  vedono, le nuove restano sul telefono con un errore (nessuna perdita) → pubblicare il frontend solo
+  dopo aver applicato la migrazione.
+- **Foto storiche**: in produzione la tabella `allegati` non esiste ancora (Fasi A–C non applicate),
+  quindi non ci sono foto di rapportini in base64 da migrare. Le foto del **foglio giornaliero** (le 51
+  giornate) stanno nel JSON della giornata (`rapporti.dati → clienti[].foto`, `{src: data URL, w, h}` o
+  solo data URL; scontrini in `spese[].allegato`) e fanno parte del meccanismo di sincronizzazione e
+  unione del foglio giornaliero e del suo PDF: **non vengono migrate in questa fase** (rischio di toccare
+  lo storico); restano dove sono e funzionano come prima. Conteggio da eseguire (sola lettura) quando
+  autorizzato:
+  ```sql
+  select count(*) as foto, count(distinct r.data) as giornate,
+         round(sum(length(coalesce(f->>'src', f #>> '{}')))/1048576.0, 1) as mb_base64,
+         count(*) filter (where coalesce(f->>'src', f #>> '{}') not like 'data:image/%') as non_valide
+  from public.rapporti r, jsonb_array_elements(coalesce(r.dati->'clienti', '[]')) c,
+       jsonb_array_elements(coalesce(c->'foto', '[]')) f;
+  ```
+  Una migrazione futura dovrebbe: copiare le foto nello Storage lasciando il base64, aggiungere i
+  riferimenti nel JSON, verificare conteggi e dimensioni e il PDF di ogni giornata; il base64 si potrà
+  eliminare solo dopo un periodo di verifica e con un backup.
+- **Rollback della Fase C**: toglie policy e funzione; copia i metadati delle foto nello Storage in
+  `backup.allegati_storage` e poi li toglie da `allegati` (la tabella della Fase B richiede il base64);
+  i file restano nel bucket. Ordine: rollback C, poi B, poi A.
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
@@ -117,7 +194,12 @@ nessuna policy RLS, non aggiunge stati.
    (lo schema `backup` non è esposto alle API: anon/authenticated non hanno accesso)
    (la migrazione non tocca `rapporti`, ma è la stessa prudenza del rilascio precedente).
 2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run;
-   poi, nello stesso modo, `supabase/migrations/20261109090000_interventi_piu_operai.sql` → Run.
+   poi, nello stesso modo, `supabase/migrations/20261109090000_interventi_piu_operai.sql` → Run
+   e `supabase/migrations/20261110090000_allegati_storage.sql` → Run. Verifica del bucket:
+   `select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'allegati-rapportini';`
+   (deve dare `public = false`, 3145728, i tre tipi) e
+   `select policyname, cmd from pg_policies where schemaname = 'storage' and policyname like 'allegati_rapportini_%';`
+   (tre policy: lettura SELECT, caricamento INSERT, cancellazione DELETE).
 3. Verifica: eseguire la prima query anche PRIMA del passo 2 e annotare il risultato; dopo deve dare
    51 righe e la stessa impronta; la seconda deve dare 5 tabelle nuove con RLS `true`:
    ```sql
@@ -128,6 +210,7 @@ nessuna policy RLS, non aggiunge stati.
 5. Prova con un admin e due operai (vedi README / rapporto).
 
 Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
+`supabase/rollback/20261110090000_allegati_storage_rollback.sql`, poi
 `supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql` e, solo per tornare a prima
 degli interventi, `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
 Il rollback elimina interventi e rapportini scritti con la nuova app: prima esportarli
@@ -812,5 +895,185 @@ update public.interventi i set stato = case
     when exists (select 1 from public.rapportini r where r.intervento_id = i.id) then 'in_corso'
     else 'pianificato' end
   where i.stato <> 'annullato';
+commit;
+```
+
+## SQL completo — migrazione Fase C
+```sql
+-- =====================================================================
+-- Fase C: foto dei rapportini in Supabase Storage (migrazione incrementale; richiede 20261108090000).
+--
+-- Bucket PRIVATO "allegati-rapportini": nessun URL pubblico. Ogni file sta in
+--   <id rapportino>/<id allegato>.<jpg|png|webp>      (id allegato = UUID casuale generato dal telefono)
+-- e si legge/scrive solo con la sessione dell'utente: le policy Storage usano le stesse funzioni
+-- delle policy RLS della tabella allegati (vede_rapportino / modifica_rapportino).
+--
+-- Nella tabella allegati restano solo i metadati (percorso, nome, tipo, dimensione, misure, impronta,
+-- autore, data). Le nuove foto NON possono piu' essere salvate in base64 (colonna contenuto): le righe
+-- gia' esistenti con contenuto restano leggibili (compatibilita').
+-- Un allegato si registra solo se il file e' davvero nello Storage, con la stessa dimensione:
+-- il database non puo' contenere riferimenti a file non caricati.
+--
+-- Non cambia: salva_rapportino, le policy delle altre tabelle, rapporti/profili e le 51 giornate.
+-- Ripetibile (if not exists / on conflict / create or replace / drop ... if exists).
+-- =====================================================================
+
+-- ---------------------------------------------------------------- bucket privato
+-- 3 MB: come il limite gia' previsto per una foto (contenuto <= 3.000.000 caratteri); l'app comprime
+-- a 1600 px JPEG (di solito 0,3-0,8 MB). Solo immagini.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('allegati-rapportini', 'allegati-rapportini', false, 3145728, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- ---------------------------------------------------------------- metadati
+alter table public.allegati alter column contenuto drop not null;
+alter table public.allegati add column if not exists percorso text;
+alter table public.allegati add column if not exists mime text;
+alter table public.allegati add column if not exists dimensione integer;
+alter table public.allegati add column if not exists impronta text;      -- SHA-256 del file originale
+create unique index if not exists allegati_percorso on public.allegati (percorso) where percorso is not null;
+-- la stessa foto (stessa impronta) una sola volta per rapportino
+create unique index if not exists allegati_impronta on public.allegati (rapportino_id, impronta) where impronta is not null;
+do $$ begin
+  alter table public.allegati add constraint allegati_contenuto_o_percorso check (contenuto is not null or percorso is not null);
+exception when duplicate_object then null; end $$;
+
+-- rapportino a cui appartiene un percorso del bucket (null se il nome non ha la forma prevista)
+create or replace function public.rapportino_del_percorso(p_nome text) returns uuid
+language sql immutable set search_path = '' as $$
+  select case when p_nome ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$'
+    then split_part(p_nome, '/', 1)::uuid end
+$$;
+revoke execute on function public.rapportino_del_percorso(text) from public, anon;
+grant execute on function public.rapportino_del_percorso(text) to authenticated;
+
+-- controllo dei metadati (autore e data imposti come prima, piu' i controlli sul file)
+create or replace function public.controlla_allegato() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  dim bigint;
+begin
+  if auth.uid() is null then return new; end if;
+  new.caricato_da := auth.uid();
+  new.creato_il := now();
+  if new.contenuto is not null then
+    raise exception 'Le foto si caricano nello Storage, non nel database' using errcode = '23514';
+  end if;
+  if new.percorso is null or public.rapportino_del_percorso(new.percorso) is distinct from new.rapportino_id
+     or split_part(split_part(new.percorso, '/', 2), '.', 1) <> new.id::text then
+    raise exception 'Percorso della foto non valido' using errcode = '23514';
+  end if;
+  if new.mime is null or new.mime not in ('image/jpeg', 'image/png', 'image/webp') then
+    raise exception 'Tipo di file non consentito' using errcode = '23514';
+  end if;
+  select (o.metadata->>'size')::bigint into dim from storage.objects o
+    where o.bucket_id = 'allegati-rapportini' and o.name = new.percorso;
+  if not found then
+    raise exception 'Foto non ancora caricata nello Storage' using errcode = 'P0002';
+  end if;
+  if new.dimensione is null or dim is distinct from new.dimensione::bigint then
+    raise exception 'Foto caricata in modo incompleto' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.controlla_allegato() from public, anon, authenticated;
+
+-- registrazione idempotente dei metadati, DOPO l'upload (SECURITY INVOKER: valgono RLS e trigger).
+-- Stesso id gia' registrato (nuovo tentativo dopo una risposta persa) -> "ok" con la riga esistente.
+-- Stessa foto (impronta) gia' presente nel rapportino con un altro id -> "duplicato": l'app toglie
+-- il file appena caricato. Nessun errore non gestito e nessun doppione.
+create or replace function public.registra_allegato(p_allegato jsonb) returns jsonb
+language plpgsql security invoker set search_path = '' as $$
+declare
+  r public.allegati%rowtype;
+  v_id uuid := (p_allegato->>'id')::uuid;
+  v_rapportino uuid := (p_allegato->>'rapportino_id')::uuid;
+begin
+  insert into public.allegati (id, rapportino_id, tipo, nome, percorso, mime, dimensione, larghezza, altezza, impronta)
+  values (v_id, v_rapportino, 'foto', left(coalesce(p_allegato->>'nome', ''), 200), p_allegato->>'percorso',
+          p_allegato->>'mime', nullif(p_allegato->>'dimensione', '')::integer,
+          nullif(p_allegato->>'larghezza', '')::integer, nullif(p_allegato->>'altezza', '')::integer,
+          nullif(p_allegato->>'impronta', ''))
+  on conflict do nothing
+  returning * into r;
+  if found then return jsonb_build_object('esito', 'ok', 'allegato', to_jsonb(r) - 'contenuto'); end if;
+  select * into r from public.allegati where id = v_id;
+  if found then
+    if r.rapportino_id = v_rapportino and r.percorso = p_allegato->>'percorso' then
+      return jsonb_build_object('esito', 'ok', 'allegato', to_jsonb(r) - 'contenuto');
+    end if;
+    raise exception 'Allegato non registrato' using errcode = '42501';
+  end if;
+  select * into r from public.allegati where rapportino_id = v_rapportino and impronta = nullif(p_allegato->>'impronta', '');
+  if found then return jsonb_build_object('esito', 'duplicato', 'allegato', to_jsonb(r) - 'contenuto'); end if;
+  raise exception 'Allegato non registrato' using errcode = '42501';
+end $$;
+revoke execute on function public.registra_allegato(jsonb) from public, anon;
+grant execute on function public.registra_allegato(jsonb) to authenticated;
+
+-- ---------------------------------------------------------------- policy Storage (solo questo bucket)
+-- lettura: chi vede il rapportino; caricamento e cancellazione: chi puo' modificarlo (autore con
+-- rapportino in bozza, oppure admin). Nessuna policy di UPDATE: un file caricato non si sovrascrive.
+drop policy if exists allegati_rapportini_lettura on storage.objects;
+create policy allegati_rapportini_lettura on storage.objects for select to authenticated
+  using (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+         and public.vede_rapportino(public.rapportino_del_percorso(name)));
+drop policy if exists allegati_rapportini_caricamento on storage.objects;
+create policy allegati_rapportini_caricamento on storage.objects for insert to authenticated
+  with check (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+              and public.modifica_rapportino(public.rapportino_del_percorso(name)));
+drop policy if exists allegati_rapportini_cancellazione on storage.objects;
+create policy allegati_rapportini_cancellazione on storage.objects for delete to authenticated
+  using (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+         and public.modifica_rapportino(public.rapportino_del_percorso(name)));
+```
+
+## SQL completo — rollback Fase C
+```sql
+-- ROLLBACK di 20261110090000_allegati_storage.sql (torna alla Fase B).
+-- Non cancella nessuna foto:
+--  * i metadati delle foto nello Storage vengono COPIATI in backup.allegati_storage e solo poi tolti
+--    da public.allegati (la tabella della Fase B richiede il contenuto base64, che queste righe non hanno);
+--  * i file restano nel bucket "allegati-rapportini" (non cancellabili via SQL; senza le policy li vede
+--    solo il pannello / service role). Riapplicando la migrazione si possono rimettere con:
+--      insert into public.allegati (id, rapportino_id, tipo, nome, larghezza, altezza, caricato_da, creato_il,
+--        percorso, mime, dimensione, impronta)
+--      select id, rapportino_id, tipo, nome, larghezza, altezza, caricato_da, creato_il, percorso, mime, dimensione, impronta
+--      from backup.allegati_storage on conflict do nothing;   -- (eseguito come pannello: il trigger non scatta)
+-- Le foto in base64 (righe con contenuto) non vengono toccate.
+begin;
+drop policy if exists allegati_rapportini_lettura on storage.objects;
+drop policy if exists allegati_rapportini_caricamento on storage.objects;
+drop policy if exists allegati_rapportini_cancellazione on storage.objects;
+drop function if exists public.registra_allegato(jsonb);
+
+create schema if not exists backup;
+create table if not exists backup.allegati_storage as select * from public.allegati where false;
+insert into backup.allegati_storage select a.* from public.allegati a
+  where a.percorso is not null and not exists (select 1 from backup.allegati_storage b where b.id = a.id);
+delete from public.allegati where percorso is not null and contenuto is null;
+
+-- funzione della Fase A, testo originale
+create or replace function public.controlla_allegato() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  new.caricato_da := auth.uid();
+  new.creato_il := now();
+  return new;
+end $$;
+revoke execute on function public.controlla_allegato() from public, anon, authenticated;
+
+alter table public.allegati drop constraint if exists allegati_contenuto_o_percorso;
+drop index if exists public.allegati_impronta;
+drop index if exists public.allegati_percorso;
+alter table public.allegati drop column if exists impronta;
+alter table public.allegati drop column if exists dimensione;
+alter table public.allegati drop column if exists mime;
+alter table public.allegati drop column if exists percorso;
+alter table public.allegati alter column contenuto set not null;
+drop function if exists public.rapportino_del_percorso(text);
+-- il bucket resta (privato) con i file: eliminarlo solo dopo averli scaricati, dal pannello Storage
 commit;
 ```

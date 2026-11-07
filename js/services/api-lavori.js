@@ -16,6 +16,7 @@ function controlla({ data, error }){
 function traduci(error){
   const m = (error && (error.message || error.details)) || "";
   if(/attivit/i.test(m)) return "Per completare descrivi le attività svolte.";
+  if(/Storage|Percorso della foto|Tipo di file|incompleto/i.test(m)) return m;
   if(/ore lavorate/i.test(m)) return "Per completare indica le ore lavorate di almeno un operaio.";
   if(/completato/i.test(m)) return "Il rapportino è completato: può riaprirlo solo l'amministratore.";
   if(/assegnato/i.test(m)) return "Non sei assegnato a questo intervento.";
@@ -142,19 +143,70 @@ export async function riapriRapportino(id){
   try{ controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id)); }finally{ invalidaInterventi(); }
 }
 export async function eliminaRapportino(id){
+  // prima i file delle foto nello Storage (la cancellazione del rapportino porta via i metadati)
+  const percorsi = controlla(await client.from("allegati").select("percorso").eq("rapportino_id", id).not("percorso", "is", null)).map(a=>a.percorso);
+  if(percorsi.length) await client.storage.from(BUCKET_FOTO).remove(percorsi);
   try{ controlla(await client.from("rapportini").delete().eq("id", id)); }finally{ invalidaInterventi(); }
 }
 
-// ---------------------------------------------------------------- allegati
+// ---------------------------------------------------------------- allegati (foto)
+// Le foto stanno nel bucket PRIVATO "allegati-rapportini" di Supabase Storage; nella tabella
+// "allegati" solo i metadati. Righe vecchie con "contenuto" (base64) restano leggibili.
+// Nessun URL viene salvato: i file si scaricano con la sessione dell'utente (policy Storage).
+export const BUCKET_FOTO = "allegati-rapportini";
 export async function elencoAllegati(rapportinoId){
-  return controlla(await client.from("allegati").select("id, tipo, nome, contenuto, larghezza, altezza").eq("rapportino_id", rapportinoId).order("creato_il"));
+  const r = await client.from("allegati")
+    .select("id, tipo, nome, percorso, mime, dimensione, larghezza, altezza, impronta, contenuto")
+    .eq("rapportino_id", rapportinoId).order("creato_il");
+  // database senza la migrazione della Fase C: si leggono le foto nel formato precedente
+  if(r.error && (r.error.code === "42703" || /column .* does not exist/i.test(r.error.message || ""))){
+    return controlla(await client.from("allegati").select("id, tipo, nome, contenuto, larghezza, altezza").eq("rapportino_id", rapportinoId).order("creato_il"));
+  }
+  return controlla(r);
 }
-export async function aggiungiAllegato(rapportinoId, foto){
-  return controlla(await client.from("allegati").insert({ rapportino_id: rapportinoId, tipo: "foto", contenuto: foto.src,
-    larghezza: foto.w || null, altezza: foto.h || null }).select("id").single());
+function erroreStorage(error){
+  const m = ((error && (error.message || error.error)) || "") + " " + ((error && error.statusCode) || "");
+  if(/Failed to fetch|NetworkError|network|Load failed/i.test(m)) return "Nessuna connessione.";
+  if(/exceeded the maximum|too large|413/i.test(m)) return "Foto troppo grande.";
+  if(/mime type|invalid_mime|415/i.test(m)) return "Tipo di file non consentito.";
+  if(/not found|404/i.test(m)) return "Foto non trovata.";
+  if(/row-level|policy|403|Unauthorized|401|400/i.test(m)) return "Foto non accessibile o non autorizzata.";
+  return "Errore dello Storage.";
 }
-export async function eliminaAllegato(id){
-  controlla(await client.from("allegati").delete().eq("id", id));
+// 1. carica il file; se c'e' gia' (nuovo tentativo dopo una risposta persa) va bene: il percorso
+//    contiene l'id dell'allegato, quindi e' lo stesso file. Nessuna sovrascrittura (upsert: false).
+export async function caricaFotoStorage(percorso, blob, mime){
+  let res;
+  try{ res = await client.storage.from(BUCKET_FOTO).upload(percorso, blob, { contentType: mime, upsert: false, cacheControl: "3600" }); }
+  catch(e){ throw new Error(erroreStorage(e)); }
+  if(res.error){
+    if(/already exists|Duplicate|409/i.test((res.error.message || "") + " " + (res.error.statusCode || ""))) return "presente";
+    throw new Error(erroreStorage(res.error));
+  }
+  return "caricata";
+}
+// 2. registra i metadati (il database verifica che il file esista e abbia la dimensione indicata)
+export async function registraAllegato(meta){
+  return controlla(await client.rpc("registra_allegato", { p_allegato: meta }));
+}
+// file di una foto (solo se autorizzati); null se manca
+export async function scaricaFoto(percorso){
+  let res;
+  try{ res = await client.storage.from(BUCKET_FOTO).download(percorso); }
+  catch(e){ throw new Error(erroreStorage(e)); }
+  if(res.error) throw new Error(erroreStorage(res.error));
+  return res.data;
+}
+export async function rimuoviFotoStorage(percorsi){
+  const { error } = await client.storage.from(BUCKET_FOTO).remove(percorsi);
+  if(error) throw new Error(erroreStorage(error));
+}
+// toglie la foto: prima i metadati (cosi' il rapportino non punta mai a un file mancante), poi il file
+// (se il file non si riesce a togliere resta orfano nel bucket, senza riferimenti: vedi la documentazione)
+export async function eliminaAllegato(a){
+  const via = controlla(await client.from("allegati").delete().eq("id", a.id).select("id"));
+  if(!via || !via.length) throw new Error("Foto non eliminabile da te.");
+  if(a.percorso){ try{ await rimuoviFotoStorage([a.percorso]); }catch(e){} }
 }
 
 // minuti tra due orari "HH:MM"

@@ -63,7 +63,7 @@ export async function disegnaLavoro(){
     '<button type="button" class="cli-riga" onclick="apriRapportino(\'' + b.id + '\')">' +
     '<span class="avatar" aria-hidden="true">' + icona("alert") + '</span>' +
     '<span class="cli-testi"><span class="cli-nome" style="display:block">' + esc(b.cliente || "(senza cliente)") + '</span>' +
-    '<span class="cli-ind" style="display:block">' + esc(b.data ? dataIt(b.data) : "") + ' · ' + (b.salvato ? "modifiche non inviate" : "mai inviato") + '</span></span>' +
+    '<span class="cli-ind" style="display:block">' + esc(b.data ? dataIt(b.data) : "") + ' · ' + (b.soloFoto ? "salvato" : b.salvato ? "modifiche non inviate" : "mai inviato") + (b.foto ? " · " + b.foto + " foto da inviare" : "") + '</span></span>' +
     icona("chev-r", "chev") + '</button>').join("") + '</div>';
   let interventi, rapportini;
   try{
