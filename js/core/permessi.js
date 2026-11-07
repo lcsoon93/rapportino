@@ -7,7 +7,7 @@ import { profilo } from "./sessione.js";
 
 const PERMESSI = {
   admin: [
-    "vista.home", "vista.giorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
+    "vista.home", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
     "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino",
     "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
@@ -15,10 +15,12 @@ const PERMESSI = {
   ],
   company: [
     "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
+    "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario degli interventi (consultazione)
     "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
   ],
   worker: [
     "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
+    "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario: solo gli interventi che le policy gli mostrano
     "rapportini.compila",
   ],
 };
@@ -26,8 +28,8 @@ const PERMESSI = {
 // navigazione in basso per ruolo: [id, etichetta, icona, vista]
 const NAV = {
   admin:   [["home", "Home", "home", "home"], ["interventi", "Interventi", "file", "interventi"], ["cal", "Calendario", "cal", "cal"], ["clienti", "Clienti", "users", "cerca"], ["altro", "Altro", "grid", "altro"]],
-  company: [["interventi", "Interventi", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  worker:  [["lavoro", "Lavoro", "home", "lavoro"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  company: [["interventi", "Interventi", "sliders", "interventi"], ["cal", "Calendario", "cal", "cal"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  worker:  [["lavoro", "Lavoro", "home", "lavoro"], ["cal", "Calendario", "cal", "cal"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
 };
 const VISTA_INIZIALE = { admin: "home", company: "interventi", worker: "lavoro" };
 

@@ -1,5 +1,6 @@
-// Home: riepilogo della giornata, elenco interventi, nuovo rapportino.
-import { dataIt, dataLunga, oggiIso } from "../utils/dates.js";
+// Home (admin): riepilogo degli interventi pianificati (tabella interventi), riepilogo della
+// giornata del foglio giornaliero, elenco delle sue schede, nuovo rapportino.
+import { dataIt, dataLunga, isoDi, oggiIso } from "../utils/dates.js";
 import { minutiOperaio } from "../services/calculations.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
@@ -10,6 +11,9 @@ import { aggiungiCliente, elencoClienti } from "./interventi.js";
 import { apriFirmaOverlay } from "../services/signature.js";
 import { aggiornaSelectSpese } from "./spese.js";
 import { su } from "../core/eventi.js";
+import { contaRapportini, interventiPeriodo, operaiAttivi } from "../services/api-lavori.js";
+import { attivo, elencoRighe, messaggioErrore } from "./agenda.js";
+import { bozzeLocali } from "./modulo-rapportino.js";
 
 // ---- home ----
 export function fasceTesto(c){
@@ -33,7 +37,7 @@ export function disegnaHome(){
   document.getElementById("st-firmati").textContent = firmati;
   document.getElementById("st-dafirmare").textContent = clienti.length - firmati;
   document.getElementById("home-riep-data").textContent = dataIt(iso);
-  document.getElementById("home-int-titolo").textContent = iso === oggiIso() ? "Interventi di oggi" : "Interventi del " + dataIt(iso);
+  document.getElementById("home-int-titolo").textContent = iso === oggiIso() ? "Foglio giornaliero di oggi" : "Foglio giornaliero del " + dataIt(iso);
 
   const cont = document.getElementById("home-interventi");
   if(!clienti.length){
@@ -122,6 +126,57 @@ export function apriGiornoHome(iso){
   caricaGiornata(iso);
 }
 
-registraVista("home", disegnaHome);
+// ---- riepilogo degli interventi pianificati ----
+// Periodo letto: dagli ultimi 30 giorni ai prossimi 7 (una richiesta) + il numero di rapportini in bozza.
+// Conteggi (gli stati sono quelli del database, nessuno stato inventato):
+//   Oggi / Prossimi 7 giorni: interventi non annullati con quella data
+//   In corso: stato "in_corso"; Completati: stato "completato" (ultimi 30 giorni)
+//   Senza rapportino completato: non annullati, data fino a oggi, nessun rapportino completato collegato
+//   Rapportini in bozza: rapportini con stato "bozza" (piu' quelli solo su questo telefono, se ci sono)
+let giroRiepilogo = 0;
+const PROSSIMI = 7;
+export async function disegnaRiepilogoInterventi(){
+  const n = ++giroRiepilogo;
+  const el = id=>document.getElementById(id);
+  const oggi = oggiIso();
+  const d = new Date(oggi + "T12:00:00");
+  d.setDate(d.getDate() - 30); const dal = isoDi(d);
+  d.setDate(d.getDate() + 30 + PROSSIMI); const al = isoDi(d);
+  const locali = bozzeLocali().length;
+  el("ha-locali").classList.toggle("nascosto", !locali);
+  el("ha-locali").textContent = locali ? locali + (locali === 1 ? " rapportino salvato" : " rapportini salvati") + " solo su questo telefono (da inviare)." : "";
+  el("ha-stato").textContent = "Caricamento…"; el("ha-stato").className = "msg-info";
+  let lista, bozze;
+  try{
+    await operaiAttivi().catch(()=>[]);
+    [lista, bozze] = await Promise.all([interventiPeriodo(dal, al), contaRapportini({ stato: "bozza" })]);
+  }catch(e){
+    if(n !== giroRiepilogo) return;
+    el("ha-stato").textContent = messaggioErrore(e); el("ha-stato").className = "msg-info err";
+    ["ha-oggi-n", "ha-prossimi-n", "ha-incorso-n", "ha-completati-n", "ha-senza-n", "ha-bozze-n"].forEach(id=>{ el(id).textContent = "–"; });
+    el("ha-oggi").innerHTML = ""; el("ha-prossimi").innerHTML = "";
+    return;
+  }
+  if(n !== giroRiepilogo) return;
+  el("ha-stato").textContent = ""; el("ha-stato").className = "msg-info nascosto";
+  const attivi = lista.filter(attivo);
+  const diOggi = attivi.filter(i=>i.data === oggi);
+  const prossimi = attivi.filter(i=>i.data > oggi && i.data <= al);
+  el("ha-oggi-n").textContent = diOggi.length;
+  el("ha-prossimi-n").textContent = prossimi.length;
+  el("ha-incorso-n").textContent = lista.filter(i=>i.stato === "in_corso").length;
+  el("ha-completati-n").textContent = lista.filter(i=>i.stato === "completato" && i.data <= oggi).length;
+  el("ha-senza-n").textContent = attivi.filter(i=>i.data <= oggi && !(i.rapportini || []).some(r=>r.stato === "completato")).length;
+  el("ha-bozze-n").textContent = bozze;
+  const ordina = (a, b)=>a.data.localeCompare(b.data) || String(a.ora || "").localeCompare(String(b.ora || ""));
+  el("ha-oggi").innerHTML = diOggi.length ? elencoRighe(diOggi.sort(ordina), false) : '<div class="card nota">Nessun intervento in programma oggi.</div>';
+  const primi = prossimi.sort(ordina).slice(0, 5);
+  el("ha-prossimi").innerHTML = primi.length
+    ? elencoRighe(primi, true) + (prossimi.length > primi.length
+      ? '<button type="button" class="link-btn" style="margin:4px 2px" onclick="mostraVista(\'sett\')">Altri ' + (prossimi.length - primi.length) + ' nel calendario</button>' : '')
+    : '<div class="card nota">Nessun intervento nei prossimi ' + PROSSIMI + ' giorni.</div>';
+}
+
+registraVista("home", ()=>{ disegnaHome(); disegnaRiepilogoInterventi(); });
 su("giornata-caricata", ()=>{ if(vistaCorrente === "home") disegnaHome(); });
 su("firma-chiusa", ()=>{ if(vistaCorrente === "home") disegnaHome(); });

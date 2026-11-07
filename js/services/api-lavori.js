@@ -2,6 +2,7 @@
 // Solo letture/scritture con la sessione dell'utente: cosa si vede e cosa si puo' fare lo decidono
 // le policy RLS e i trigger del database (autore, creatore e assegnatore li impone il server).
 import { client, profilo } from "../core/sessione.js";
+import { su } from "../core/eventi.js";
 
 function controlla({ data, error }){
   if(error){
@@ -22,6 +23,7 @@ function traduci(error){
   if(/non modificabile|duplicate key|23505/i.test(m + error.code)) return "Questo rapportino non è modificabile da te.";
   // frontend pubblicato prima della migrazione: le tabelle nuove non esistono ancora
   if(/PGRST205|42P01|PGRST202|does not exist|Could not find the (table|function)/i.test(m + error.code)) return "Interventi e rapportini non sono ancora attivi sul server.";
+  if(/JWT expired|PGRST301|PGRST303|invalid JWT/i.test(m + error.code)) return "Sessione scaduta: accedi di nuovo.";
   if(/permission|policy|42501|row-level/i.test(m + error.code)) return "Operazione non consentita.";
   if(/Failed to fetch|NetworkError|network/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
   return m || "Errore del server.";
@@ -52,11 +54,41 @@ export async function elencoInterventi({ dal, al, soloMiei } = {}){
   if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id);
   return controlla(await q.order("data").order("ora", { nullsFirst: true }));
 }
+// Interventi di un periodo per Calendario e riepiloghi: una sola richiesta per periodo, riusata per
+// 30 secondi (spostarsi tra giorni dello stesso mese non rifa' la richiesta). Ogni scrittura
+// (intervento, assegnazione, rapportino) svuota la memoria: la volta dopo si rilegge dal database.
+const memoria = new Map();
+const DURATA = 30000;
+export function invalidaInterventi(){ memoria.clear(); }
+export function interventiPeriodo(dal, al){
+  const chiave = dal + "|" + al;
+  const m = memoria.get(chiave);
+  if(m && Date.now() - m.quando < DURATA) return m.promessa;
+  const promessa = elencoInterventi({ dal, al });
+  memoria.set(chiave, { quando: Date.now(), promessa });
+  promessa.catch(()=>{ if(memoria.get(chiave)?.promessa === promessa) memoria.delete(chiave); });
+  return promessa;
+}
+// quanti rapportini in un certo stato (solo il conteggio: nessun dato scaricato)
+export async function contaRapportini({ stato } = {}){
+  let q = client.from("rapportini").select("id", { count: "exact", head: true });
+  if(stato) q = q.eq("stato", stato);
+  const { count, error } = await q;
+  controlla({ data: null, error });
+  return count || 0;
+}
+// cambio utente: niente dati del precedente in memoria
+su("uscita", ()=>{ memoria.clear(); cacheOperai = null; });
+su("accesso", ()=>{ memoria.clear(); cacheOperai = null; });
+
 export async function leggiIntervento(id){
   return controlla(await client.from("interventi").select(CAMPI_INTERVENTO).eq("id", id).maybeSingle());
 }
 // crea o aggiorna e allinea le assegnazioni
 export async function salvaIntervento(dati, operai){
+  try{ return await scriviIntervento(dati, operai); }finally{ invalidaInterventi(); }
+}
+async function scriviIntervento(dati, operai){
   const campi = { data: dati.data, ora: dati.ora || null, cliente: dati.cliente, indirizzo: dati.indirizzo || "",
     descrizione: dati.descrizione || "", priorita: dati.priorita || "normale", tipologia: dati.tipologia || "" };
   let intervento;
@@ -73,10 +105,10 @@ export async function salvaIntervento(dati, operai){
   return intervento.id;
 }
 export async function annullaIntervento(id, annullato){
-  controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id));
+  try{ controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id)); }finally{ invalidaInterventi(); }
 }
 export async function eliminaIntervento(id){
-  controlla(await client.from("interventi").delete().eq("id", id));
+  try{ controlla(await client.from("interventi").delete().eq("id", id)); }finally{ invalidaInterventi(); }
 }
 
 // ---------------------------------------------------------------- rapportini
@@ -97,13 +129,15 @@ export async function leggiRapportino(id){
 }
 // salvataggio atomico (testata + ore); risultato { esito: "ok" | "conflitto", rapportino, ore? (solo in conflitto) }
 export async function salvaRapportino(rapportino, ore, completa){
-  return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa }));
+  // lo stato dell'intervento lo ricalcola il database: dopo il salvataggio si rilegge
+  try{ return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa })); }
+  finally{ invalidaInterventi(); }
 }
 export async function riapriRapportino(id){
-  controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id));
+  try{ controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id)); }finally{ invalidaInterventi(); }
 }
 export async function eliminaRapportino(id){
-  controlla(await client.from("rapportini").delete().eq("id", id));
+  try{ controlla(await client.from("rapportini").delete().eq("id", id)); }finally{ invalidaInterventi(); }
 }
 
 // ---------------------------------------------------------------- allegati

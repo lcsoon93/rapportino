@@ -22,6 +22,7 @@ import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, dise
 import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
 import { azioneUtente, generaPasswordIniziale } from "../modules/utenti.js";
+import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
 
 Object.assign(window, {
   mostraVista,
@@ -44,5 +45,6 @@ Object.assign(window, {
   aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
   nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, salvaBozzaRapportino,
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
-  azioneUtente, generaPasswordIniziale
+  azioneUtente, generaPasswordIniziale,
+  apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal
 });

@@ -18,6 +18,7 @@ import { oggiIso } from "../utils/dates.js";
 // moduli che si registrano da soli (viste, eventi, pad della firma)
 import "../modules/dashboard.js";
 import "../modules/calendario.js";
+import "../modules/agenda.js";
 import "../modules/altro.js";
 import "../modules/lavoro.js";
 import "../modules/gestione-interventi.js";
@@ -31,6 +32,7 @@ document.querySelectorAll(".logo-dinamico").forEach(img=>{ img.src = LOGO_B64; }
 const oggi = oggiIso();     // data locale (toISOString dava il giorno prima tra mezzanotte e le 2)
 document.getElementById("data").value = oggi;
 document.getElementById("settdata").value = oggi;
+document.getElementById("cg-data").value = oggi;
 document.getElementById("mesedata").value = oggi.slice(0,7);
 const prefExtra = leggiPrefExtra();
 ["stampa-extra","stampa-extra-sett","stampa-extra-mese"].forEach(id=>{

@@ -1,6 +1,6 @@
 # Interventi e rapportini multiutente
 
-Ramo `interventi-rapportini` · **Non applicato a Supabase** · `main` invariato.
+Ramo `interventi-rapportini` · SQL **non ancora applicato** a Supabase (il frontend è già su `main` e mostra "non ancora attivi" finché manca).
 
 ## Modello dati (tabelle nuove; `rapporti` storica intatta)
 
@@ -26,6 +26,42 @@ Se il contenuto in conflitto è identico a quello inviato (secondo invio dopo un
 reinvia con la versione del server o lo considera già salvato; altrimenti tiene le modifiche nel modulo
 e si sostituisce solo premendo di nuovo Salva. I rapportini
 salvati solo sul telefono (senza rete) compaiono in Lavoro → "Da inviare".
+
+## Home e Calendario (Fase A)
+
+Solo frontend: nessuna modifica a SQL, policy o salvataggio dei rapportini. I dati sono quelli delle
+tabelle `interventi`, `intervento_operai`, `rapportini` letti con la sessione dell'utente (RLS);
+lo stato mostrato è sempre quello restituito dal database.
+
+- **Home amministratore** (`dashboard.js`): riepilogo "Interventi pianificati" con sei numeri e le
+  liste Oggi / Prossimi giorni; sotto resta il foglio giornaliero. Definizioni (periodo letto: ultimi
+  30 giorni + prossimi 7, una richiesta, più il conteggio dei rapportini in bozza):
+  Oggi e Prossimi 7 giorni = interventi non annullati con quella data; In corso = stato `in_corso`;
+  Completati (30 gg) = stato `completato` con data fino a oggi; Senza rapportino completato = non
+  annullati, data fino a oggi, nessun rapportino completato collegato; Rapportini in bozza = rapportini
+  con stato `bozza` (più l'avviso di quelli salvati solo sul telefono).
+- **Home operaio** (`lavoro.js`, "I miei interventi"): Oggi (prima gli urgenti), Prossimi giorni,
+  Da completare · giorni precedenti; ogni scheda: cliente, descrizione, data e ora, indirizzo,
+  stato, priorità se alta/urgente, "Compila / Riprendi bozza" e "Dettagli". "Da inviare" (rapportini
+  solo sul telefono) compare anche senza rete.
+- **Calendario** (`calendario.js` + `agenda.js`): Giorno / Settimana / Mese per admin, operaio e
+  azienda. Giorno: interventi con ora, luogo, operai, stato; tocco = dettaglio. Settimana: interventi
+  giorno per giorno. Mese: numero di interventi (non annullati) per giorno, evidenziato da 4 in su, e
+  "giorno più carico"; tocco su un giorno = vista Giorno (l'admin da lì apre anche il foglio
+  giornaliero). Il report delle giornate (ore, saldi, PDF) resta solo all'admin (permesso `report`).
+- **Dettaglio intervento** (foglio dal basso): dati, operai assegnati, rapportini visibili;
+  "Compila rapportino / Riprendi bozza" (usa `rapportinoPerIntervento`) per chi è assegnato e per
+  l'admin; "Modifica o riassegna" (usa `apriModuloIntervento`) per chi ha già `interventi.gestisci`.
+- **Ruoli**: l'operaio vede solo ciò che la policy `interventi_lettura` gli restituisce (assegnati);
+  l'azienda consulta e mantiene i permessi di prima (nessuna compilazione); nuove voci di menu
+  "Calendario" per operaio e azienda (solo viste, nessun nuovo permesso sui dati).
+- **Aggiornamento dati**: aprendo Home, Lavoro o Calendario da un'altra schermata si rilegge dal
+  database; spostandosi dentro il Calendario si riusa per 30 s quanto già letto (una richiesta per
+  mese o settimana). Ogni scrittura (intervento, assegnazione, rapportino) svuota questa memoria.
+- **Errori**: rete assente, sessione scaduta ("Sessione scaduta: accedi di nuovo.") e migrazione non
+  applicata ("non sono ancora attivi") mostrano un messaggio nella sezione; il resto della Home
+  (foglio giornaliero) continua a funzionare.
+- **Non presente nel modello dati**: un campo "note" dell'intervento (si mostra la descrizione).
 
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 

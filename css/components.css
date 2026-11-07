@@ -631,3 +631,58 @@ select{
 #rap-form .op-riga .testata select{flex:1;min-width:0;font-weight:600}
 #barra-rapportino .dentro{flex-wrap:wrap}
 #barra-rapportino .secondario{padding:0 12px}
+
+/* ================= AGENDA INTERVENTI (Home, Lavoro, Calendario) ================= */
+/* riepilogo con sei numeri: sono pulsanti (portano al calendario o alla gestione) */
+button.stat{border:none;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%}
+button.stat:active{filter:brightness(.97)}
+.stat-sei .stat .stat-lab{line-height:1.25}
+/* riga compatta di un intervento: ora a sinistra, cliente e dettagli, stato */
+.ag-riga{align-items:flex-start}
+.ag-ora{flex:none;min-width:48px;height:40px;border-radius:11px;background:var(--brand-chiaro);color:var(--brand);
+  font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.ag-ora .i{width:17px;height:17px}
+.ag-riga.mio{box-shadow:inset 3px 0 0 var(--brand)}
+.ag-riga.annullato{opacity:.6}
+.ag-riga .int-badge .badge{font-size:12px}
+.ag-titolo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 12px}
+.ag-titolo h2{font-size:18px;font-weight:700;flex:1;min-width:0}
+.ag-conta{font-size:13px;color:var(--testo-2);font-weight:600}
+.ag-giorno{margin-bottom:10px}
+.ag-giorno-testa{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;
+  background:none;border:none;padding:10px 4px 6px;font:inherit;font-weight:700;font-size:14.5px;color:var(--testo);cursor:pointer;text-align:left}
+.ag-giorno.oggi .ag-giorno-testa>span:first-child{color:var(--brand)}
+.ag-giorno .cli-elenco{margin:0}
+/* numero di interventi nella griglia del mese */
+.cal-n{position:absolute;bottom:2px;right:2px;min-width:15px;height:15px;border-radius:8px;padding:0 3px;
+  background:var(--pervinca-chiaro);color:var(--pervinca-scuro);font-size:10.5px;font-weight:700;line-height:15px;text-align:center}
+.cal-n.molti{background:var(--pervinca-scuro);color:#fff}
+.cal-n.legenda{position:static;display:inline-block}
+.cal-g.sel .cal-n{background:#fff;color:var(--brand)}
+/* "Assegnato a te"/urgenze sulle card dell'operaio: bordo, non colori pieni */
+.intervento.urgente{box-shadow:inset 3px 0 0 var(--err),var(--ombra-1)}
+.int-azioni .btn-dettagli{flex:0 0 auto}
+.gruppo-int{margin-bottom:6px}
+/* dettaglio intervento: foglio dal basso (raggiungibile col pollice), centrato su schermi larghi */
+.foglio{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.foglio-sfondo{position:absolute;inset:0;background:rgba(23,32,51,.45)}
+.foglio-pannello{position:relative;width:100%;max-width:640px;max-height:88vh;overflow:auto;background:var(--superficie);
+  border-radius:20px 20px 0 0;padding:16px 16px calc(16px + var(--safe-b));box-shadow:var(--ombra-3)}
+.foglio-testa{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
+.foglio-testa h2{flex:1;min-width:0;font-size:19px;font-weight:700;line-height:1.3;word-break:break-word}
+.foglio-chiudi{flex:none;width:44px;height:44px;border-radius:12px;border:none;background:var(--sfondo);font-size:26px;line-height:1;color:var(--testo);cursor:pointer}
+.foglio-azioni{display:grid;gap:10px;margin-top:16px}
+.idt-riga{display:flex;align-items:flex-start;gap:10px;padding:7px 0;font-size:15px}
+.idt-riga .i{flex:none;color:var(--testo-2);margin-top:2px}
+.idt-desc{margin-top:10px;background:var(--sfondo);border-radius:12px;padding:10px 12px;font-size:15px;white-space:pre-wrap;word-break:break-word}
+body.foglio-aperto{overflow:hidden}
+.solo-senza-report{display:inline}
+body[data-ruolo="admin"] .solo-senza-report{display:none}
+@media (min-width: 600px){
+  .stat-griglia.stat-sei{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .foglio{align-items:center}
+  .foglio-pannello{border-radius:20px;max-height:80vh}
+}
+@media (min-width: 960px){
+  body:not([data-ruolo="admin"]) .cal-griglia-layout{display:block;max-width:560px}
+}
