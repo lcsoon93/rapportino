@@ -43,15 +43,18 @@ export function nomeOperaio(id){
 }
 
 // ---------------------------------------------------------------- interventi
+// assegnazioni con rimosso_il: quelle rimosse restano come storico (vedi agenda.js / avanzamento)
 const CAMPI_INTERVENTO = "id, data, ora, cliente, indirizzo, descrizione, priorita, tipologia, stato, creato_il, " +
-  "intervento_operai(operaio_id), rapportini(id, autore_id, stato, data)";
+  "intervento_operai(operaio_id, rimosso_il), rapportini(id, autore_id, stato, data, completato_il)";
+// nel dettaglio servono anche le ore di ciascun rapportino (visibili secondo RLS)
+const CAMPI_DETTAGLIO = CAMPI_INTERVENTO.replace("completato_il)", "completato_il, rapportino_operai(operaio_id, dalle, alle))");
 export async function elencoInterventi({ dal, al, soloMiei } = {}){
   let q = client.from("interventi").select(soloMiei
-    ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id)", "intervento_operai!inner(operaio_id)")
+    ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id, rimosso_il)", "intervento_operai!inner(operaio_id, rimosso_il)")
     : CAMPI_INTERVENTO);
   if(dal) q = q.gte("data", dal);
   if(al) q = q.lte("data", al);
-  if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id);
+  if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id).is("intervento_operai.rimosso_il", null);
   return controlla(await q.order("data").order("ora", { nullsFirst: true }));
 }
 // Interventi di un periodo per Calendario e riepiloghi: una sola richiesta per periodo, riusata per
@@ -82,7 +85,7 @@ su("uscita", ()=>{ memoria.clear(); cacheOperai = null; });
 su("accesso", ()=>{ memoria.clear(); cacheOperai = null; });
 
 export async function leggiIntervento(id){
-  return controlla(await client.from("interventi").select(CAMPI_INTERVENTO).eq("id", id).maybeSingle());
+  return controlla(await client.from("interventi").select(CAMPI_DETTAGLIO).eq("id", id).maybeSingle());
 }
 // crea o aggiorna e allinea le assegnazioni
 export async function salvaIntervento(dati, operai){
@@ -97,7 +100,9 @@ async function scriviIntervento(dati, operai){
   } else {
     intervento = controlla(await client.from("interventi").insert(campi).select("id").single());
   }
-  const attuali = controlla(await client.from("intervento_operai").select("operaio_id").eq("intervento_id", intervento.id)).map(x=>x.operaio_id);
+  // solo le assegnazioni attive; togliere = rimozione logica (il database conserva lo storico),
+  // riassegnare un operaio rimosso = il database riattiva la sua riga
+  const attuali = controlla(await client.from("intervento_operai").select("operaio_id").eq("intervento_id", intervento.id).is("rimosso_il", null)).map(x=>x.operaio_id);
   const daTogliere = attuali.filter(x=>!operai.includes(x));
   const daAggiungere = operai.filter(x=>!attuali.includes(x));
   if(daTogliere.length) controlla(await client.from("intervento_operai").delete().eq("intervento_id", intervento.id).in("operaio_id", daTogliere));

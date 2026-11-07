@@ -186,7 +186,7 @@
             <button type="button" class="stat" onclick="mostraVista('sett')"><span class="stat-val" id="ha-prossimi-n">–</span><span class="stat-lab">Prossimi 7 giorni</span></button>
             <button type="button" class="stat att" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-incorso-n">–</span><span class="stat-lab">In corso</span></button>
             <button type="button" class="stat ok" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-completati-n">–</span><span class="stat-lab">Completati (30 gg)</span></button>
-            <button type="button" class="stat" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-senza-n">–</span><span class="stat-lab">Senza rapportino completato</span></button>
+            <button type="button" class="stat" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-senza-n">–</span><span class="stat-lab">Con rapportini mancanti</span></button>
             <button type="button" class="stat" onclick="mostraVista('rapporti')"><span class="stat-val" id="ha-bozze-n">–</span><span class="stat-lab">Rapportini in bozza</span></button>
           </div>
           <p class="elenco-nota nascosto" id="ha-locali" style="margin:10px 2px 0"></p>
@@ -195,6 +195,8 @@
         <div id="ha-oggi"></div>
         <div class="gruppo-tit" style="margin:16px 4px 8px">Prossimi giorni</div>
         <div id="ha-prossimi"></div>
+        <div class="gruppo-tit" style="margin:16px 4px 8px">Rapportini mancanti · giorni precedenti</div>
+        <div id="ha-mancanti"></div>
 
         <div class="sezione-head">
           <h2 id="home-int-titolo">Foglio giornaliero di oggi</h2>

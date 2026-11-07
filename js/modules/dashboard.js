@@ -131,7 +131,8 @@ export function apriGiornoHome(iso){
 // Conteggi (gli stati sono quelli del database, nessuno stato inventato):
 //   Oggi / Prossimi 7 giorni: interventi non annullati con quella data
 //   In corso: stato "in_corso"; Completati: stato "completato" (ultimi 30 giorni)
-//   Senza rapportino completato: non annullati, data fino a oggi, nessun rapportino completato collegato
+//   Rapportini mancanti: non annullati, data fino a oggi, stato del database diverso da "completato"
+//     (cioe' almeno un operaio assegnato non ha ancora completato il proprio rapportino, o nessun assegnato)
 //   Rapportini in bozza: rapportini con stato "bozza" (piu' quelli solo su questo telefono, se ci sono)
 let giroRiepilogo = 0;
 const PROSSIMI = 7;
@@ -154,7 +155,7 @@ export async function disegnaRiepilogoInterventi(){
     if(n !== giroRiepilogo) return;
     el("ha-stato").textContent = messaggioErrore(e); el("ha-stato").className = "msg-info err";
     ["ha-oggi-n", "ha-prossimi-n", "ha-incorso-n", "ha-completati-n", "ha-senza-n", "ha-bozze-n"].forEach(id=>{ el(id).textContent = "–"; });
-    el("ha-oggi").innerHTML = ""; el("ha-prossimi").innerHTML = "";
+    el("ha-oggi").innerHTML = ""; el("ha-prossimi").innerHTML = ""; el("ha-mancanti").innerHTML = "";
     return;
   }
   if(n !== giroRiepilogo) return;
@@ -166,7 +167,8 @@ export async function disegnaRiepilogoInterventi(){
   el("ha-prossimi-n").textContent = prossimi.length;
   el("ha-incorso-n").textContent = lista.filter(i=>i.stato === "in_corso").length;
   el("ha-completati-n").textContent = lista.filter(i=>i.stato === "completato" && i.data <= oggi).length;
-  el("ha-senza-n").textContent = attivi.filter(i=>i.data <= oggi && !(i.rapportini || []).some(r=>r.stato === "completato")).length;
+  const mancanti = attivi.filter(i=>i.data <= oggi && i.stato !== "completato");
+  el("ha-senza-n").textContent = mancanti.length;
   el("ha-bozze-n").textContent = bozze;
   const ordina = (a, b)=>a.data.localeCompare(b.data) || String(a.ora || "").localeCompare(String(b.ora || ""));
   el("ha-oggi").innerHTML = diOggi.length ? elencoRighe(diOggi.sort(ordina), false) : '<div class="card nota">Nessun intervento in programma oggi.</div>';
@@ -175,6 +177,12 @@ export async function disegnaRiepilogoInterventi(){
     ? elencoRighe(primi, true) + (prossimi.length > primi.length
       ? '<button type="button" class="link-btn" style="margin:4px 2px" onclick="mostraVista(\'sett\')">Altri ' + (prossimi.length - primi.length) + ' nel calendario</button>' : '')
     : '<div class="card nota">Nessun intervento nei prossimi ' + PROSSIMI + ' giorni.</div>';
+  // da sollecitare: giorni passati (fino a oggi) con rapportini mancanti, i piu' vecchi prima
+  const daSollecitare = mancanti.filter(i=>i.data < oggi).sort(ordina);
+  el("ha-mancanti").innerHTML = daSollecitare.length
+    ? elencoRighe(daSollecitare.slice(0, 5), true) + (daSollecitare.length > 5
+      ? '<button type="button" class="link-btn" style="margin:4px 2px" onclick="mostraVista(\'interventi\')">Altri ' + (daSollecitare.length - 5) + ' in Interventi</button>' : '')
+    : '<div class="card nota">Nessun rapportino mancante nei giorni precedenti.</div>';
 }
 
 registraVista("home", ()=>{ disegnaHome(); disegnaRiepilogoInterventi(); });

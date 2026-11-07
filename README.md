@@ -39,7 +39,7 @@ js/
     operai.js              orario per operaio
     spese.js               spese ed extra con scontrino
     calendario.js          viste settimana e mese (interventi + report giornate per l'admin), griglia del mese
-    agenda.js              interventi in Home e Calendario: righe compatte, dettaglio intervento, vista Giorno
+    agenda.js              interventi in Home e Calendario: righe compatte, dettaglio intervento (stato per operaio), vista Giorno
     clienti.js             anagrafica dai rapporti, ricerca, storico, suggerimenti nome/indirizzo
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
@@ -55,6 +55,7 @@ js/
     immagini.js            compressione foto, foto a schermo intero
     sync.js                sincronizzazione Supabase con la sessione dell'utente
     api-lavori.js          accesso a interventi, rapportini, ore e allegati (tabelle nuove)
+    avanzamento.js         chi ha completato e chi manca su un intervento con più operai (stessa regola del database)
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON

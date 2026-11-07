@@ -686,3 +686,12 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 @media (min-width: 960px){
   body:not([data-ruolo="admin"]) .cal-griglia-layout{display:block;max-width:560px}
 }
+/* stato dei singoli operai nel dettaglio intervento */
+.op-elenco{padding:2px 14px}
+.op-stato{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bordo)}
+.op-stato:last-child{border-bottom:none}
+.op-stato .cli-nome{font-size:15.5px}
+.op-stato>.cli-nome{flex:1;min-width:0}
+.op-sub{display:block;font-size:13px;color:var(--testo-2);margin-top:2px}
+.op-stato>.op-sub{margin:0}
+.int-avanz{display:inline-flex;align-items:center;gap:5px;color:var(--testo)}

@@ -7,7 +7,7 @@ Ramo `interventi-rapportini` · SQL **non ancora applicato** a Supabase (il fron
 | Tabella | Contenuto | Chi legge | Chi scrive |
 |---|---|---|---|
 | `interventi` | data, ora, cliente, indirizzo, descrizione, priorità (bassa/normale/alta/urgente), tipologia, stato (pianificato/in_corso/completato/annullato), creato_da | admin, company; operaio solo se assegnato | admin, company (elimina solo admin, solo senza rapportini) |
-| `intervento_operai` | assegnazioni (uno o più operai) | admin, company; operaio per i propri interventi | admin, company |
+| `intervento_operai` | assegnazioni (uno o più operai); dalla Fase B `rimosso_il`/`rimosso_da` = storico delle assegnazioni tolte | admin, company; operaio per i propri interventi (solo assegnazione attiva) | admin, company (togliere = rimozione logica) |
 | `rapportini` | collegato a un intervento o autonomo; attività, materiali, note, esito, firma, stato bozza/completato, versione | admin, company; operaio se autore o indicato nelle ore | autore (operaio o admin) finché è bozza; admin sempre (anche riapre) |
 | `rapportino_operai` | ore (dalle/alle) per operaio | come il rapportino | come il rapportino |
 | `allegati` | foto (immagine compressa) | come il rapportino | come il rapportino |
@@ -16,7 +16,7 @@ Regole imposte dal database (non falsificabili dal browser): `creato_da`, `asseg
 `caricato_da` = `auth.uid()`; un operaio scrive rapportini solo per interventi a cui è assegnato (o autonomi);
 completare richiede attività e ore; un rapportino completato non si modifica (solo l'admin lo riapre);
 si assegnano solo account attivi `worker`/`admin`; account disattivati: nessun accesso, anche con sessione aperta;
-lo stato dell'intervento segue i rapportini (bozza → in_corso, completato → completato).
+lo stato dell'intervento lo calcola il database (Fase B, sotto).
 Salvataggio atomico con `salva_rapportino` (testata + ore in una transazione, controllo di versione).
 L'id del rapportino lo genera il telefono. `salva_rapportino` crea un rapportino solo se quell'id non
 esiste ancora sul server; un rapportino esistente si modifica solo indicando la versione letta: se la
@@ -63,6 +63,52 @@ lo stato mostrato è sempre quello restituito dal database.
   (foglio giornaliero) continua a funzionare.
 - **Non presente nel modello dati**: un campo "note" dell'intervento (si mostra la descrizione).
 
+## Interventi con più operai (Fase B)
+
+Migrazione incrementale `supabase/migrations/20261109090000_interventi_piu_operai.sql`
+(rollback: `supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql`). Serve perché la
+struttura precedente non distingueva assegnazioni attive e tolte (togliere un operaio cancellava la riga)
+e completava l'intervento al primo rapportino completato. Non cambia `salva_rapportino`, non cambia
+nessuna policy RLS, non aggiunge stati.
+
+- **Ogni operaio il proprio rapportino**: già garantito dalla Fase A (autore imposto dal database,
+  solo l'autore modifica la bozza, l'operaio non legge i rapportini dei colleghi). Ore e foto stanno
+  nel rapportino del loro autore.
+- **Stato complessivo** (funzione `stato_intervento_calcolato`, stessi quattro stati):
+  `annullato` lo decide chi pianifica; `completato` solo se **ogni operaio assegnato (attivo) ha un
+  proprio rapportino completato** — senza assegnati non è mai completato, le ore di un collega nel
+  rapportino di un altro e il rapportino di chi non è assegnato (es. admin) non bastano;
+  `in_corso` se esiste almeno un rapportino collegato; altrimenti `pianificato`.
+- **Ricalcolo atomico**: trigger su `rapportini` e su `intervento_operai` → `ricalcola_stato_intervento`,
+  che prima blocca la riga dell'intervento (`FOR UPDATE`) e poi calcola con un'istruzione successiva:
+  completamenti e cambi di assegnazione contemporanei vengono messi in fila e l'ultimo vede i dati
+  dell'altro. Idempotente (scrive solo se lo stato cambia). Verificato che senza il blocco il test
+  "due operai completano nello stesso istante" fallisce (3 casi su 6), con il blocco 6 su 6 corretti.
+- **Stato non scrivibile a mano**: un inserimento parte da `pianificato`; un aggiornamento può solo
+  annullare; ripristinare (o qualsiasi altro valore) rimette lo stato calcolato.
+- **Operaio tolto** (DELETE dall'app): la riga resta con `rimosso_il`/`rimosso_da` (trigger
+  `rimuovi_assegnazione`); rapportini, ore e foto non vengono mai toccati. L'operaio non vede più
+  l'intervento e non può crearne nuovi rapportini; il suo rapportino resta suo e visibile all'admin
+  (nel dettaglio: "rimosso dall'intervento, rapportino conservato"). Lo stato si ricalcola senza di lui.
+  L'app chiede conferma se si toglie qualcuno che ha già un rapportino.
+- **Operaio aggiunto** (anche a intervento iniziato o completato): entra tra chi deve completare →
+  lo stato torna `in_corso`, salvo che abbia già un proprio rapportino completato per quell'intervento.
+  Riassegnare chi era stato tolto riattiva la stessa riga (nessun doppione); riassegnare chi è già
+  assegnato non dà errore. Solo admin/company possono farlo (controllo ripetuto nel trigger, perché
+  la riattivazione non passa dal controllo RLS dell'inserimento).
+- **Dettaglio intervento**: sezione "Operai" con nome, stato del lavoro (Da iniziare / In corso /
+  Completato), stato del rapportino, ore, data di completamento, "n di m completati" e "Mancano: …".
+  L'operaio vede il proprio stato e solo i nomi dei colleghi; company in sola consultazione.
+- **Home / Calendario / Interventi**: "n di m completati" e "manca: …" sugli interventi in corso
+  (admin, company); "Tuo rapportino: bozza/completato/da compilare" per l'operaio; in Home admin
+  "Con rapportini mancanti" (non annullati, data fino a oggi, stato ≠ completato) e la lista
+  "Rapportini mancanti · giorni precedenti".
+- **Ordine**: applicare la Fase B dopo `20261108090000`; per tornare indietro eseguire prima il
+  rollback della Fase B e poi, se serve, quello della Fase A. Il rollback della Fase B elimina le
+  righe di assegnazione "rimosse" (altrimenti tornerebbero attive): esportarle prima.
+- **Compatibilità**: il frontend della Fase B legge `rimosso_il`, quindi va pubblicato insieme alla
+  migrazione (senza migrazione mostra "non ancora attivi", come per la Fase A).
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
@@ -70,7 +116,8 @@ lo stato mostrato è sempre quello restituito dal database.
    `create table backup.rapporti_AAAAMMGG as select * from public.rapporti;`
    (lo schema `backup` non è esposto alle API: anon/authenticated non hanno accesso)
    (la migrazione non tocca `rapporti`, ma è la stessa prudenza del rilascio precedente).
-2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run.
+2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run;
+   poi, nello stesso modo, `supabase/migrations/20261109090000_interventi_piu_operai.sql` → Run.
 3. Verifica: eseguire la prima query anche PRIMA del passo 2 e annotare il risultato; dopo deve dare
    51 righe e la stessa impronta; la seconda deve dare 5 tabelle nuove con RLS `true`:
    ```sql
@@ -80,7 +127,9 @@ lo stato mostrato è sempre quello restituito dal database.
 4. Pubblicare il frontend: merge di `interventi-rapportini` su `main`.
 5. Prova con un admin e due operai (vedi README / rapporto).
 
-Rollback: ripristinare `main` al commit precedente, poi SQL Editor → `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
+Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
+`supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql` e, solo per tornare a prima
+degli interventi, `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
 Il rollback elimina interventi e rapportini scritti con la nuova app: prima esportarli
 (`select * from public.rapportini` ecc. → Export CSV).
 
@@ -524,5 +573,244 @@ drop function if exists public.assegnato_a(uuid);
 drop function if exists public.e_admin();
 drop function if exists public.pianifica();
 drop function if exists public.compila();
+commit;
+```
+
+## SQL completo — migrazione Fase B
+```sql
+-- =====================================================================
+-- Fase B: interventi assegnati a piu' operai (migrazione incrementale; richiede 20261108090000).
+--
+-- 1. Assegnazioni con storico: togliere un operaio non cancella la riga di intervento_operai ma la
+--    segna "rimossa" (rimosso_il / rimosso_da). Riassegnarlo riattiva la stessa riga.
+--    I rapportini, le ore e le foto non dipendono dalle assegnazioni e non vengono mai toccati.
+-- 2. Stato complessivo calcolato dal database (stessi quattro stati di prima, nessuno nuovo):
+--      annullato    deciso da chi pianifica (resta finche' non viene ripristinato)
+--      completato   OGNI operaio assegnato (attivo) ha un proprio rapportino completato;
+--                   senza operai assegnati un intervento non e' mai completato
+--      in_corso     esiste almeno un rapportino (bozza o completato) collegato
+--      pianificato  altrimenti
+--    Il ricalcolo blocca la riga dell'intervento (SELECT ... FOR UPDATE): completamenti e modifiche
+--    alle assegnazioni contemporanei vengono messi in fila e l'ultimo vede i dati dell'altro.
+-- 3. Lo stato non si imposta piu' a mano: un utente puo' solo annullare o ripristinare; il valore
+--    "pianificato/in_corso/completato" lo decide sempre il calcolo.
+--
+-- Non cambia: salva_rapportino, le policy RLS, le tabelle rapporti/profili e le 51 giornate.
+-- Ripetibile: ogni istruzione si puo' rieseguire (if not exists / create or replace / drop if exists).
+-- =====================================================================
+
+-- ---------------------------------------------------------------- assegnazioni con storico
+alter table public.intervento_operai add column if not exists rimosso_il timestamptz;
+alter table public.intervento_operai add column if not exists rimosso_da uuid references public.profili(id);
+create index if not exists intervento_operai_attivi on public.intervento_operai (intervento_id) where rimosso_il is null;
+
+-- solo le assegnazioni attive danno accesso all'intervento (un operaio rimosso non lo vede piu';
+-- i suoi rapportini restano suoi e visibili a lui come autore)
+create or replace function public.assegnato_a(p_intervento uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select public.mio_ruolo() is not null and exists (select 1 from public.intervento_operai
+                 where intervento_id = p_intervento and operaio_id = auth.uid() and rimosso_il is null)
+$$;
+
+-- inserimento: un'assegnazione gia' esistente ma rimossa viene riattivata (nessun doppione, nessun errore);
+-- se e' gia' attiva non succede nulla. Gli aggiornamenti arrivano solo dalle funzioni qui sotto
+-- (per gli utenti non esiste una policy di UPDATE su intervento_operai).
+create or replace function public.controlla_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if tg_op = 'INSERT' then
+    -- il controllo RLS dell'inserimento non scatterebbe se la riga viene riattivata: si ripete qui
+    if not public.pianifica() then
+      raise exception 'Operazione non consentita' using errcode = '42501';
+    end if;
+    -- si assegnano solo account attivi che lavorano sul campo
+    if not exists (select 1 from public.profili p where p.id = new.operaio_id and p.attivo and p.ruolo in ('worker', 'admin')) then
+      raise exception 'Si possono assegnare solo operai attivi' using errcode = '42501';
+    end if;
+    if exists (select 1 from public.intervento_operai a where a.intervento_id = new.intervento_id and a.operaio_id = new.operaio_id) then
+      update public.intervento_operai set rimosso_il = null, rimosso_da = null, assegnato_da = auth.uid(), assegnato_il = now()
+        where intervento_id = new.intervento_id and operaio_id = new.operaio_id and rimosso_il is not null;
+      return null;
+    end if;
+    new.assegnato_da := auth.uid();
+    new.assegnato_il := now();
+    new.rimosso_il := null;
+    new.rimosso_da := null;
+    return new;
+  end if;
+  -- UPDATE: chiave invariata
+  new.intervento_id := old.intervento_id;
+  new.operaio_id := old.operaio_id;
+  return new;
+end $$;
+
+-- eliminazione da parte di un utente = rimozione logica (lo storico resta). Le cancellazioni a cascata
+-- (intervento eliminato, possibile solo senza rapportini) e quelle del pannello restano vere.
+create or replace function public.rimuovi_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null or pg_trigger_depth() > 1 then return old; end if;
+  update public.intervento_operai set rimosso_il = now(), rimosso_da = auth.uid()
+    where intervento_id = old.intervento_id and operaio_id = old.operaio_id and rimosso_il is null;
+  return null;
+end $$;
+drop trigger if exists intervento_operai_rimozione on public.intervento_operai;
+create trigger intervento_operai_rimozione before delete on public.intervento_operai
+  for each row execute function public.rimuovi_assegnazione();
+
+-- ---------------------------------------------------------------- stato complessivo
+create or replace function public.stato_intervento_calcolato(p_id uuid) returns text
+language sql stable security definer set search_path = '' as $$
+  select case
+    when exists (select 1 from public.intervento_operai a where a.intervento_id = p_id and a.rimosso_il is null)
+     and not exists (
+       select 1 from public.intervento_operai a
+       where a.intervento_id = p_id and a.rimosso_il is null
+         and not exists (select 1 from public.rapportini r
+                         where r.intervento_id = p_id and r.autore_id = a.operaio_id and r.stato = 'completato'))
+      then 'completato'
+    when exists (select 1 from public.rapportini r where r.intervento_id = p_id) then 'in_corso'
+    else 'pianificato' end
+$$;
+
+-- ricalcolo atomico: prima si blocca la riga dell'intervento, poi (istruzione successiva, quindi con
+-- i dati gia' confermati da chi aveva il blocco) si calcola e si scrive lo stato. Idempotente.
+create or replace function public.ricalcola_stato_intervento(p_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_id is null then return; end if;
+  perform 1 from public.interventi where id = p_id for update;
+  if not found then return; end if;
+  update public.interventi set stato = public.stato_intervento_calcolato(p_id)
+    where id = p_id and stato <> 'annullato' and stato is distinct from public.stato_intervento_calcolato(p_id);
+end $$;
+
+-- trigger comune a rapportini e intervento_operai (entrambe hanno la colonna intervento_id):
+-- si ricalcola l'intervento nuovo e, se cambiato, quello vecchio
+create or replace function public.aggiorna_stato_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  nuovo uuid := case when tg_op = 'DELETE' then null else new.intervento_id end;
+  vecchio uuid := case when tg_op = 'INSERT' then null else old.intervento_id end;
+begin
+  perform public.ricalcola_stato_intervento(nuovo);
+  if vecchio is distinct from nuovo then perform public.ricalcola_stato_intervento(vecchio); end if;
+  return null;
+end $$;
+drop trigger if exists intervento_operai_stato on public.intervento_operai;
+create trigger intervento_operai_stato after insert or update or delete on public.intervento_operai
+  for each row execute function public.aggiorna_stato_intervento();
+
+-- lo stato non si scrive a mano: inserendo si parte da "pianificato" (o "annullato");
+-- aggiornando, qualsiasi valore diverso da "annullato" viene sostituito da quello calcolato
+create or replace function public.controlla_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;          -- service_role / pannello
+  if tg_op = 'INSERT' then
+    new.creato_da := auth.uid();
+    new.creato_il := now();
+    if new.stato <> 'annullato' then new.stato := 'pianificato'; end if;
+  else
+    new.creato_da := old.creato_da;
+    new.creato_il := old.creato_il;
+    if new.stato is distinct from old.stato and new.stato <> 'annullato' then
+      new.stato := public.stato_intervento_calcolato(new.id);
+    end if;
+  end if;
+  new.aggiornato_il := now();
+  return new;
+end $$;
+
+revoke execute on function public.rimuovi_assegnazione(), public.stato_intervento_calcolato(uuid),
+  public.ricalcola_stato_intervento(uuid) from public, anon, authenticated;
+revoke execute on function public.controlla_assegnazione(), public.controlla_intervento(),
+  public.aggiorna_stato_intervento() from public, anon, authenticated;
+
+-- stati gia' presenti allineati alla nuova regola (nessun dato cancellato; eseguito senza utente)
+update public.interventi i set stato = public.stato_intervento_calcolato(i.id)
+  where i.stato <> 'annullato' and i.stato is distinct from public.stato_intervento_calcolato(i.id);
+```
+
+## SQL completo — rollback Fase B
+```sql
+-- ROLLBACK di 20261109090000_interventi_piu_operai.sql (torna esattamente alla Fase A).
+-- ATTENZIONE: le assegnazioni "rimosse" (storico) vengono eliminate, perche' senza la colonna
+-- rimosso_il tornerebbero attive e ridarebbero accesso all'intervento. Prima esportarle:
+--   select * from public.intervento_operai where rimosso_il is not null;   -> Export CSV
+-- Interventi, rapportini, ore e foto NON vengono toccati. Non tocca "rapporti" ne' "profili".
+begin;
+drop trigger if exists intervento_operai_rimozione on public.intervento_operai;
+drop trigger if exists intervento_operai_stato on public.intervento_operai;
+
+-- funzioni della Fase A, testo originale
+create or replace function public.assegnato_a(p_intervento uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select public.mio_ruolo() is not null and exists (select 1 from public.intervento_operai
+                 where intervento_id = p_intervento and operaio_id = auth.uid())
+$$;
+
+create or replace function public.controlla_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;          -- service_role / pannello
+  if tg_op = 'INSERT' then
+    new.creato_da := auth.uid();
+    new.creato_il := now();
+  else
+    new.creato_da := old.creato_da;
+    new.creato_il := old.creato_il;
+  end if;
+  new.aggiornato_il := now();
+  return new;
+end $$;
+
+create or replace function public.controlla_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  new.assegnato_da := auth.uid();
+  new.assegnato_il := now();
+  -- si assegnano solo account attivi che lavorano sul campo
+  if not exists (select 1 from public.profili p where p.id = new.operaio_id and p.attivo and p.ruolo in ('worker', 'admin')) then
+    raise exception 'Si possono assegnare solo operai attivi' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+create or replace function public.aggiorna_stato_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  id_int uuid := coalesce(new.intervento_id, old.intervento_id);
+begin
+  if id_int is null then return null; end if;
+  update public.interventi i set stato = case
+      when exists (select 1 from public.rapportini r where r.intervento_id = id_int and r.stato = 'completato') then 'completato'
+      when exists (select 1 from public.rapportini r where r.intervento_id = id_int) then 'in_corso'
+      else 'pianificato' end
+  where i.id = id_int and i.stato <> 'annullato';
+  return null;
+end $$;
+
+revoke execute on function public.controlla_intervento(), public.controlla_assegnazione(),
+  public.aggiorna_stato_intervento() from public, anon, authenticated;
+
+drop function if exists public.rimuovi_assegnazione();
+drop function if exists public.ricalcola_stato_intervento(uuid);
+drop function if exists public.stato_intervento_calcolato(uuid);
+
+-- storico delle assegnazioni rimosse (vedi avvertenza sopra), poi le colonne
+delete from public.intervento_operai where rimosso_il is not null;
+drop index if exists public.intervento_operai_attivi;
+alter table public.intervento_operai drop column if exists rimosso_da;
+alter table public.intervento_operai drop column if exists rimosso_il;
+
+-- stati riallineati alla regola della Fase A
+update public.interventi i set stato = case
+    when exists (select 1 from public.rapportini r where r.intervento_id = i.id and r.stato = 'completato') then 'completato'
+    when exists (select 1 from public.rapportini r where r.intervento_id = i.id) then 'in_corso'
+    else 'pianificato' end
+  where i.stato <> 'annullato';
 commit;
 ```
