@@ -84,7 +84,7 @@ function disegna(){
     : '<div class="nota" style="padding:0">Nessun operaio attivo. L\'amministratore li crea da Gestione utenti.</div>';
   $("pian-num").textContent = schede.length;
   $("pian-schede").innerHTML = schede.length ? schede.map(c=>{
-    const stato = statoScheda(c), bloccata = schedaCompilata(c);
+    const stato = statoScheda(c), bloccata = schedaCompilata(c) || !c.id;
     const fascia = (c.fasce || []).find(f=>f.d || f.a);
     return '<div class="pian-scheda">' +
       '<div class="int-cliente">' + esc(c.nome) + '</div>' +
@@ -120,7 +120,7 @@ function annullaModulo(){
   $("pian-annulla-modifica").classList.add("nascosto");
 }
 export function modificaSchedaPian(id){
-  const c = schede.find(x=>x.id === id);
+  const c = schede.find(x=>x.id && x.id === id);
   if(!c || schedaCompilata(c)) return;
   inModifica = id;
   $("pian-nome").value = c.nome || "";
@@ -136,7 +136,7 @@ export function modificaSchedaPian(id){
   $("pian-form").scrollIntoView({block: "start"});
 }
 export function rimuoviSchedaPian(id){
-  const c = schede.find(x=>x.id === id);
+  const c = schede.find(x=>x.id && x.id === id);
   if(!c || schedaCompilata(c)) return;
   if(!confirm("Rimuovere la scheda \"" + c.nome + "\"?")) return;
   schede = schede.filter(x=>x.id !== id);
@@ -168,17 +168,18 @@ $("pian-form").addEventListener("submit", e=>{
 });
 
 // unisce la bozza con la versione attuale del server: le schede compilate restano quelle del server
+// (le schede senza id, create prima che esistesse, non si possono riconoscere: restano come sono)
 function unisci(fresca){
-  const mie = new Map(schede.map(c=>[c.id, c]));
+  const mie = new Map(schede.filter(c=>c.id).map(c=>[c.id, c]));
   const dalServer = (fresca.dati.clienti || []);
-  const idServer = new Set(dalServer.map(c=>c.id));
+  const idServer = new Set(dalServer.filter(c=>c.id).map(c=>c.id));
   const risultato = [];
   dalServer.forEach(c=>{
-    if(schedaCompilata(c)) risultato.push(c);            // dell'operaio: intoccabile
+    if(!c.id || schedaCompilata(c)) risultato.push(c);   // dell'operaio o storica senza id: intoccabile
     else if(mie.has(c.id)) risultato.push(mie.get(c.id)); // pianificata: vale la bozza
     // altrimenti l'ho rimossa io
   });
-  schede.forEach(c=>{ if(!idServer.has(c.id)) risultato.push(c); });
+  schede.forEach(c=>{ if(c.id && !idServer.has(c.id)) risultato.push(c); });
   return risultato;
 }
 function nomiAssegnati(){

@@ -105,12 +105,16 @@ begin
 
   if tg_op = 'INSERT' then
     new.creato_da := auth.uid();
-    -- un operaio che crea una giornata (es. urgenza) ne diventa assegnatario
-    if r = 'worker' and not (auth.uid() = any (new.assegnati)) then
-      new.assegnati := array_append(new.assegnati, auth.uid());
+    -- un operaio che crea una giornata (es. urgenza) ne e' l'unico assegnatario: non assegna altri
+    if r = 'worker' then
+      new.assegnati := array[auth.uid()];
     end if;
   else
     new.creato_da := old.creato_da;
+    -- la data e' la chiave della giornata: spostarla equivale a cancellarla, quindi solo l'admin
+    if new.data is distinct from old.data and r <> 'admin' then
+      raise exception 'Solo l''amministratore puo'' cambiare la data di una giornata' using errcode = '42501';
+    end if;
     -- solo admin e company decidono chi e' assegnato
     if r = 'worker' and new.assegnati is distinct from old.assegnati then
       raise exception 'Un operaio non puo'' cambiare le assegnazioni' using errcode = '42501';
@@ -148,6 +152,11 @@ begin
     end loop;
   end if;
 
+  -- la data di modifica la propone il telefono (serve alla sincronizzazione), ma non puo' essere
+  -- nel futuro: altrimenti quella versione "vincerebbe" su tutte le modifiche successive
+  if new.aggiornato is null or new.aggiornato > now() + interval '5 minutes' then
+    new.aggiornato := now();
+  end if;
   new.aggiornato_da := auth.uid();
   return new;
 end $$;

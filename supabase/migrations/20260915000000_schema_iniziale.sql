@@ -2,8 +2,8 @@
 -- Idempotente: in produzione non cambia nulla.
 create table if not exists public.rapporti (
   data text primary key,                 -- "AAAA-MM-GG"
-  dati jsonb,                            -- la giornata, stesso formato del backup dell'app
-  aggiornato timestamptz default now()   -- ultima modifica (decisa dal telefono che ha scritto)
+  dati jsonb not null,                   -- la giornata, stesso formato del backup dell'app
+  aggiornato timestamptz not null default now()   -- ultima modifica (decisa dal telefono che ha scritto)
 );
 alter table public.rapporti enable row level security;
 do $$ begin
