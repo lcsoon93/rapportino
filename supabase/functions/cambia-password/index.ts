@@ -23,7 +23,7 @@ Deno.serve(async (req) => {
 
   const { error } = await admin.auth.admin.updateUserById(io.profilo.id, { password: nuova });
   if (error) return errore("Non è stato possibile cambiare la password.", 500);
-  await admin.from("profili").update({ deve_cambiare_password: false }).eq("id", io.profilo.id);
+  await admin.from("profili").update({ deve_cambiare_password: false, password_temporanea_scade: null }).eq("id", io.profilo.id);
   // Supabase Auth chiude tutte le sessioni quando cambia la password: se ne apre una nuova per questo telefono
   const nuovaSessione = await clientAnonimo().auth.signInWithPassword({ email: io.email, password: nuova });
   return risposta({ ok: true, sessione: nuovaSessione.data.session

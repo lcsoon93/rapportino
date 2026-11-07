@@ -8,7 +8,7 @@ import { applicaPermessi, puo, vistaIniziale } from "./permessi.js";
 import { leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese } from "./preferenze.js";
 import { caricaArchivio, impostaProprietarioArchivio, leggiDB, leggiMappa, proprietarioArchivio, svuotaArchivioLocale } from "./storage.js";
 import { su } from "./eventi.js";
-import { profilo, ripristina } from "./sessione.js";
+import { haRuolo, nomeCompleto, profilo, ripristina } from "./sessione.js";
 import { chiediAccesso, chiediCambioPassword, nascondiSchermate } from "../modules/accesso.js";
 import { aggiornaClientiNoti } from "../modules/clienti.js";
 import { caricaGiornata } from "../modules/rapportini.js";
@@ -74,7 +74,7 @@ async function entra(p){
   }
   await preparaArchivio(p);
   nascondiSchermate();
-  document.getElementById("app-utente").textContent = (p.nome || p.username) + " · " + NOMI_RUOLO[p.ruolo];
+  document.getElementById("app-utente").textContent = nomeCompleto(p) + " · " + NOMI_RUOLO[p.ruolo] + (p.ruolo === "admin" && haRuolo("worker", p) ? " e operaio" : "");
   costruisciNav();
   applicaPermessi();
   aggiornaClientiNoti();

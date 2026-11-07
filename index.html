@@ -62,19 +62,27 @@
   <div class="schermata-in">
     <div class="app-logo accesso-logo"><img class="logo-dinamico" alt="COMP.HAS assistance SRL"></div>
     <h1 id="accesso-titolo">Rapportino</h1>
-    <p class="schermata-sub">Accedi con il tuo username e la password</p>
+    <p class="schermata-sub" id="acc-sottotitolo">Accedi con il tuo username e la password</p>
     <form id="form-accesso" class="card schermata-card" novalidate>
       <label for="acc-username">Username</label>
       <input type="text" id="acc-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
-      <label for="acc-password" class="campo-sep">Password</label>
-      <div class="campo-password">
-        <input type="password" id="acc-password" name="password" autocomplete="current-password" required>
-        <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="acc-password"><svg class="i"><use href="#i-eye"/></svg></button>
+      <div id="acc-blocco-password">
+        <label for="acc-password" class="campo-sep">Password</label>
+        <div class="campo-password">
+          <input type="password" id="acc-password" name="password" autocomplete="current-password" required>
+          <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="acc-password"><svg class="i"><use href="#i-eye"/></svg></button>
+        </div>
+      </div>
+      <div id="acc-blocco-pin" class="nascosto">
+        <label for="acc-pin" class="campo-sep">PIN (6 cifre)</label>
+        <input type="password" id="acc-pin" class="campo-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" aria-describedby="acc-pin-nota">
+        <div class="nota" id="acc-pin-nota" style="padding:4px 0 0">Il PIN si attiva da Altro → PIN di accesso, dopo un accesso con la password.</div>
       </div>
       <div class="msg-errore" id="acc-errore" role="alert" aria-live="assertive"></div>
       <button type="submit" class="btn btn-primario btn-blocco" id="acc-invia"><svg class="i"><use href="#i-lock"/></svg><span>Accedi</span></button>
+      <button type="button" class="link-btn acc-modo" id="acc-cambia-modo">Accedi con il PIN</button>
     </form>
-    <p class="schermata-nota">Gli account li crea l'amministratore. Password dimenticata? Chiedi a lui di reimpostarla.</p>
+    <p class="schermata-nota">Gli account li crea l'amministratore. Password o PIN dimenticati? Chiedi a lui una password temporanea.</p>
   </div>
 </section>
 
@@ -106,6 +114,32 @@
       <button type="submit" class="btn btn-primario btn-blocco" id="pw-invia"><svg class="i"><use href="#i-check"/></svg><span>Salva password</span></button>
       <button type="button" class="btn btn-secondario btn-blocco" id="pw-annulla" style="margin-top:10px">Annulla</button>
       <button type="button" class="link-btn" id="pw-esci" style="width:100%;justify-content:center">Esci</button>
+    </form>
+  </div>
+</section>
+
+<!-- ================= PIN DI ACCESSO ================= -->
+<section id="schermata-pin" class="schermata nascosto" aria-labelledby="pin-titolo">
+  <div class="schermata-in">
+    <div class="app-logo accesso-logo"><img class="logo-dinamico" alt="COMP.HAS assistance SRL"></div>
+    <h1 id="pin-titolo">PIN di accesso</h1>
+    <p class="schermata-sub" id="pin-stato">Accedi più in fretta con un PIN di 6 cifre.</p>
+    <form id="form-pin" class="card schermata-card" novalidate>
+      <label for="pin-nuovo">Nuovo PIN (6 cifre)</label>
+      <input type="password" id="pin-nuovo" class="campo-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required aria-describedby="pin-regole">
+      <div class="nota" id="pin-regole" style="padding:4px 0 0">Niente sei cifre uguali o in sequenza (es. 111111, 123456). Non dirlo a nessuno.</div>
+      <label for="pin-conferma" class="campo-sep">Ripeti il PIN</label>
+      <input type="password" id="pin-conferma" class="campo-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" required>
+      <label for="pin-password" class="campo-sep">Password attuale</label>
+      <div class="campo-password">
+        <input type="password" id="pin-password" autocomplete="current-password" required>
+        <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="pin-password"><svg class="i"><use href="#i-eye"/></svg></button>
+      </div>
+      <div class="msg-errore" id="pin-errore" role="alert" aria-live="assertive"></div>
+      <div class="msg-info" id="pin-ok" role="status"></div>
+      <button type="submit" class="btn btn-primario btn-blocco" id="pin-salva"><svg class="i"><use href="#i-check"/></svg><span>Salva PIN</span></button>
+      <button type="button" class="btn btn-secondario btn-blocco nascosto" id="pin-rimuovi" style="margin-top:10px">Disattiva il PIN</button>
+      <button type="button" class="link-btn" id="pin-chiudi" style="width:100%;justify-content:center">Chiudi</button>
     </form>
   </div>
 </section>
@@ -396,6 +430,7 @@
           <div class="gruppo-tit">Account</div>
           <div class="card">
             <div class="info-riga"><span>Utente</span><b id="altro-utente">—</b></div>
+            <button type="button" class="voce" onclick="apriPin()"><span class="v-ic"><svg class="i"><use href="#i-lock"/></svg></span><span class="v-testi"><span class="v-tit">PIN di accesso</span><span class="v-sub">Accedi con 6 cifre invece della password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="apriCambioPassword()"><span class="v-ic"><svg class="i"><use href="#i-lock"/></svg></span><span class="v-testi"><span class="v-tit">Cambia password</span><span class="v-sub">Serve la password attuale</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="esciDallApp()"><span class="v-ic att"><svg class="i"><use href="#i-logout"/></svg></span><span class="v-testi"><span class="v-tit">Esci</span><span class="v-sub">Prima invia al server le modifiche</span></span></button>
           </div>
@@ -403,7 +438,7 @@
         <div class="gruppo" data-permesso="utenti.gestisci">
           <div class="gruppo-tit">Amministrazione</div>
           <div class="card">
-            <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Operai: crea, disattiva, reimposta password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Nomi, ruoli, PIN; operai: crea, disattiva, password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="mostraVista('interventi')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Interventi</span><span class="v-sub">Crea, assegna agli operai, stato</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="mostraVista('rapporti')"><span class="v-ic pervinca"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportini</span><span class="v-sub">Rapportini degli operai e giornate, con PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te e tuoi rapportini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
@@ -655,12 +690,16 @@
   <section id="vista-utenti" class="nascosto">
     <div class="vista-head">
       <button type="button" class="indietro" onclick="mostraVista('altro')" aria-label="Torna ad Altro"><svg class="i"><use href="#i-chev-l"/></svg></button>
-      <div class="vh-testi"><h1>Gestione utenti</h1><div class="vh-sub">Account degli operai</div></div>
+      <div class="vh-testi"><h1>Gestione utenti</h1><div class="vh-sub">Account, ruoli e PIN</div></div>
     </div>
     <form class="modulo" id="utenti-form" novalidate>
       <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-user-plus"/></svg></span>Nuovo operaio</div>
-      <label for="ut-nome">Nome e cognome</label>
-      <input type="text" id="ut-nome" autocomplete="off" required>
+      <div class="due">
+        <div><label for="ut-nome">Nome</label>
+        <input type="text" id="ut-nome" autocomplete="off" maxlength="80" required></div>
+        <div><label for="ut-cognome">Cognome</label>
+        <input type="text" id="ut-cognome" autocomplete="off" maxlength="80" required></div>
+      </div>
       <div class="campo"><label for="ut-username">Username</label>
       <input type="text" id="ut-username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required aria-describedby="ut-username-nota">
       <div class="nota" id="ut-username-nota" style="padding:4px 0 0">3–30 caratteri: lettere, numeri, punto, trattino.</div></div>

@@ -1,10 +1,21 @@
 // Gestione utenti: SOLO l'amministratore.
-// Azioni: elenco, crea (sempre e solo ruolo "worker"), disattiva, riattiva, reset_password (solo operai).
+// Azioni:
+//   elenco                                  tutti i profili (nome, cognome, ruoli, stato, PIN attivo)
+//   crea { nome, cognome, username, password }   sempre e solo ruolo "worker"
+//   modifica { id, nome, cognome, operaio? }     nome e cognome di qualsiasi account; "operaio" solo
+//                                                per gli amministratori (ruoli admin + worker)
+//   rimuovi_pin { id }                      elimina il PIN di qualsiasi account (si rientra con la password)
+//   disattiva / riattiva / reset_password   solo account operaio, mai se stessi (eliminano anche il PIN)
+// Nessuna azione elimina utenti: interventi e rapportini storici restano collegati al loro UUID.
 import {
-  CORS, chiamante, clientAdmin, corpoJson, emailInterna, errore, problemaPassword, risposta, USERNAME_VALIDO,
+  chiamante, clientAdmin, corpoJson, CORS, emailInterna, errore, problemaPassword, risposta, USERNAME_VALIDO,
 } from "../_shared/comune.ts";
 
 const PER_SEMPRE = "876000h"; // ~100 anni: blocca anche il rinnovo delle sessioni aperte
+// password temporanea (nuovo account o reset): vale 72 ore, poi serve un nuovo reset dell'admin
+const ORE_PASSWORD_TEMPORANEA = 72;
+const scadenzaTemporanea = () => new Date(Date.now() + ORE_PASSWORD_TEMPORANEA * 3600000).toISOString();
+const testo = (v: unknown) => typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -20,18 +31,27 @@ Deno.serve(async (req) => {
 
   if (azione === "elenco") {
     const { data, error } = await admin.from("profili")
-      .select("id, username, nome, ruolo, attivo, deve_cambiare_password, creato_il")
+      .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, creato_il, password_temporanea_scade, password_reimpostata_il, password_reimpostata_da")
       .order("ruolo").order("username");
     if (error) return errore("Errore nel leggere gli utenti.", 500);
-    return risposta({ utenti: data });
+    const { data: pin } = await admin.from("pin_accesso").select("utente_id");
+    const conPin = new Set((pin || []).map((x) => x.utente_id));
+    // chi ha reimpostato la password: nome, non identificativo
+    const nomi = new Map((data || []).map((u) => [u.id, [u.nome, u.cognome].filter(Boolean).join(" ") || u.username]));
+    return risposta({
+      utenti: (data || []).map(({ password_reimpostata_da, ...u }) => ({
+        ...u, pin: conPin.has(u.id),
+        password_reimpostata_da: password_reimpostata_da ? (nomi.get(password_reimpostata_da) || "amministratore") : null,
+      })),
+    });
   }
 
   if (azione === "crea") {
     if (corpo.ruolo !== undefined && corpo.ruolo !== "worker") return errore("Da qui si possono creare solo account operaio.", 403);
-    const nome = typeof corpo.nome === "string" ? corpo.nome.trim() : "";
+    const nome = testo(corpo.nome), cognome = testo(corpo.cognome);
     const username = typeof corpo.username === "string" ? corpo.username.trim() : "";
     const password = typeof corpo.password === "string" ? corpo.password : "";
-    if (nome.length < 2 || nome.length > 80) return errore("Inserisci nome e cognome.");
+    if (nome.length < 1 || nome.length > 80 || cognome.length < 1 || cognome.length > 80) return errore("Inserisci nome e cognome.");
     if (!USERNAME_VALIDO.test(username)) return errore("Username: da 3 a 30 caratteri tra lettere, numeri, punto, trattino e trattino basso.");
     const problema = problemaPassword(password, username);
     if (problema) return errore(problema);
@@ -46,22 +66,43 @@ Deno.serve(async (req) => {
     if (e1 || !creato.user) return errore("Non è stato possibile creare l'account.", 500);
 
     const { error: e2 } = await admin.from("profili").insert({
-      id: creato.user.id, username, nome, ruolo: "worker", attivo: true,
-      deve_cambiare_password: true, creato_da: io.profilo.id,
+      id: creato.user.id, username, nome, cognome, ruolo: "worker", ruoli: ["worker"], attivo: true,
+      deve_cambiare_password: true, creato_da: io.profilo.id, password_temporanea_scade: scadenzaTemporanea(),
     });
     if (e2) {
-      // compensazione: niente account Auth senza profilo
+      // compensazione: niente account Auth senza profilo (e mai due profili: id e username sono unici)
       const { error: e3 } = await admin.auth.admin.deleteUser(creato.user.id);
       if (e3) console.error("account orfano da rimuovere:", creato.user.id);
       return errore(e2.code === "23505" ? "Username già in uso." : "Non è stato possibile creare l'account.", e2.code === "23505" ? 409 : 500);
     }
-    return risposta({ utente: { id: creato.user.id, username, nome, ruolo: "worker", attivo: true, deve_cambiare_password: true } });
+    return risposta({ utente: { id: creato.user.id, username, nome, cognome, ruolo: "worker", ruoli: ["worker"], attivo: true, deve_cambiare_password: true, pin: false } });
+  }
+
+  const id = typeof corpo.id === "string" ? corpo.id : "";
+  const { data: bersaglio } = await admin.from("profili").select("id, username, ruolo, ruoli").eq("id", id).maybeSingle();
+  if (!bersaglio) return errore("Utente non trovato.", 404);
+
+  if (azione === "modifica") {
+    const nome = testo(corpo.nome), cognome = testo(corpo.cognome);
+    if (nome.length < 1 || nome.length > 80 || cognome.length > 80) return errore("Inserisci il nome (e il cognome, massimo 80 caratteri).");
+    const modifiche: Record<string, unknown> = { nome, cognome };
+    if (corpo.operaio !== undefined) {
+      if (typeof corpo.operaio !== "boolean") return errore("Valore non valido.");
+      if (bersaglio.ruolo === "admin") modifiche.ruoli = corpo.operaio ? ["admin", "worker"] : ["admin"];
+      else if (corpo.operaio !== (bersaglio.ruolo === "worker")) return errore("Il ruolo di operaio si cambia solo sugli amministratori.", 403);
+    }
+    const { error } = await admin.from("profili").update(modifiche).eq("id", id);
+    if (error) return errore("Operazione non riuscita.", 500);
+    return risposta({ ok: true });
+  }
+
+  if (azione === "rimuovi_pin") {
+    const { error } = await admin.from("pin_accesso").delete().eq("utente_id", id);
+    if (error) return errore("Operazione non riuscita.", 500);
+    return risposta({ ok: true });
   }
 
   // le azioni seguenti valgono solo su account operaio (mai su admin o company, mai su se stessi)
-  const id = typeof corpo.id === "string" ? corpo.id : "";
-  const { data: bersaglio } = await admin.from("profili").select("id, username, ruolo").eq("id", id).maybeSingle();
-  if (!bersaglio) return errore("Utente non trovato.", 404);
   if (bersaglio.ruolo !== "worker" || bersaglio.id === io.profilo.id) return errore("Operazione consentita solo sugli account operaio.", 403);
 
   if (azione === "disattiva" || azione === "riattiva") {
@@ -69,6 +110,7 @@ Deno.serve(async (req) => {
     const { error } = await admin.auth.admin.updateUserById(id, { ban_duration: attivo ? "none" : PER_SEMPRE });
     if (error) return errore("Operazione non riuscita.", 500);
     await admin.from("profili").update({ attivo, tentativi_falliti: 0, bloccato_fino: null }).eq("id", id);
+    if (!attivo) await admin.from("pin_accesso").delete().eq("utente_id", id);
     return risposta({ ok: true });
   }
 
@@ -78,7 +120,12 @@ Deno.serve(async (req) => {
     if (problema) return errore(problema);
     const { error } = await admin.auth.admin.updateUserById(id, { password });
     if (error) return errore("Operazione non riuscita.", 500);
-    await admin.from("profili").update({ deve_cambiare_password: true, tentativi_falliti: 0, bloccato_fino: null }).eq("id", id);
+    await admin.from("profili").update({
+      deve_cambiare_password: true, tentativi_falliti: 0, bloccato_fino: null, password_temporanea_scade: scadenzaTemporanea(),
+      password_reimpostata_il: new Date().toISOString(), password_reimpostata_da: io.profilo.id,
+    }).eq("id", id);
+    // password reimpostata (dimenticata o compromessa): anche il PIN va scelto di nuovo
+    await admin.from("pin_accesso").delete().eq("utente_id", id);
     return risposta({ ok: true });
   }
 

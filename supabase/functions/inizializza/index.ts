@@ -8,8 +8,9 @@
 import { CORS, clientAdmin, emailInterna, errore, risposta } from "../_shared/comune.ts";
 
 const INIZIALI = [
-  { username: "Luca", nome: "Luca", ruolo: "admin", segreto: "CODICE_INIZIALE_LUCA" },
-  { username: "comphas", nome: "COMPHAS", ruolo: "company", segreto: "CODICE_INIZIALE_COMPHAS" },
+  // Luca e' amministratore e lavora anche sul campo (ruoli admin + worker)
+  { username: "Luca", nome: "Luca", ruolo: "admin", ruoli: ["admin", "worker"], segreto: "CODICE_INIZIALE_LUCA" },
+  { username: "comphas", nome: "COMPHAS", ruolo: "company", ruoli: ["company"], segreto: "CODICE_INIZIALE_COMPHAS" },
 ];
 
 Deno.serve(async (req) => {
@@ -31,7 +32,7 @@ Deno.serve(async (req) => {
     });
     if (error || !data.user) return errore(`Creazione di ${a.username} non riuscita: ${error?.message || ""}`, 500);
     const { error: e2 } = await admin.from("profili").insert({
-      id: data.user.id, username: a.username, nome: a.nome, ruolo: a.ruolo, deve_cambiare_password: false,
+      id: data.user.id, username: a.username, nome: a.nome, ruolo: a.ruolo, ruoli: a.ruoli, deve_cambiare_password: false,
     });
     if (e2) {
       await admin.auth.admin.deleteUser(data.user.id);

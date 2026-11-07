@@ -273,6 +273,76 @@ di interventi fuori periodo compaiono come voci a sé.
 - Le chiamate alle Edge Function (accesso, cambio password, gestione utenti) hanno lo stesso tempo
   massimo delle altre richieste (30 s): su una rete senza risposta compare "Nessuna connessione".
 
+## Utenti, PIN e doppio ruolo (Fase G)
+
+Migrazioni `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` e
+`supabase/migrations/20261113090000_recupero_accesso.sql` (rollback in `supabase/rollback/`, in ordine inverso). Non cancella account o dati:
+UUID, giornate, interventi e rapportini restano identici.
+
+- **Nome e cognome.** `profili.cognome` (nuova, vuota per gli account esistenti, che hanno già nome
+  e cognome nel campo `nome`: quello che si vede non cambia). L'app mostra sempre "nome cognome",
+  mai un identificativo: `nomi_utenti()` restituisce i nomi di chi compare nei dati che l'utente può
+  già vedere, anche degli operai disattivati (admin e company: tutti; operaio: se stesso, gli operai
+  attivi e i colleghi dei propri interventi e rapportini). Nuovi operai: nome e cognome obbligatori.
+- **Più ruoli.** `profili.ruoli` affianca `ruolo`, che resta il ruolo principale (menu e permessi
+  amministrativi come prima). Combinazioni ammesse dal database: `{admin}`, `{admin,worker}`,
+  `{company}`, `{worker}`. Con `worker` si compare tra gli operai, si viene assegnati agli
+  interventi e si indicano le proprie ore (`operai_attivi`, `operai_assegnabili`, trigger di
+  assegnazione e ore usano ora `lavora_sul_campo`). Finora ogni admin era trattato da operaio
+  d'ufficio: la migrazione dà quindi `{admin,worker}` agli admin esistenti (Luca), così nulla
+  cambia. Da Gestione utenti → Modifica l'admin può togliere o ridare il ruolo di operaio a un
+  amministratore; assegnazioni e rapportini già fatti restano. Company e operai non cambiano ruolo.
+- **PIN di 6 cifre.** Si attiva da Altro → PIN di accesso, con la password attuale; si cambia con la
+  password o con il PIN attuale; si disattiva da lì. Il login propone il PIN per l'ultimo utente che
+  l'ha attivato su quel telefono (nel browser c'è solo lo username, mai il PIN).
+  - Il PIN NON è la password di Supabase Auth: nella tabella `pin_accesso` (nessun permesso per
+    `anon`/`authenticated`, solo le Edge Functions) c'è solo l'impronta PBKDF2-SHA256 con sale
+    casuale. Se il PIN è giusto, la funzione `accesso` crea la sessione standard con un link
+    monouso generato e consumato sul server (non arriva al browser, nessuna email).
+  - Tentativi: 5 PIN sbagliati → blocco di 15 minuti; 10 errori consecutivi → PIN eliminato (si
+    rientra con la password). Il conteggio è atomico nel database (`pin_prenota`/`pin_esito`): anche
+    con richieste in parallelo non si superano 5 verifiche. In più al massimo 30 tentativi PIN ogni
+    15 minuti dalla stessa rete (`tentativi_accesso`, solo impronta dell'IP).
+  - PIN deboli rifiutati (sei cifre uguali, sequenze, ripetizioni comuni). Username inesistente e
+    utente senza PIN ricevono la stessa risposta.
+  - Il PIN viene eliminato quando l'admin reimposta la password o disattiva l'account; l'admin
+    può anche rimuoverlo dall'elenco utenti ("PIN attivo").
+- **Recupero dell'accesso (PIN e password dimenticati).** Procedura per l'admin:
+  1. verificare che la richiesta venga davvero dall'operaio (di persona o con una telefonata al suo
+     numero noto: mai su richiesta arrivata da un canale non verificato);
+  2. Altro → Gestione utenti → riga dell'operaio → **Reimposta password**;
+  3. comunicare di persona o per telefono la password temporanea mostrata (una sola volta, con
+     "Copia"). Vale **72 ore**: poi scade e serve un nuovo reset;
+  4. l'operaio accede con username e password temporanea, sceglie la sua password e, se vuole,
+     attiva un nuovo PIN da Altro → PIN di accesso.
+
+  Il reset elimina il PIN, toglie i blocchi per tentativi, chiude le sessioni aperte (il vecchio
+  telefono non rinnova più la sessione; un token già emesso resta valido al massimo fino alla sua
+  scadenza, 1 ora) e registra data e autore (visibili all'admin nell'elenco: "Password reimpostata
+  il … da …"). Interventi, rapportini e foto già sul server non vengono toccati.
+  Il reset dall'app vale solo per gli operai (non per company né per se stessi).
+
+  **Emergenza** (l'unico amministratore, o company, ha dimenticato password e PIN): nel pannello
+  Supabase → SQL Editor, sostituendo USERNAME e la password temporanea (almeno 10 caratteri, lettere e
+  numeri, senza lo username). Provata sul database locale:
+  ```sql
+  begin;
+  update auth.users set encrypted_password = extensions.crypt('Temporanea-2026x', extensions.gen_salt('bf'))
+    where id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  delete from auth.sessions where user_id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  delete from public.pin_accesso where utente_id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  update public.profili set deve_cambiare_password = true, tentativi_falliti = 0, bloccato_fino = null,
+    password_temporanea_scade = now() + interval '72 hours', password_reimpostata_il = now(), password_reimpostata_da = null
+    where lower(username) = lower('USERNAME');
+  commit;
+  ```
+  Poi si accede con la password temporanea e se ne sceglie una nuova. Lo SQL Editor tiene la
+  cronologia delle query: dopo l'uso cancellare la query salvata.
+- **Edge Functions:** `accesso` (PIN, password temporanea scaduta), `cambia-password`, nuova `pin`, `utenti` (azioni `modifica` e `rimuovi_pin`,
+  elenco con cognome, ruoli e PIN), `inizializza` (ruoli). L'app funziona anche se il database non
+  ha ancora la migrazione (profilo letto senza cognome/ruoli), ma le Edge Functions nuove la
+  richiedono: **prima la migrazione, poi le funzioni, poi il frontend**.
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
@@ -296,6 +366,25 @@ di interventi fuori periodo compaiono come voci a sé.
    ```
 4. Pubblicare il frontend: merge di `interventi-rapportini` su `main`.
 5. Prova con un admin e due operai (vedi README / rapporto).
+
+Fase G (ramo `fase-g-utenti-pin`; le migrazioni 20261108–20261111 sono già in produzione dal 7/11/2026):
+1. Backup dei profili: `create table backup.profili_AAAAMMGG as select * from public.profili;`
+2. SQL Editor → `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` → Run. Verifica:
+   `select username, ruolo, ruoli from public.profili order by username;` (Luca `{admin,worker}`,
+   gli altri il solo ruolo principale) e `select count(*) from public.pin_accesso;` (0).
+   [applicata in produzione l'8/11/2026]
+   Poi `supabase/migrations/20261113090000_recupero_accesso.sql` → Run (colonne del recupero
+   dell'accesso). Verifica: `select count(*) from information_schema.columns where table_name = 'profili'
+   and column_name like 'password_%';` (3).
+3. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza` e la nuova `pin`
+   (`supabase functions deploy accesso cambia-password utenti inizializza pin`). Prima della migrazione le funzioni
+   nuove non vanno pubblicate: leggono le colonne `cognome`, `ruoli` e `password_temporanea_scade`.
+4. Pubblicare il frontend (merge su `main`).
+5. Facoltativo: completare il cognome degli account esistenti da Gestione utenti → Modifica
+   (oggi nome e cognome sono insieme nel campo Nome; l'app li mostra correttamente lo stesso).
+Rollback Fase G: ripristinare frontend e Edge Functions precedenti, eliminare la funzione `pin`, poi
+`supabase/rollback/20261113090000_recupero_accesso_rollback.sql` e
+`supabase/rollback/20261112090000_utenti_pin_ruoli_rollback.sql` (perde cognomi e PIN, non i dati).
 
 Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
 `supabase/rollback/20261110090000_allegati_storage_rollback.sql`, poi

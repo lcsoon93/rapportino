@@ -36,16 +36,22 @@ function traduci(error){
 }
 
 // ---------------------------------------------------------------- operai
-let cacheOperai = null;
+let cacheOperai = null, cacheNomi = null;
+// operai assegnabili (attivi, ruolo operaio). Carica anche i nomi di tutti gli utenti che compaiono
+// nei dati visibili (anche disattivati), cosi' nomeOperaio non mostra mai un identificativo.
 export async function operaiAttivi(){
-  if(!cacheOperai) cacheOperai = controlla(await client.rpc("operai_attivi")) || [];
+  if(!cacheOperai){
+    const [operai, nomi] = await Promise.all([client.rpc("operai_attivi"), cacheNomi ? null : client.rpc("nomi_utenti")]);
+    cacheOperai = controlla(operai) || [];
+    if(nomi && !nomi.error) cacheNomi = nomi.data || [];   // senza la migrazione 20261112: solo gli operai attivi
+  }
   return cacheOperai;
 }
-export function dimenticaOperai(){ cacheOperai = null; }
-// nome leggibile di un operaio (dopo operaiAttivi())
+export function dimenticaOperai(){ cacheOperai = null; cacheNomi = null; }
+// nome leggibile (nome e cognome) di un utente (dopo operaiAttivi())
 export function nomeOperaio(id){
-  const o = (cacheOperai || []).find(x=>x.id === id);
-  return o ? (o.nome || o.username) : "—";
+  const o = (cacheOperai || []).find(x=>x.id === id) || (cacheNomi || []).find(x=>x.id === id);
+  return o ? (o.nome || o.username) : "Utente non disponibile";
 }
 
 // ---------------------------------------------------------------- interventi
@@ -87,7 +93,7 @@ export async function contaRapportini({ stato } = {}){
   return count || 0;
 }
 // cambio utente: niente dati del precedente in memoria
-su("uscita", ()=>{ memoria.clear(); cacheOperai = null; });
+su("uscita", ()=>{ memoria.clear(); cacheOperai = null; cacheNomi = null; });
 su("accesso", ()=>{ memoria.clear(); cacheOperai = null; });
 
 export async function leggiIntervento(id){
