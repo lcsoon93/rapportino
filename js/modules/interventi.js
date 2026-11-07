@@ -11,6 +11,8 @@ export function aggiungiCliente(dati){
   div.className = "cliente";
   // identificativo stabile: serve a collegare le spese al cliente anche dopo riordini/cancellazioni
   div.dataset.id = (dati && dati.id) ? dati.id : ("c" + Date.now().toString(36) + Math.random().toString(36).slice(2,6));
+  // nota della pianificazione ("cosa fare"): non si mostra nella scheda ma si conserva al salvataggio
+  if(dati && dati.richiesta) div.dataset.richiesta = dati.richiesta;
   div.innerHTML =
     '<div class="testata">' +
       '<span class="num"></span>' +
@@ -262,7 +264,9 @@ export function elencoClienti(){
     });
     const firma = c.querySelector(".c-firma-dato").value || "";
     if(nome || indirizzo || fasce.length || dettagli || materiali.length || firma || importo || foto.length){
-      out.push({id: c.dataset.id, nome: nome || "(senza nome)", indirizzo, fasce, fatturare, importo, tipologia, stato, firmatario, dettagli, materiali, foto, firma, urgente});
+      const scheda = {id: c.dataset.id, nome: nome || "(senza nome)", indirizzo, fasce, fatturare, importo, tipologia, stato, firmatario, dettagli, materiali, foto, firma, urgente};
+      if(c.dataset.richiesta) scheda.richiesta = c.dataset.richiesta;
+      out.push(scheda);
     }
   });
   return out;

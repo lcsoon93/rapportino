@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/responsive.css">
 </head>
-<body>
+<body class="non-autenticato">
 <!-- icone (tratti in stile Lucide, inline: nessuna libreria esterna) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
   <symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7"/><path d="M5 9v11h14V9"/><path d="M10 20v-6h4v6"/></symbol>
@@ -49,14 +49,72 @@
   <symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="8" ry="3"/><path d="M4 5.5v13c0 1.7 3.6 3 8 3s8-1.3 8-3v-13M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></symbol>
   <symbol id="i-zap" viewBox="0 0 24 24"><path d="M13 2 4 14h7l-1 8 9-12h-7z"/></symbol>
   <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M8 17v-5M13 17V8M18 17v-8"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="i-logout" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></symbol>
+  <symbol id="i-user-plus" viewBox="0 0 24 24"><circle cx="9" cy="8" r="4"/><path d="M2 21c.7-4 3.5-6 7-6s6.3 2 7 6M19 8v6M16 11h6"/></symbol>
   <symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/></symbol>
 </svg>
+
+<!-- ================= ACCESSO ================= -->
+<section id="schermata-accesso" class="schermata nascosto" aria-labelledby="accesso-titolo">
+  <div class="schermata-in">
+    <div class="app-logo accesso-logo"><img class="logo-dinamico" alt="COMP.HAS assistance SRL"></div>
+    <h1 id="accesso-titolo">Rapportino</h1>
+    <p class="schermata-sub">Accedi con il tuo username e la password</p>
+    <form id="form-accesso" class="card schermata-card" novalidate>
+      <label for="acc-username">Username</label>
+      <input type="text" id="acc-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      <label for="acc-password" class="campo-sep">Password</label>
+      <div class="campo-password">
+        <input type="password" id="acc-password" name="password" autocomplete="current-password" required>
+        <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="acc-password"><svg class="i"><use href="#i-eye"/></svg></button>
+      </div>
+      <div class="msg-errore" id="acc-errore" role="alert" aria-live="assertive"></div>
+      <button type="submit" class="btn btn-primario btn-blocco" id="acc-invia"><svg class="i"><use href="#i-lock"/></svg><span>Accedi</span></button>
+    </form>
+    <p class="schermata-nota">Gli account li crea l'amministratore. Password dimenticata? Chiedi a lui di reimpostarla.</p>
+  </div>
+</section>
+
+<!-- ================= CAMBIO PASSWORD ================= -->
+<section id="schermata-password" class="schermata nascosto" aria-labelledby="pw-titolo">
+  <div class="schermata-in">
+    <div class="app-logo accesso-logo"><img class="logo-dinamico" alt="COMP.HAS assistance SRL"></div>
+    <h1 id="pw-titolo">Scegli la tua password</h1>
+    <p class="schermata-sub" id="pw-sottotitolo">Al primo accesso devi sostituire il codice iniziale con una password personale.</p>
+    <form id="form-password" class="card schermata-card" novalidate>
+      <label for="pw-attuale">Password attuale (o codice iniziale)</label>
+      <div class="campo-password">
+        <input type="password" id="pw-attuale" autocomplete="current-password" required>
+        <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="pw-attuale"><svg class="i"><use href="#i-eye"/></svg></button>
+      </div>
+      <label for="pw-nuova" class="campo-sep">Nuova password</label>
+      <div class="campo-password">
+        <input type="password" id="pw-nuova" autocomplete="new-password" required aria-describedby="pw-regole">
+        <button type="button" class="mostra-pw" aria-label="Mostra password" data-per="pw-nuova"><svg class="i"><use href="#i-eye"/></svg></button>
+      </div>
+      <ul class="pw-regole" id="pw-regole">
+        <li data-regola="lunghezza">Almeno 10 caratteri</li>
+        <li data-regola="misto">Lettere e numeri</li>
+        <li data-regola="username">Non contiene il tuo username</li>
+      </ul>
+      <label for="pw-conferma" class="campo-sep">Ripeti la nuova password</label>
+      <input type="password" id="pw-conferma" autocomplete="new-password" required>
+      <div class="msg-errore" id="pw-errore" role="alert" aria-live="assertive"></div>
+      <button type="submit" class="btn btn-primario btn-blocco" id="pw-invia"><svg class="i"><use href="#i-check"/></svg><span>Salva password</span></button>
+      <button type="button" class="btn btn-secondario btn-blocco" id="pw-annulla" style="margin-top:10px">Annulla</button>
+      <button type="button" class="link-btn" id="pw-esci" style="width:100%;justify-content:center">Esci</button>
+    </form>
+  </div>
+</section>
 
 <header class="app-top">
   <div class="app-logo"><img id="logoimg" alt="COMP.HAS assistance SRL"></div>
   <div class="app-titolo">
     <span class="app-nome">Rapportino</span>
-    <span class="app-sub">COMP.HAS assistance SRL</span>
+    <span class="app-sub" id="app-utente">COMP.HAS assistance SRL</span>
   </div>
   <button type="button" class="icon-btn" onclick="mostraVista('altro')" aria-label="Altro e impostazioni"><svg class="i"><use href="#i-sliders"/></svg></button>
 </header>
@@ -135,7 +193,7 @@
       <div class="azioni-rapide">
         <button type="button" class="mini" onclick="vaiOggi()">Oggi</button>
         <button type="button" class="mini" onclick="copiaIeri()"><svg class="i i-sm"><use href="#i-copy"/></svg>Copia ieri</button>
-        <button type="button" class="mini pericolo" onclick="svuotaGiornata()"><svg class="i i-sm"><use href="#i-trash"/></svg>Svuota</button>
+        <button type="button" class="mini pericolo" onclick="svuotaGiornata()" data-permesso="rapportino.elimina"><svg class="i i-sm"><use href="#i-trash"/></svg>Svuota</button>
       </div>
       <div class="campo">
         <label for="tecnici">Tecnici</label>
@@ -275,6 +333,23 @@
     <div class="altro-griglia">
       <div>
         <div class="gruppo">
+          <div class="gruppo-tit">Account</div>
+          <div class="card">
+            <div class="info-riga"><span>Utente</span><b id="altro-utente">—</b></div>
+            <button type="button" class="voce" onclick="apriCambioPassword()"><span class="v-ic"><svg class="i"><use href="#i-lock"/></svg></span><span class="v-testi"><span class="v-tit">Cambia password</span><span class="v-sub">Serve la password attuale</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="esciDallApp()"><span class="v-ic att"><svg class="i"><use href="#i-logout"/></svg></span><span class="v-testi"><span class="v-tit">Esci</span><span class="v-sub">Prima invia al server le modifiche</span></span></button>
+          </div>
+        </div>
+        <div class="gruppo" data-permesso="utenti.gestisci">
+          <div class="gruppo-tit">Amministrazione</div>
+          <div class="card">
+            <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Operai: crea, disattiva, reimposta password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('company')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Pianificazione e assegnazioni</span><span class="v-sub">Schede cliente e operai per giornata</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('rapporti')"><span class="v-ic pervinca"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportini compilati</span><span class="v-sub">Vista per mese con PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te come operaio</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+        <div class="gruppo" data-permesso="rapportino.compila">
           <div class="gruppo-tit">Gestione giornata</div>
           <div class="card">
             <button type="button" class="voce" onclick="mostraVista('giorno')"><span class="v-ic"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportino della giornata</span><span class="v-sub" id="altro-data"></span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
@@ -283,7 +358,7 @@
             <button type="button" class="voce" onclick="mostraVista('cerca')"><span class="v-ic azzurro"><svg class="i"><use href="#i-users"/></svg></span><span class="v-testi"><span class="v-tit">Clienti</span><span class="v-sub">Elenco e storico interventi</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
-        <div class="gruppo">
+        <div class="gruppo" data-permesso="report">
           <div class="gruppo-tit">Report</div>
           <div class="card">
             <button type="button" class="voce" onclick="mostraVista('sett')"><span class="v-ic pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span class="v-testi"><span class="v-tit">Report settimanale</span><span class="v-sub">Giorni, ore per operaio, totale</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
@@ -292,7 +367,7 @@
         </div>
       </div>
       <div>
-        <div class="gruppo">
+        <div class="gruppo" data-permesso="pdf">
           <div class="gruppo-tit">Documenti</div>
           <div class="card">
             <button type="button" class="voce" onclick="inviaPDF(this)"><span class="v-ic"><svg class="i"><use href="#i-send"/></svg></span><span class="v-testi"><span class="v-tit">Invia PDF della giornata</span><span class="v-sub">Con firme, foto e spese</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
@@ -301,11 +376,11 @@
           </div>
         </div>
         <div class="gruppo">
-          <div class="gruppo-tit">Archivio e backup</div>
+          <div class="gruppo-tit">Archivio</div>
           <div class="card m-backup">
             <button type="button" class="voce" onclick="sincronizza()"><span class="v-ic"><svg class="i"><use href="#i-refresh"/></svg></span><span class="v-testi"><span class="v-tit">Aggiorna da server</span><span class="v-sub">Scarica le modifiche dell'altro telefono</span></span></button>
-            <button type="button" class="voce" onclick="esportaBackup()"><span class="v-ic"><svg class="i"><use href="#i-download"/></svg></span><span class="v-testi"><span class="v-tit">Esporta backup</span><span class="v-sub">File .json con tutti i rapporti</span></span></button>
-            <button type="button" class="voce" onclick="document.getElementById('fileimporta').click()"><span class="v-ic att"><svg class="i"><use href="#i-upload"/></svg></span><span class="v-testi"><span class="v-tit">Importa backup</span><span class="v-sub">Da un file esportato da questa app</span></span></button>
+            <button type="button" class="voce" data-permesso="backup.esporta" onclick="esportaBackup()"><span class="v-ic"><svg class="i"><use href="#i-download"/></svg></span><span class="v-testi"><span class="v-tit">Esporta backup</span><span class="v-sub">File .json con tutti i rapporti</span></span></button>
+            <button type="button" class="voce" data-permesso="backup.importa" onclick="document.getElementById('fileimporta').click()"><span class="v-ic att"><svg class="i"><use href="#i-upload"/></svg></span><span class="v-testi"><span class="v-tit">Importa backup</span><span class="v-sub">Da un file esportato da questa app</span></span></button>
             <input type="file" id="fileimporta" accept=".json,application/json" class="nascosto" onchange="importaBackup(this)">
             <div class="nota">I rapporti sono salvati su questo telefono. Esporta il backup ogni tanto (o quando cambi telefono) e conservalo, ad esempio, su Drive o mandatelo per mail.</div>
           </div>
@@ -322,6 +397,121 @@
     </div>
   </section>
 
+
+  <!-- ================= DASHBOARD OPERAIO ================= -->
+  <section id="vista-lavoro" class="nascosto">
+    <div class="saluto">
+      <h1 id="lavoro-saluto">Il mio lavoro</h1>
+      <p id="lavoro-sub"></p>
+    </div>
+    <div class="card riepilogo">
+      <div class="stat-griglia">
+        <div class="stat brand"><span class="stat-val" id="st-l-dafare">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Da fare</span></div>
+        <div class="stat att"><span class="stat-val" id="st-l-incorso">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>In lavorazione</span></div>
+        <div class="stat ok"><span class="stat-val" id="st-l-completati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Completati</span></div>
+        <div class="stat pervinca"><span class="stat-val" id="st-l-giornate">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-cal"/></svg>Giornate assegnate</span></div>
+      </div>
+    </div>
+    <div class="home-cta">
+      <button type="button" class="btn btn-primario btn-xl" onclick="nuovoRapportino()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo intervento</button>
+    </div>
+    <div class="sezione-head"><h2>Interventi assegnati</h2></div>
+    <div id="lavoro-assegnati"></div>
+    <div class="sezione-head"><h2>In lavorazione</h2></div>
+    <div id="lavoro-incorso"></div>
+    <div class="sezione-head"><h2>Completati</h2></div>
+    <div id="lavoro-completati"></div>
+    <div class="sezione-head"><h2>Storico</h2></div>
+    <div id="lavoro-storico"></div>
+  </section>
+
+  <!-- ================= PIANIFICAZIONE (company e admin) ================= -->
+  <section id="vista-company" class="nascosto">
+    <div class="vista-head"><div class="vh-testi"><h1>Pianificazione</h1><div class="vh-sub">Prepara le giornate, crea le schede cliente e assegna gli operai</div></div></div>
+    <div class="giorno-sel" role="group" aria-label="Giornata da pianificare">
+      <button type="button" class="gs-freccia" onclick="spostaPianificazione(-1)" aria-label="Giorno precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="gs-data">
+        <svg class="i i-sm" style="color:var(--brand)"><use href="#i-cal"/></svg>
+        <span id="pian-etichetta"></span>
+        <input type="date" id="pian-data" aria-label="Scegli la giornata" onchange="caricaPianificazione()">
+      </div>
+      <button type="button" class="gs-freccia" onclick="spostaPianificazione(1)" aria-label="Giorno successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
+    </div>
+    <div class="msg-info" id="pian-stato" role="status" aria-live="polite"></div>
+
+    <div class="modulo">
+      <div class="titolo"><span class="t-icona pervinca"><svg class="i"><use href="#i-users"/></svg></span>Operai assegnati</div>
+      <div id="pian-operai"><div class="nota" style="padding:0">Caricamento…</div></div>
+    </div>
+
+    <div class="modulo">
+      <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span>Schede cliente<span class="t-num" id="pian-num">0</span></div>
+      <div id="pian-schede"></div>
+    </div>
+
+    <form class="modulo" id="pian-form" novalidate>
+      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-plus"/></svg></span><span id="pian-form-titolo">Nuova scheda cliente</span></div>
+      <label for="pian-nome">Cliente / luogo</label>
+      <input type="text" id="pian-nome" autocomplete="off" required>
+      <div class="campo"><label for="pian-indirizzo">Indirizzo</label>
+      <input type="text" id="pian-indirizzo" autocomplete="off"></div>
+      <div class="due campo">
+        <div><label for="pian-ora">Ora prevista</label><input type="time" id="pian-ora"></div>
+        <div><label for="pian-tipologia">Tipologia</label>
+          <select id="pian-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
+      </div>
+      <div class="campo"><label for="pian-richiesta">Cosa fare (per l'operaio)</label>
+      <textarea id="pian-richiesta" placeholder="Descrizione dell'intervento richiesto"></textarea></div>
+      <label class="check" style="margin-top:6px"><input type="checkbox" id="pian-urgente"><span>Intervento urgente</span></label>
+      <div class="msg-errore" id="pian-errore" role="alert"></div>
+      <div class="due" style="margin-top:8px">
+        <div><button type="submit" class="btn btn-secondario btn-blocco" id="pian-aggiungi"><svg class="i"><use href="#i-plus"/></svg><span>Aggiungi scheda</span></button></div>
+        <div><button type="button" class="btn btn-secondario btn-blocco nascosto" id="pian-annulla-modifica">Annulla modifica</button></div>
+      </div>
+    </form>
+
+    <button type="button" class="btn btn-primario btn-xl" id="pian-invia" onclick="inviaPianificazione()"><svg class="i i-lg"><use href="#i-send"/></svg><span>Salva e invia agli operai</span></button>
+    <p class="nota" style="padding:12px 2px">Gli operai assegnati vedono la giornata nella loro app alla prossima sincronizzazione. Le schede già compilate dagli operai non si possono modificare da qui.</p>
+  </section>
+
+  <!-- ================= RAPPORTINI COMPILATI (company e admin) ================= -->
+  <section id="vista-rapporti" class="nascosto">
+    <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Giornate e schede compilate dagli operai, con PDF</div></div></div>
+    <div class="periodo">
+      <button type="button" class="freccia" onclick="spostaMeseRapporti(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <input type="month" id="rap-mese" onchange="disegnaRapporti()" aria-label="Mese">
+      <button type="button" class="freccia" onclick="spostaMeseRapporti(1)" aria-label="Mese successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
+    </div>
+    <div class="msg-info" id="rap-stato" role="status" aria-live="polite"></div>
+    <div id="rap-elenco"></div>
+  </section>
+
+  <!-- ================= GESTIONE UTENTI (admin) ================= -->
+  <section id="vista-utenti" class="nascosto">
+    <div class="vista-head">
+      <button type="button" class="indietro" onclick="mostraVista('altro')" aria-label="Torna ad Altro"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Gestione utenti</h1><div class="vh-sub">Account degli operai</div></div>
+    </div>
+    <form class="modulo" id="utenti-form" novalidate>
+      <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-user-plus"/></svg></span>Nuovo operaio</div>
+      <label for="ut-nome">Nome e cognome</label>
+      <input type="text" id="ut-nome" autocomplete="off" required>
+      <div class="campo"><label for="ut-username">Username</label>
+      <input type="text" id="ut-username" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" required aria-describedby="ut-username-nota">
+      <div class="nota" id="ut-username-nota" style="padding:4px 0 0">3–30 caratteri: lettere, numeri, punto, trattino.</div></div>
+      <div class="campo"><label for="ut-password">Password iniziale</label>
+      <div class="campo-password">
+        <input type="text" id="ut-password" autocomplete="new-password" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+        <button type="button" class="mostra-pw" aria-label="Genera una password" onclick="generaPasswordIniziale()"><svg class="i"><use href="#i-refresh"/></svg></button>
+      </div>
+      <div class="nota" style="padding:4px 0 0">Comunicala all'operaio: al primo accesso dovrà sceglierne una sua.</div></div>
+      <div class="msg-errore" id="ut-errore" role="alert"></div>
+      <div class="msg-info" id="ut-ok" role="status"></div>
+      <button type="submit" class="btn btn-primario btn-blocco" id="ut-crea" style="margin-top:8px"><svg class="i"><use href="#i-user-plus"/></svg><span>Crea account operaio</span></button>
+    </form>
+    <div class="sezione-head"><h2>Utenti</h2></div>
+    <div id="utenti-elenco"></div>
+  </section>
 </main>
 
 <!-- barra giornata -->
@@ -358,12 +548,7 @@
 
 <!-- navigazione principale -->
 <nav class="navbar" aria-label="Navigazione principale">
-  <div class="nav-in">
-    <button type="button" class="nav-btn" id="nav-home" aria-current="page" onclick="mostraVista('home')"><span class="nav-pill"><svg class="i"><use href="#i-home"/></svg></span>Home</button>
-    <button type="button" class="nav-btn" id="nav-cal" onclick="mostraVista('cal')"><span class="nav-pill"><svg class="i"><use href="#i-cal"/></svg></span>Calendario</button>
-    <button type="button" class="nav-btn" id="nav-clienti" onclick="mostraVista('cerca')"><span class="nav-pill"><svg class="i"><use href="#i-users"/></svg></span>Clienti</button>
-    <button type="button" class="nav-btn" id="nav-altro" onclick="mostraVista('altro')"><span class="nav-pill"><svg class="i"><use href="#i-grid"/></svg></span>Altro</button>
-  </div>
+  <div class="nav-in"></div>
 </nav>
 
 <div id="suggerimenti" class="suggerimenti nascosto" role="listbox"></div>
@@ -383,6 +568,7 @@
     <button type="button" class="fo-conferma" id="fo-conferma" onclick="chiudiFirmaOverlay(true)">&#10004; Salva firma</button>
   </div>
 </div>
+<script src="./js/vendor/supabase.js"></script>
 <script type="module" src="./js/core/app.js"></script>
 </body>
 </html>

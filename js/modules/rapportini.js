@@ -3,7 +3,7 @@ import { SINC_ATTIVA } from "../core/config.js";
 import { dataIt, dataLunga, etichettaGiorno, isoDi, oggiIso } from "../utils/dates.js";
 import { salvaPrefExtra, salvaPrefFoglioUnico, salvaPrefNascondiOre, salvaPrefNascondiOreMese } from "../core/preferenze.js";
 import { avvisoArchivio, leggiDB, leggiTimbri, scriviDB, scriviTimbri } from "../core/storage.js";
-import { cancellaGiornoRemoto, inviaGiorno, statoSinc } from "../services/sync.js";
+import { cancellaGiornoRemoto, inviaGiorno, registraBase, statoSinc, versioneConfermata } from "../services/sync.js";
 import { mostraVista } from "../core/navigation.js";
 import { aggiungiCliente, elencoClienti } from "./interventi.js";
 import { aggiungiOperaio, calcolaOreGiorno, elencoOperai } from "./operai.js";
@@ -72,6 +72,7 @@ export let timerSalva = null;
 export function salvaGiornata(){
   clearTimeout(timerSalva);
   timerSalva = setTimeout(()=>{
+    timerSalva = null;
     const iso = document.getElementById("data").value;
     if(!iso) return;
     const db = leggiDB();
@@ -101,7 +102,9 @@ export function salvaGiornata(){
       if(db[iso]){
         inviaGiorno(iso, db[iso])
           .then(()=>statoSinc(""))
-          .catch(()=>statoSinc("In attesa di rete", "#C97B3D"));
+          .catch(e=>statoSinc(e && (e.stato === 403 || e.stato === 409)
+            ? "Non sei autorizzato a salvare questa giornata sul server: resta solo su questo telefono."
+            : "In attesa di rete", e && (e.stato === 403 || e.stato === 409) ? "#B3413A" : "#C97B3D"));
       } else {
         cancellaGiornoRemoto(iso);
       }
@@ -128,6 +131,9 @@ export function caricaGiornata(iso){
       } else {
         aggiungiOperaio({dalle:d.dalle, alle:d.alle});
       }
+    } else if(d.pianificato && d.tecnici){
+      // giornata preparata dalla pianificazione: gli operai proposti sono quelli assegnati
+      d.tecnici.split("/").map(s=>s.trim()).filter(Boolean).forEach(n=>aggiungiOperaio({nome:n, dalle:"08:00", alle:"17:00"}));
     } else {
       aggiungiOperaio({nome:"Luca", dalle:"08:00", alle:"17:00"});
       aggiungiOperaio({nome:"Francesco", dalle:"08:00", alle:"17:00"});
@@ -144,6 +150,10 @@ export function caricaGiornata(iso){
   calcolaOreGiorno();
   calcolaSpese();
   aggiornaTestiData();
+  // senza modifiche in sospeso, cio' che e' sullo schermo coincide con la versione del server:
+  // diventa la versione di partenza per unire eventuali modifiche concorrenti
+  const timbro = leggiTimbri()[iso];
+  if(d && versioneConfermata(iso, timbro)) registraBase(iso, d, timbro);
   emetti("giornata-caricata");
 }
 document.addEventListener("input", e=>{
@@ -188,3 +198,15 @@ export function apriGiorno(iso){
 su("giornata-modificata", salvaGiornata);
 // archivio cambiato da sincronizzazione o importazione: si ricarica la giornata aperta
 su("archivio-aggiornato", ()=>caricaGiornata(document.getElementById("data").value));
+// un salvataggio ha unito le mie modifiche con quelle di altri: si ridisegna la giornata aperta,
+// ma solo quando non si sta scrivendo e non ci sono salvataggi in attesa (per non perdere battute)
+su("giornata-unita", function ridisegna(iso){
+  if(document.getElementById("data").value !== iso) return;
+  const editor = document.getElementById("vista-giorno");
+  if(timerSalva !== null || editor.contains(document.activeElement) ||
+     !document.getElementById("firma-overlay").classList.contains("nascosto")){
+    setTimeout(()=>ridisegna(iso), 1500);
+    return;
+  }
+  caricaGiornata(iso);
+});

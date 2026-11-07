@@ -17,6 +17,11 @@ import { mostraFotoIntera } from "../services/immagini.js";
 import { annullaFirmaOverlay, apriFirmaOverlay, chiudiFirmaOverlay, pulisciFirma, pulisciFirmaOverlay } from "../services/signature.js";
 import { sincronizza } from "../services/sync.js";
 import { oraAdesso } from "../utils/dom.js";
+import { apriCambioPassword, esciDallApp } from "../modules/accesso.js";
+import { apriSchedaLavoro } from "../modules/lavoro.js";
+import { caricaPianificazione, inviaPianificazione, modificaSchedaPian, rimuoviSchedaPian, spostaPianificazione, spuntaOperaio } from "../modules/pianificazione.js";
+import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
+import { azioneUtente, generaPasswordIniziale } from "../modules/utenti.js";
 
 Object.assign(window, {
   mostraVista,
@@ -33,5 +38,10 @@ Object.assign(window, {
   mostraFotoIntera,
   annullaFirmaOverlay, apriFirmaOverlay, chiudiFirmaOverlay, pulisciFirma, pulisciFirmaOverlay,
   sincronizza,
-  oraAdesso
+  oraAdesso,
+  apriCambioPassword, esciDallApp,
+  apriSchedaLavoro,
+  caricaPianificazione, inviaPianificazione, modificaSchedaPian, rimuoviSchedaPian, spostaPianificazione, spuntaOperaio,
+  disegnaRapporti, pdfRapporto, spostaMeseRapporti,
+  azioneUtente, generaPasswordIniziale
 });

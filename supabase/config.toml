@@ -1,0 +1,20 @@
+# Configurazione Supabase CLI per Rapportino (solo cio' che differisce dai valori predefiniti).
+project_id = "rapportino"
+
+[auth]
+# niente registrazione pubblica: gli account li crea l'amministratore (Edge Function "utenti")
+enable_signup = false
+enable_anonymous_sign_ins = false
+
+# login e inizializzazione si chiamano senza sessione: il controllo lo fanno le funzioni
+[functions.accesso]
+verify_jwt = false
+
+[functions.inizializza]
+verify_jwt = false
+
+[functions.utenti]
+verify_jwt = true
+
+[functions.cambia-password]
+verify_jwt = true

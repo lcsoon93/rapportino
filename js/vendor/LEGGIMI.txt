@@ -1,0 +1,2 @@
+supabase.js e 591.supabase.js: @supabase/supabase-js 2.45.4 (build UMD), licenza MIT, https://github.com/supabase/supabase-js
+Copiati dal pacchetto npm senza modifiche: nessun servizio esterno a runtime.
