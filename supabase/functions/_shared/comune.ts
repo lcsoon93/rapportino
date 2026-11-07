@@ -69,7 +69,7 @@ const b64 = (u: Uint8Array) => btoa(String.fromCharCode(...u));
 const daB64 = (t: string) => Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
 async function pbkdf2(pin: string, sale: Uint8Array, iterazioni: number): Promise<Uint8Array> {
   const chiave = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveBits"]);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: sale, iterations: iterazioni }, chiave, 256));
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: sale as BufferSource, iterations: iterazioni }, chiave, 256));
 }
 export async function improntaPin(pin: string): Promise<string> {
   const sale = crypto.getRandomValues(new Uint8Array(16));

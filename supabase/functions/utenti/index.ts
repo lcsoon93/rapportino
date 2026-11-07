@@ -8,7 +8,7 @@
 //   disattiva / riattiva / reset_password   solo account operaio, mai se stessi (eliminano anche il PIN)
 // Nessuna azione elimina utenti: interventi e rapportini storici restano collegati al loro UUID.
 import {
-  CAMPI_PROFILO, chiamante, clientAdmin, corpoJson, CORS, emailInterna, errore, problemaPassword, risposta, USERNAME_VALIDO,
+  chiamante, clientAdmin, corpoJson, CORS, emailInterna, errore, problemaPassword, risposta, USERNAME_VALIDO,
 } from "../_shared/comune.ts";
 
 const PER_SEMPRE = "876000h"; // ~100 anni: blocca anche il rinnovo delle sessioni aperte
@@ -27,7 +27,8 @@ Deno.serve(async (req) => {
   const azione = corpo.azione;
 
   if (azione === "elenco") {
-    const { data, error } = await admin.from("profili").select(CAMPI_PROFILO + ", creato_il").order("ruolo").order("username");
+    const { data, error } = await admin.from("profili")
+      .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, creato_il").order("ruolo").order("username");
     if (error) return errore("Errore nel leggere gli utenti.", 500);
     const { data: pin } = await admin.from("pin_accesso").select("utente_id");
     const conPin = new Set((pin || []).map((x) => x.utente_id));

@@ -7,7 +7,7 @@
 //   generato e consumato qui sul server: non arriva mai al browser e non viene inviato per email).
 // In entrambi i casi si restituisce la sessione standard di Supabase.
 import {
-  attesaTesto, CAMPI_PROFILO, clientAdmin, clientAnonimo, controllaPin, corpoJson, CORS, entroLimite, errore,
+  attesaTesto, clientAdmin, clientAnonimo, controllaPin, corpoJson, CORS, entroLimite, errore,
   risposta, USERNAME_VALIDO,
 } from "../_shared/comune.ts";
 
@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   const { username, password, pin } = await corpoJson(req);
   const admin = clientAdmin();
   const cerca = (u: string) => admin.from("profili")
-    .select(CAMPI_PROFILO + ", tentativi_falliti, bloccato_fino")
+    .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, tentativi_falliti, bloccato_fino")
     .ilike("username", u.trim().replace(/[\\%_]/g, "\\$&")).maybeSingle();
 
   // ---------------------------------------------------------------- PIN
