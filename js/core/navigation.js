@@ -7,9 +7,9 @@ import { puo, vistaIniziale, vocinav } from "./permessi.js";
 // altro = strumenti; lavoro = dashboard operaio; interventi = pianificazione (admin, company);
 // rapportino = modulo del rapportino; rapporti = consultazione; utenti = gestione utenti (admin);
 // calgiorno = interventi di un giorno (Calendario)
-export const VISTE = ["home","giorno","calgiorno","sett","mese","cerca","altro","lavoro","interventi","rapportino","rapporti","utenti"];
+export const VISTE = ["home","giorno","calgiorno","sett","mese","cerca","altro","lavoro","interventi","rapportino","rapporti","utenti","storico"];
 export const VOCE_NAV = {home:"home", giorno:"home", calgiorno:"cal", sett:"cal", mese:"cal", cerca:"clienti", altro:"altro",
-  lavoro:"lavoro", interventi:"interventi", rapportino:"rapporti", rapporti:"rapporti", utenti:"altro"};
+  lavoro:"lavoro", interventi:"interventi", storico:"altro", rapportino:"rapporti", rapporti:"rapporti", utenti:"altro"};
 export let vistaCorrente = "home";
 export let ultimaVistaCal = "mese";
 export const disegnatori = {};          // vista -> funzione che la ridisegna quando viene mostrata

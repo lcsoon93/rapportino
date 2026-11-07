@@ -734,3 +734,15 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .coda-inviati{padding:10px 14px;margin-bottom:10px}
 .coda-inviati summary{cursor:pointer;font-weight:600;font-size:14.5px;min-height:32px;display:flex;align-items:center}
 .coda-inviato{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--bordo);font-size:14px}
+/* ================= STORICO ================= */
+.st-filtri{padding:10px 14px;margin:14px 0}
+.st-filtri summary{cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center}
+.st-voce{padding:12px 14px;margin-bottom:12px}
+.st-testa{display:flex;align-items:flex-start;gap:12px;width:100%;background:none;border:none;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.st-testa .chev{color:#A3ACB8;flex:none;margin-top:4px}
+.st-rapportini{margin-top:10px;border-top:1px dashed var(--bordo)}
+.st-rap{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid var(--bordo);padding:10px 0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.st-rap:last-child{border-bottom:none}
+.st-rap .chev{color:#A3ACB8;flex:none}
+.st-ore{white-space:normal !important}
+.st-autonomo .cli-ind{margin-top:2px}

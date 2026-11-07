@@ -251,6 +251,18 @@ registrazione delle foto già esistenti). File: `services/coda-locale.js` (archi
   account i rapportini del precedente restano sul telefono, non vengono mostrati né inviati, e partono
   quando lui accede di nuovo. Tutto passa da RLS, trigger e policy Storage; nessuna service role key.
 
+## Storico (Fase E)
+
+Solo frontend, nessuna modifica SQL. Altro → Consultazione → **Storico** (admin e company; l'operaio
+non ha la voce né la schermata e, anche chiamando le API, RLS gli restituisce solo i propri dati).
+Interventi del periodo (`elencoInterventi`) e rapportini del periodo o collegati a quegli interventi
+(`storicoRapportini`: ore e numero di foto), un'unica lettura per periodo; cliente, operaio, stato e
+ricerca (cliente, indirizzo, descrizione/attività, senza maiuscole e accenti) filtrano in memoria.
+Periodo predefinito: ultimi 30 giorni; risultati dal più recente; "Azzera i filtri". Per ogni intervento:
+stato, avanzamento, ore totali e un rapportino per operaio con le sue ore e le foto; tocco = dettaglio
+dell'intervento o rapportino (foto e PDF dalle schermate esistenti). Rapportini autonomi e rapportini
+di interventi fuori periodo compaiono come voci a sé.
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:

@@ -409,6 +409,13 @@
             <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te e tuoi rapportini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
+        <div class="gruppo" data-permesso="vista.storico">
+          <div class="gruppo-tit">Consultazione</div>
+          <div class="card">
+            <button type="button" class="voce" onclick="mostraVista('storico')"><span class="v-ic pervinca"><svg class="i"><use href="#i-search"/></svg></span><span class="v-testi"><span class="v-tit">Storico</span><span class="v-sub">Interventi e rapportini: filtri, ricerca, ore, foto e PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+
         <div class="gruppo" data-permesso="rapportino.compila">
           <div class="gruppo-tit">Gestione giornata</div>
           <div class="card">
@@ -530,6 +537,38 @@
     <label class="check" style="margin:-4px 2px 8px"><input type="checkbox" id="int-chiusi" onchange="disegnaInterventi()"><span>Mostra anche completati e annullati</span></label>
     <div class="msg-info" id="int-stato" role="status" aria-live="polite"></div>
     <div id="int-elenco"></div>
+  </section>
+
+  <!-- ================= STORICO (admin, company) ================= -->
+  <section id="vista-storico" class="nascosto">
+    <div class="vista-head">
+      <button type="button" class="indietro" onclick="mostraVista('altro')" aria-label="Indietro"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Storico</h1><div class="vh-sub">Interventi e rapportini</div></div>
+    </div>
+    <div class="cerca-input">
+      <span class="cerca-lente"><svg class="i"><use href="#i-search"/></svg></span>
+      <input type="search" id="st-cerca" placeholder="Cerca cliente, indirizzo, descrizione…" autocomplete="off" aria-label="Cerca nello storico" oninput="cercaStorico()">
+    </div>
+    <details class="card st-filtri" open>
+      <summary>Filtri</summary>
+      <div class="due">
+        <div><label for="st-dal">Dal</label><input type="date" id="st-dal" onchange="disegnaStorico()"></div>
+        <div><label for="st-al">Al</label><input type="date" id="st-al" onchange="disegnaStorico()"></div>
+      </div>
+      <div class="campo"><label for="st-cliente">Cliente</label><select id="st-cliente" onchange="disegnaStorico()"><option value="">Tutti i clienti</option></select></div>
+      <div class="due campo">
+        <div><label for="st-operaio">Operaio</label><select id="st-operaio" onchange="disegnaStorico()"><option value="">Tutti gli operai</option></select></div>
+        <div><label for="st-stato">Stato</label>
+          <select id="st-stato" onchange="disegnaStorico()">
+            <option value="">Tutti gli stati</option><option value="pianificato">Pianificato</option><option value="in_corso">In corso</option>
+            <option value="completato">Completato</option><option value="annullato">Annullato</option><option value="bozza">Con rapportini in bozza</option>
+          </select></div>
+      </div>
+      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:12px" id="st-azzera" onclick="azzeraFiltriStorico()">Azzera i filtri</button>
+    </details>
+    <div class="msg-info nascosto" id="st-stato-msg" role="status" aria-live="polite"></div>
+    <p class="elenco-nota" id="st-conteggio"></p>
+    <div id="st-elenco"></div>
   </section>
 
   <!-- ================= RAPPORTINO (modulo) ================= -->

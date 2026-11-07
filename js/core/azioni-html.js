@@ -23,6 +23,7 @@ import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapport
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
 import { azioneUtente, generaPasswordIniziale } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
+import { azzeraFiltriStorico, cercaStorico, disegnaStorico } from "../modules/storico.js";
 import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
 
 Object.assign(window, {
@@ -46,6 +47,7 @@ Object.assign(window, {
   aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
+  azzeraFiltriStorico, cercaStorico, disegnaStorico,
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
   azioneUtente, generaPasswordIniziale,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal

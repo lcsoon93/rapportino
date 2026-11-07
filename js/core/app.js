@@ -20,6 +20,7 @@ import { avviaSincronizzazione, fermaSincronizzazione } from "../services/sinc-r
 import "../modules/dashboard.js";
 import "../modules/calendario.js";
 import "../modules/agenda.js";
+import "../modules/storico.js";
 import "../modules/altro.js";
 import "../modules/lavoro.js";
 import "../modules/gestione-interventi.js";

@@ -8,7 +8,7 @@ import { profilo } from "./sessione.js";
 const PERMESSI = {
   admin: [
     "vista.home", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
-    "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino",
+    "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino", "vista.storico",
     "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
     "backup.esporta", "backup.importa", "report", "pdf",
@@ -16,6 +16,7 @@ const PERMESSI = {
   company: [
     "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
     "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario degli interventi (consultazione)
+    "vista.storico",                                         // Storico (consultazione)
     "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
   ],
   worker: [

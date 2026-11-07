@@ -135,6 +135,23 @@ export async function elencoRapportini({ dal, al, stato, autore, intervento } = 
   if(intervento) q = q.eq("intervento_id", intervento);
   return controlla(await q.order("data", { ascending: false }).order("aggiornato_il", { ascending: false }));
 }
+// Storico: rapportini di un periodo (per data del rapportino) e quelli collegati agli interventi
+// indicati, con ore e numero di foto. Solo cio' che RLS consente all'utente.
+const CAMPI_STORICO = "id, intervento_id, autore_id, data, cliente, indirizzo, attivita, note, stato, completato_il, " +
+  "rapportino_operai(operaio_id, dalle, alle), allegati(count)";
+export async function storicoRapportini({ dal, al, interventi = [] }){
+  let q = client.from("rapportini").select(CAMPI_STORICO);
+  if(dal) q = q.gte("data", dal);
+  if(al) q = q.lte("data", al);
+  const delPeriodo = controlla(await q.order("data", { ascending: false }));
+  const visti = new Set(delPeriodo.map(r=>r.id));
+  let collegati = [];
+  for(let i = 0; i < interventi.length; i += 100){            // a blocchi: URL non troppo lunghi
+    const blocco = interventi.slice(i, i + 100);
+    collegati = collegati.concat(controlla(await client.from("rapportini").select(CAMPI_STORICO).in("intervento_id", blocco)));
+  }
+  return delPeriodo.concat(collegati.filter(r=>!visti.has(r.id)));
+}
 export async function leggiRapportino(id){
   return controlla(await client.from("rapportini").select(CAMPI_RAPPORTINO).eq("id", id).maybeSingle());
 }
