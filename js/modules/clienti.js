@@ -259,4 +259,4 @@ export function eseguiRicerca(){
 registraVista("cerca", eseguiRicerca);
 su("vista-cambiata", chiudiSuggerimenti);
 su("giornata-salvata", aggiornaClientiNoti);
-su("archivio-aggiornato", aggiornaClientiNoti);
+su("archivio-aggiornato", origine=>{ if(origine === "importazione") aggiornaClientiNoti(); });

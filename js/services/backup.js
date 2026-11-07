@@ -28,7 +28,7 @@ export function importaBackup(input){
         if(/^\d{4}-\d{2}-\d{2}$/.test(k)){ db[k] = nuovo[k]; n++; }
       });
       scriviDB(db);
-      emetti("archivio-aggiornato");
+      emetti("archivio-aggiornato", "importazione");
       alert("Importati " + n + " giorni dal backup.");
     }catch(e){
       alert("File non valido: seleziona un backup esportato da questa app.");

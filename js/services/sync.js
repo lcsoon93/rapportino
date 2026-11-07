@@ -79,7 +79,7 @@ export async function sincronizza(silenzioso){
     scriviTimbri(timbri);
     statoSinc("Sincronizzato", "#2FA189");
     setTimeout(()=>statoSinc(""), 2500);
-    if(cambiati) emetti("archivio-aggiornato");
+    if(cambiati) emetti("archivio-aggiornato", "sincronizzazione");
   }catch(e){
     console.error(e);
     statoSinc("Non sincronizzato (offline?)", "#B3413A");

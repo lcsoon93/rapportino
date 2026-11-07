@@ -7,7 +7,7 @@
 //   "giornata-salvata"     il rapportino e' stato scritto in archivio
 //   "giornata-caricata"    la giornata selezionata e' stata (ri)disegnata nel modulo
 //   "firma-chiusa"         il pad della firma e' stato chiuso
-//   "archivio-aggiornato"  dati arrivati da sincronizzazione o importazione backup
+//   "archivio-aggiornato"  dati arrivati da "sincronizzazione" o "importazione" (dato: origine)
 //   "vista-cambiata"       si sta passando a un'altra schermata (dato: nome della vista)
 const ascoltatori = {};
 

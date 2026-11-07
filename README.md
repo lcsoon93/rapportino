@@ -78,7 +78,7 @@ Eventi (chi li emette → chi ascolta):
 | `giornata-salvata` | rapportini | clienti → aggiorna i suggerimenti |
 | `giornata-caricata` | rapportini | dashboard → ridisegna la Home se visibile |
 | `firma-chiusa` | signature | dashboard |
-| `archivio-aggiornato` | sync, backup | rapportini, calendario, clienti |
+| `archivio-aggiornato` | sync (`"sincronizzazione"`), backup (`"importazione"`) | rapportini, calendario, clienti (solo importazione) |
 | `vista-cambiata` | navigation | clienti → chiude i suggerimenti |
 
 ## Dati (da non cambiare)

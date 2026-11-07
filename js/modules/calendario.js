@@ -162,7 +162,8 @@ export function eliminaGiornoMese(iso){
 
 registraVista("sett", disegnaSettimana);
 registraVista("mese", disegnaMese);
-su("archivio-aggiornato", ()=>{
-  if(vistaCorrente === "sett") disegnaSettimana();
-  if(vistaCorrente === "mese") disegnaMese();
+su("archivio-aggiornato", origine=>{
+  // come prima: dopo un'importazione la settimana si ridisegna sempre, dopo una sincronizzazione solo se visibile
+  if(origine === "importazione" || vistaCorrente === "sett") disegnaSettimana();
+  if(origine === "sincronizzazione" && vistaCorrente === "mese") disegnaMese();
 });
