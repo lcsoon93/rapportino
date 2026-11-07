@@ -4,10 +4,14 @@
 import { client, profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
 
-function controlla({ data, error }){
+function controlla({ data, error, status }){
   if(error){
-    const e = new Error(traduci(error));
+    let m = traduci(error);
+    // risposta 5xx (server momentaneamente non disponibile): errore temporaneo, si riprova
+    if(status >= 500 && !/connessione|non sono ancora attivi/i.test(m)) m += " (errore temporaneo del server)";
+    const e = new Error(m);
     e.codice = error.code;
+    e.stato = status;
     throw e;
   }
   return data;
@@ -26,7 +30,8 @@ function traduci(error){
   if(/PGRST205|42P01|PGRST202|does not exist|Could not find the (table|function)/i.test(m + error.code)) return "Interventi e rapportini non sono ancora attivi sul server.";
   if(/JWT expired|PGRST301|PGRST303|invalid JWT/i.test(m + error.code)) return "Sessione scaduta: accedi di nuovo.";
   if(/permission|policy|42501|row-level/i.test(m + error.code)) return "Operazione non consentita.";
-  if(/Failed to fetch|NetworkError|network/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
+  if(/Failed to fetch|NetworkError|network|Load failed/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
+  if(/abort|timed? ?out/i.test(m)) return "Nessuna connessione (tempo scaduto). Riprova quando c'è rete.";
   return m || "Errore del server.";
 }
 
@@ -166,7 +171,7 @@ export async function elencoAllegati(rapportinoId){
 }
 function erroreStorage(error){
   const m = ((error && (error.message || error.error)) || "") + " " + ((error && error.statusCode) || "");
-  if(/Failed to fetch|NetworkError|network|Load failed/i.test(m)) return "Nessuna connessione.";
+  if(/Failed to fetch|NetworkError|network|Load failed|abort/i.test(m)) return "Nessuna connessione.";
   if(/exceeded the maximum|too large|413/i.test(m)) return "Foto troppo grande.";
   if(/mime type|invalid_mime|415/i.test(m)) return "Tipo di file non consentito.";
   if(/not found|404/i.test(m)) return "Foto non trovata.";

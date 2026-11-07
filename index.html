@@ -477,8 +477,11 @@
     </div>
     <div class="msg-info" id="lavoro-stato" role="status" aria-live="polite"></div>
     <div id="lavoro-locali-box" class="nascosto">
-      <div class="sezione-head"><h2>Da inviare</h2></div>
-      <p class="elenco-nota">Salvati solo su questo telefono: aprili e premi Salva quando c'è rete.</p>
+      <div class="sezione-head"><h2>Da inviare</h2>
+        <button type="button" class="link-btn" id="sinc-ora" onclick="sincronizzaOra()">Sincronizza ora</button></div>
+      <div class="card sinc-testa" id="sinc-testa" role="status" aria-live="polite"></div>
+      <p class="elenco-nota">Salvati su questo telefono: vengono inviati in automatico quando c'è rete e l'app è aperta
+        (anche alla riapertura). Su iPhone l'invio non continua ad app chiusa.</p>
       <div id="lavoro-locali"></div>
     </div>
     <div class="sezione-head"><h2>I miei interventi</h2></div>
@@ -536,6 +539,7 @@
       <div class="vh-testi"><h1>Rapportino</h1><div class="vh-sub" id="rap-sottotitolo"></div></div>
     </div>
     <div class="msg-info" id="rap-msg" role="status" aria-live="polite"></div>
+    <div class="card conf-box nascosto" id="rap-conflitto" role="region" aria-label="Conflitto"></div>
     <div class="card cli-scheda nascosto" id="rap-intervento"></div>
 
     <form id="rap-form" novalidate>

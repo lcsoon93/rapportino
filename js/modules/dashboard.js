@@ -143,7 +143,7 @@ export async function disegnaRiepilogoInterventi(){
   const d = new Date(oggi + "T12:00:00");
   d.setDate(d.getDate() - 30); const dal = isoDi(d);
   d.setDate(d.getDate() + 30 + PROSSIMI); const al = isoDi(d);
-  const locali = bozzeLocali().length;
+  const locali = (await bozzeLocali().catch(()=>[])).filter(v=>v.stato !== "inviato").length;
   el("ha-locali").classList.toggle("nascosto", !locali);
   el("ha-locali").textContent = locali ? locali + (locali === 1 ? " rapportino salvato" : " rapportini salvati") + " solo su questo telefono (da inviare)." : "";
   el("ha-stato").textContent = "Caricamento…"; el("ha-stato").className = "msg-info";

@@ -1,21 +1,22 @@
 // Modulo del rapportino (tabelle "rapportini", "rapportino_operai", "allegati").
 // Bozza / completato; collegato a un intervento o autonomo. Il salvataggio passa da salva_rapportino
-// (una transazione, con controllo di versione). Finche' non e' salvato sul server, il contenuto
-// resta anche sul telefono (localStorage) per non perderlo senza rete.
-// Foto: file nel bucket privato di Supabase Storage + metadati in "allegati". Una foto nuova va
-// prima nella coda del telefono (IndexedDB, services/coda-foto.js) e ne esce solo quando file e
-// metadati sono confermati dal server; "Completa" e' possibile solo con tutte le foto inviate.
+// (una transazione, con controllo di versione). Ogni modifica resta sul telefono (IndexedDB, coda in
+// services/coda-locale.js) finche' il server non la conferma; l'invio (anche automatico al ritorno
+// della rete) passa da services/sinc-rapportini.js, che gestisce risposte perse e conflitti.
+// Foto: file nel bucket privato di Supabase Storage + metadati in "allegati"; restano nella coda del
+// telefono finche' non sono confermate; "Completa" avviene solo con tutte le foto inviate.
 import { mostraVista, registraVista, vistaCorrente } from "../core/navigation.js";
 import { puo } from "../core/permessi.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
 import {
-  caricaFotoStorage, elencoAllegati, elencoRapportini, eliminaAllegato, leggiIntervento, leggiRapportino,
-  minutiTra, nomeOperaio, operaiAttivi, registraAllegato, riapriRapportino, rimuoviFotoStorage, salvaRapportino, scaricaFoto,
+  elencoAllegati, elencoRapportini, eliminaAllegato, leggiIntervento, leggiRapportino,
+  minutiTra, nomeOperaio, operaiAttivi, riapriRapportino, scaricaFoto,
 } from "../services/api-lavori.js";
 import { aggiornaAnteprimaFirma } from "../services/signature.js";
 import { blobInDataUrl, improntaFile, mostraFotoIntera, preparaFoto } from "../services/immagini.js";
-import { aggiornaIndice, codaPersistente, fotoDelRapportino, leggiIndice, metti, togli } from "../services/coda-foto.js";
+import { codaPersistente, fotoDelRapportino, leggiBozza, metti, salvaBozza, togli, togliBozza } from "../services/coda-locale.js";
+import { elencoCoda, inviaRapportino, segnaApertoNelModulo, segnaModificaNelModulo } from "../services/sinc-rapportini.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
@@ -33,8 +34,6 @@ let vistaDiRitorno = "lavoro";
 
 function messaggio(testo, tipo){ $("rap-msg").textContent = testo || ""; $("rap-msg").className = "msg-info" + (tipo ? " " + tipo : ""); }
 // l'id lo genera il telefono: lo stesso rapportino inviato due volte non diventa un doppione
-const PREFISSO = "bozzaRapportino:";
-const chiaveLocale = ()=>PREFISSO + corrente.id;
 const nuovoId = ()=>crypto.randomUUID();
 const modificabile = ()=>!!corrente && corrente.stato === "bozza" && puo("rapportini.compila") &&
   (corrente.autore_id === (profilo && profilo.id) || puo("rapportini.riapri"));
@@ -146,7 +145,7 @@ function disegnaAllegati(){
   });
   inAttesa.forEach(v=>{
     tessera(v._src, "", v.stato === "errore" ? "Non inviata" : "Da inviare", v.stato === "errore", async()=>{
-      await togli(v.id); inAttesa = inAttesa.filter(x=>x.id !== v.id); aggiornaIndiceFoto();
+      await togli(v.id); inAttesa = inAttesa.filter(x=>x.id !== v.id);
     }, { attesa: v.id, stato: v.stato });
   });
   const n = inAttesa.length;
@@ -177,10 +176,6 @@ function scaricaFotoServer(){
   scaricamenti = Promise.all([lavora(), lavora(), lavora()]).then(()=>{ scaricamenti = null; });
   return scaricamenti;
 }
-function aggiornaIndiceFoto(){
-  if(!corrente || !profilo) return;
-  aggiornaIndice(corrente.id, { autore: profilo.id, cliente: $("rf-cliente").value.trim(), data: $("rf-data").value }, inAttesa.length);
-}
 async function caricaCodaLocale(id){
   const voci = (await fotoDelRapportino(id).catch(()=>[])).filter(v=>profilo && v.autore === profilo.id);
   for(const v of voci){ try{ v._src = await blobInDataUrl(v.blob); }catch(e){ v._src = ""; } }
@@ -206,43 +201,50 @@ function aggiornaStatoUI(){
   }
 }
 
-// ---------------------------------------------------------------- bozza sul telefono
+// ---------------------------------------------------------------- bozza sul telefono (IndexedDB)
+// Ogni modifica si scrive nel record della coda (contenuto, ore, firma). Versione del server e stato
+// della sincronizzazione restano quelli del record (li aggiorna la sincronizzazione).
+let timerLocale = null;
 function salvaLocale(){
   if(!corrente || !modificabile()) return;
-  try{
-    localStorage.setItem(chiaveLocale(), JSON.stringify({
-      quando: new Date().toISOString(), base: corrente.aggiornato_il || null, salvato: !!corrente.salvato, versione: corrente.versione || null,
-      autore: profilo && profilo.id, intervento_id: corrente.intervento_id || null, ...leggiModulo(),
-    }));
-  }catch(e){}
+  clearTimeout(timerLocale);
+  timerLocale = setTimeout(()=>{ scriviBozzaLocale().catch(()=>{}); }, 300);
 }
-function cancellaLocale(chiave){ try{ localStorage.removeItem(chiave || chiaveLocale()); }catch(e){} }
-function leggiLocale(id){
-  try{ return JSON.parse(localStorage.getItem(PREFISSO + id) || "null"); }catch(e){ return null; }
+async function scriviBozzaLocale(extra){
+  clearTimeout(timerLocale); timerLocale = null;
+  if(!corrente || !profilo) return null;
+  const { rapportino, ore } = leggiModulo();
+  const prima = await leggiBozza(corrente.id);
+  if(prima && prima.autore !== profilo.id) return null;          // mai sopra i dati di un altro utente
+  const inConflitto = prima && prima.stato === "conflitto";
+  const rec = Object.assign({ id: corrente.id, autore: profilo.id, salvato: !!corrente.salvato, versione: corrente.versione || null,
+    base: corrente.aggiornato_il || null, completa: false }, prima && prima.stato !== "inviato" ? prima : (prima ? { salvato: prima.salvato || !!corrente.salvato, versione: corrente.versione || prima.versione, base: corrente.aggiornato_il || prima.base } : {}), {
+    id: corrente.id, autore: profilo.id, intervento_id: corrente.intervento_id || null,
+    intervento: corrente.intervento ? corrente.intervento.cliente : "", rapportino, ore, testoDaInviare: true,
+    modificato: new Date().toISOString(), inviato_il: null, tentativi: 0, prossimoTentativo: null,
+    stato: inConflitto ? "conflitto" : (rapportino.cliente && rapportino.data ? "in_attesa" : "locale"),
+    errore: inConflitto ? prima.errore : null, erroreTipo: inConflitto ? "conflitto" : null,
+  }, extra || {});
+  await salvaBozza(rec);
+  return rec;
 }
-// rapportini con modifiche rimaste solo sul telefono (dell'utente collegato)
-export function bozzeLocali(){
-  const out = [];
-  try{
-    for(let i = 0; i < localStorage.length; i++){
-      const k = localStorage.key(i);
-      if(!k || !k.startsWith(PREFISSO)) continue;
-      const l = JSON.parse(localStorage.getItem(k) || "null");
-      if(l && profilo && l.autore === profilo.id) out.push({ id: k.slice(PREFISSO.length), quando: l.quando, salvato: l.salvato,
-        cliente: l.rapportino.cliente, data: l.rapportino.data, intervento_id: l.intervento_id });
-    }
-  }catch(e){}
-  // rapportini gia' salvati ma con foto ancora sul telefono
-  leggiIndice().filter(f=>profilo && f.autore === profilo.id).forEach(f=>{
-    const b = out.find(x=>x.id === f.id);
-    if(b) b.foto = f.numero;
-    else out.push({ id: f.id, quando: f.quando, salvato: true, cliente: f.cliente, data: f.data, foto: f.numero, soloFoto: true });
-  });
-  return out.sort((a, b)=>b.quando.localeCompare(a.quando));
+async function leggiLocale(id){
+  const l = await leggiBozza(id).catch(()=>null);
+  return l && profilo && l.autore === profilo.id && l.stato !== "inviato" && l.testoDaInviare ? l : null;
 }
-function recuperaLocale(){
-  const l = leggiLocale(corrente.id);
+// rapportini rimasti sul telefono (dell'utente collegato): coda della sincronizzazione
+export async function bozzeLocali(){
+  return (await elencoCoda()).voci;
+}
+async function recuperaLocale(){
+  const l = await leggiLocale(corrente.id);
   if(!l) return false;
+  if(l.stato === "conflitto"){
+    riempiModulo(l.rapportino, l.ore);
+    sporco = true;
+    mostraConflitto(l);
+    return true;
+  }
   // partita dalla stessa versione del server (o mai inviata): si riprende senza chiedere
   if(corrente.aggiornato_il && l.base !== corrente.aggiornato_il &&
      !confirm("Sul telefono ci sono modifiche non inviate fatte su una versione precedente di questo rapportino. Recuperarle?")){
@@ -250,17 +252,69 @@ function recuperaLocale(){
   }
   riempiModulo(l.rapportino, l.ore);
   sporco = true;
-  messaggio("Recuperate le modifiche non ancora salvate sul server. Salva per inviarle.", "att");
+  messaggio("Recuperate le modifiche non ancora inviate al server. Salva per inviarle (verranno inviate anche in automatico).", "att");
   return true;
 }
 function cambiato(){
   sporco = true;
+  segnaModificaNelModulo();
   aggiornaTotale();
   salvaLocale();
 }
 $("rap-form").addEventListener("input", cambiato);
 $("rap-form").addEventListener("change", cambiato);
 su("firma-cambiata", scheda=>{ if(scheda && scheda.id === "rf-firma-box") cambiato(); });
+
+// ---------------------------------------------------------------- conflitto
+const ETICHETTE = { data: "Data", cliente: "Cliente", indirizzo: "Indirizzo", tipologia: "Tipologia", attivita: "Attività svolte",
+  note: "Note", esito: "Esito", firmatario: "Firmatario" };
+function oreBreve(ore){
+  return (ore || []).map(o=>nomeOperaio(o.operaio_id) + " " + String(o.dalle || "").slice(0, 5) + "–" + String(o.alle || "").slice(0, 5)).join(", ") || "—";
+}
+// confronto campo per campo tra la copia del telefono e quella del server, con la scelta esplicita
+function mostraConflitto(l){
+  const srv = (l.server && l.server.rapportino) || {};
+  const mio = l.rapportino || {};
+  const righe = [];
+  Object.keys(ETICHETTE).forEach(k=>{
+    if(String(mio[k] ?? "") !== String(srv[k] ?? "")) righe.push([ETICHETTE[k], mio[k], srv[k]]);
+  });
+  if(JSON.stringify(mio.materiali || []) !== JSON.stringify(srv.materiali || [])){
+    const m = x=>(x || []).map(r=>r.a + (r.q ? " × " + r.q : "")).join(", ") || "—";
+    righe.push(["Materiale", m(mio.materiali), m(srv.materiali)]);
+  }
+  if(String(mio.firma || "") !== String(srv.firma || "")) righe.push(["Firma", mio.firma ? "presente" : "assente", srv.firma ? (mio.firma ? "diversa" : "presente") : "assente"]);
+  if(oreBreve(l.ore) !== oreBreve(l.server && l.server.ore)) righe.push(["Ore", oreBreve(l.ore), oreBreve(l.server && l.server.ore)]);
+  const completato = srv.stato === "completato";
+  const puoMia = !completato || puo("rapportini.riapri");
+  $("rap-conflitto").innerHTML = '<div class="gruppo-tit" style="margin:0 0 6px">Conflitto con la versione sul server</div>' +
+    '<p class="nota" style="padding:0 0 8px">' + esc(completato ? "Il rapportino è stato completato da un altro dispositivo." : "Sul server c'è una versione diversa da quella del telefono.") +
+    ' Le tue modifiche sono conservate qui finché non scegli.</p>' +
+    (righe.length ? '<div class="conf-tab">' + '<div class="conf-riga conf-testa"><span>Campo</span><span>Sul telefono</span><span>Sul server</span></div>' +
+      righe.map(r=>'<div class="conf-riga"><span>' + esc(r[0]) + '</span><span>' + esc(String(r[1] ?? "—") || "—") + '</span><span>' + esc(String(r[2] ?? "—") || "—") + '</span></div>').join("") + '</div>'
+      : '<p class="nota" style="padding:0">Il contenuto è uguale; cambia solo la versione.</p>') +
+    '<div class="due" style="margin-top:10px">' +
+      (puoMia ? '<div><button type="button" class="btn btn-primario btn-blocco" id="conf-mia" onclick="risolviConflitto(\'mia\')">Invia la mia versione</button></div>' : '') +
+      '<div><button type="button" class="btn btn-secondario btn-blocco" id="conf-server" onclick="risolviConflitto(\'server\')">Usa la versione del server</button></div>' +
+    '</div>';
+  $("rap-conflitto").classList.remove("nascosto");
+  messaggio(completato && !puo("rapportini.riapri")
+    ? "Nel frattempo il rapportino è stato completato da un altro dispositivo: non è più modificabile. Le tue modifiche restano su questo telefono."
+    : "Nel frattempo questo rapportino è stato salvato da un altro dispositivo. Le tue modifiche sono ancora qui: premi di nuovo Salva (o \"Invia la mia versione\") per sostituire quella versione con la tua, oppure \"Usa la versione del server\".", "att");
+}
+function nascondiConflitto(){ $("rap-conflitto").classList.add("nascosto"); $("rap-conflitto").innerHTML = ""; }
+export async function risolviConflitto(scelta){
+  if(!corrente) return;
+  if(scelta === "server"){
+    if(!confirm("Le modifiche fatte su questo telefono andranno perse e si userà la versione del server. Continuare?")) return;
+    await togliBozza(corrente.id);
+    sporco = false;
+    return apriRapportino(corrente.id);
+  }
+  corrente.sovrascrivi = true;
+  const l = await leggiBozza(corrente.id);
+  return invia(!!(l && l.completa));
+}
 
 // ---------------------------------------------------------------- apertura
 async function prepara(){
@@ -269,6 +323,7 @@ async function prepara(){
   mostraVista("rapportino");
   messaggio("");
   allegati = []; inAttesa = []; scaricamenti = null;
+  nascondiConflitto();
   $("rf-foto").innerHTML = ""; $("rf-foto-stato").className = "msg-info nascosto"; $("rf-foto-invia").classList.add("nascosto");
 }
 export async function apriRapportino(id){
@@ -279,12 +334,12 @@ export async function apriRapportino(id){
     try{ r = await leggiRapportino(id); }
     catch(e){
       // senza rete: si riprende la copia del telefono, se c'e'
-      if(!/connessione/i.test(e.message) || !leggiLocale(id)) throw e;
+      if(!/connessione/i.test(e.message) || !(await leggiLocale(id))) throw e;
       r = null;
       messaggio("Senza rete: si riprende la copia salvata sul telefono.", "att");
     }
     if(!r){
-      const l = leggiLocale(id);
+      const l = await leggiLocale(id);
       if(l && profilo && l.autore === profilo.id){
         // mai arrivato al server: si riprende dal telefono
         corrente = { id, salvato: false, versione: null, intervento_id: l.intervento_id, intervento: null, stato: "bozza", autore_id: profilo.id };
@@ -293,8 +348,10 @@ export async function apriRapportino(id){
         if(l.versione) corrente.versione = l.versione;
         riempiModulo(l.rapportino, l.ore);
         sporco = true;
-        if(!/Senza rete/.test($("rap-msg").textContent)) messaggio("Rapportino non ancora inviato: salva quando c'è rete.", "att");
+        if(!/Senza rete/.test($("rap-msg").textContent)) messaggio("Rapportino non ancora inviato: verrà inviato quando c'è rete (o premi Salva).", "att");
+        if(l.stato === "conflitto") mostraConflitto(l);
         inAttesa = await caricaCodaLocale(id);
+        segnaApertoNelModulo(id);
         aggiornaStatoUI();
         disegnaAllegati();
         return;
@@ -306,7 +363,9 @@ export async function apriRapportino(id){
     riempiModulo(r, r.rapportino_operai);
     sporco = false;
     messaggio("");
-    if(r.stato === "bozza") recuperaLocale();
+    if(r.stato === "bozza") await recuperaLocale();
+    else { const l = await leggiLocale(r.id); if(l && l.stato === "conflitto"){ riempiModulo(l.rapportino, l.ore); sporco = true; mostraConflitto(l); } }
+    segnaApertoNelModulo(r.id);
     aggiornaStatoUI();
     inAttesa = await caricaCodaLocale(r.id);
     allegati = await elencoAllegati(r.id);
@@ -321,11 +380,12 @@ export async function rapportinoPerIntervento(interventoId){
     const miei = await elencoRapportini({ intervento: interventoId, autore: profilo.id });
     const bozza = miei.find(r=>r.stato === "bozza") || miei[0];
     if(bozza) return apriRapportino(bozza.id);
-    const locale = bozzeLocali().find(b=>b.intervento_id === interventoId);
+    const locale = (await bozzeLocali()).find(b=>b.intervento_id === interventoId && b.stato !== "inviato");
     if(locale) return apriRapportino(locale.id);
     const i = await leggiIntervento(interventoId);
     await prepara();
     corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: interventoId, intervento: i, stato: "bozza", autore_id: profilo.id };
+    segnaApertoNelModulo(corrente.id);
     riempiModulo({ data: i.data > oggiIso() ? i.data : oggiIso(), cliente: i.cliente, indirizzo: i.indirizzo, tipologia: i.tipologia }, null);
     sporco = false;
     aggiornaStatoUI();
@@ -334,31 +394,26 @@ export async function rapportinoPerIntervento(interventoId){
 export async function nuovoRapportinoAutonomo(){
   await prepara();
   corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: null, intervento: null, stato: "bozza", autore_id: profilo.id };
+  segnaApertoNelModulo(corrente.id);
   riempiModulo({ data: oggiIso() }, null);
   sporco = false;
   aggiornaStatoUI();
   $("rf-cliente").focus({ preventScroll: true });
 }
 export function chiudiRapportino(){
-  if(sporco && modificabile() && !confirm("Ci sono modifiche non salvate sul server (restano sul telefono). Uscire?")) return;
+  if(sporco && modificabile() && !confirm("Ci sono modifiche non ancora inviate al server: restano sul telefono e verranno inviate in automatico. Uscire?")) return;
+  if(timerLocale) scriviBozzaLocale().catch(()=>{});
   sporco = false;
+  segnaApertoNelModulo(null);
   mostraVista(vistaDiRitorno || "lavoro");
 }
 
 // ---------------------------------------------------------------- salvataggio
-// il rapportino sul server e' uguale a quello che si sta inviando? (testata e ore)
-function stessoContenuto(mio, oreMie, srv, oreSrv){
-  if(!srv) return false;
-  const campi = ["data", "cliente", "indirizzo", "tipologia", "attivita", "note", "esito", "firma", "firmatario"];
-  if(campi.some(c=>String(mio[c] ?? "") !== String(srv[c] ?? ""))) return false;
-  if((mio.intervento_id || null) !== (srv.intervento_id || null)) return false;
-  if(JSON.stringify(mio.materiali || []) !== JSON.stringify(srv.materiali || [])) return false;
-  const norma = l=>JSON.stringify((l || []).map(o=>[o.operaio_id, String(o.dalle || "").slice(0, 5), String(o.alle || "").slice(0, 5)])
-    .sort((a, b)=>a[0].localeCompare(b[0])));
-  return norma(oreMie) === norma(oreSrv);
-}
+// Salva / Completa: il contenuto va prima nella coda del telefono, poi lo invia la sincronizzazione
+// (stesso percorso dell'invio automatico: un solo invio alla volta per rapportino, risposte perse e
+// conflitti gestiti allo stesso modo). Il messaggio dice sempre cosa ha confermato il server.
 async function salva(completa){
-  let { rapportino, ore } = leggiModulo();
+  const { rapportino, ore } = leggiModulo();
   if(!rapportino.data || !rapportino.cliente){ messaggio("Data e cliente sono obbligatori.", "err"); return false; }
   if(completa){
     if(!rapportino.attivita){ messaggio("Per completare descrivi le attività svolte.", "err"); $("rf-attivita").focus(); return false; }
@@ -366,63 +421,78 @@ async function salva(completa){
     if(ore.some(o=>o.dalle && o.alle && o.alle <= o.dalle)){ messaggio("Controlla le ore: \"alle\" deve essere dopo \"dalle\".", "err"); return false; }
     if(!confirm("Completare il rapportino? Dopo non potrai più modificarlo.")) return false;
   }
-  // completare con foto ancora sul telefono: prima si salva la bozza e si inviano le foto; si completa
-  // solo se TUTTE sono confermate dal server (dopo il completamento non si possono piu' aggiungere)
-  if(completa && inAttesa.length){
-    if(!(await salvaTesto(rapportino, ore, false))) return false;
-    ({ rapportino, ore } = leggiModulo());      // ora con la versione appena salvata
-    const f = await inviaFotoInAttesa();
-    if(f.rimaste){
-      messaggio("Rapportino NON completato: " + f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") +
-        ". È salvato in bozza e le foto restano sul telefono: riprova quando c'è rete.", "err");
-      return false;
-    }
-  }
-  const ok = await salvaTesto(rapportino, ore, completa);
-  if(ok && !completa && inAttesa.length){
-    const f = await inviaFotoInAttesa();
-    messaggio(f.rimaste
-      ? "Bozza salvata, ma " + f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") + ": restano sul telefono. Riprova con \"Invia foto\"."
-      : "Bozza salvata con le foto.", f.rimaste ? "att" : "");
-  }
-  return ok;
+  return invia(completa);
 }
-// salvataggio di testata e ore (salva_rapportino, controllo di versione e conflitti: invariato)
-async function salvaTesto(rapportino, ore, completa){
-  const chiavePrima = chiaveLocale();
+async function invia(completa){
   const pulsanti = [$("rf-salva"), $("rf-completa")];
   pulsanti.forEach(b=>{ b.disabled = true; b.classList.add("in-corso"); });
   try{
-    let r = await salvaRapportino(rapportino, ore, completa);
-    // conflitto con un contenuto identico al nostro (es. secondo invio dopo una risposta persa):
-    // non c'e' nulla da perdere, si reinvia indicando la versione del server
-    if(r.esito === "conflitto" && stessoContenuto(rapportino, ore, r.rapportino, r.ore)){
-      if((r.rapportino.stato === "completato") === !!completa) r = { esito: "ok", rapportino: r.rapportino };   // gia' fatto
-      else if(r.rapportino.stato === "bozza") r = await salvaRapportino(Object.assign({}, rapportino, { versione: r.rapportino.versione }), ore, completa);
-    }
-    if(r.esito === "conflitto"){
-      const srv = r.rapportino;
-      corrente = Object.assign(corrente, { salvato: true, versione: srv.versione, aggiornato_il: srv.aggiornato_il });   // esiste sul server
-      salvaLocale();
-      messaggio(srv.stato === "completato" && !puo("rapportini.riapri")
-        ? "Nel frattempo il rapportino è stato completato da un altro dispositivo: non è più modificabile. Le tue modifiche restano su questo telefono."
-        : "Nel frattempo questo rapportino è stato salvato da un altro dispositivo. Le tue modifiche sono ancora qui: premi di nuovo Salva per sostituire quella versione con la tua, oppure torna indietro e riaprilo per vedere quella salvata.", "att");
-      return false;
-    }
-    const s = r.rapportino;
-    corrente = Object.assign(corrente, { id: s.id, salvato: true, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
-    cancellaLocale(chiavePrima);
-    sporco = false;
-    aggiornaStatoUI();
-    messaggio(s.stato === "completato" ? "Rapportino completato e inviato." : "Bozza salvata.");
-    return true;
+    const sovrascrivi = !!corrente.sovrascrivi;
+    corrente.sovrascrivi = false;
+    const rec = await scriviBozzaLocale(Object.assign(completa ? { completa: true } : {}, sovrascrivi ? { stato: "in_attesa" } : {}));
+    if(!rec){ messaggio("Rapportino non modificabile da questo account.", "err"); return false; }
+    const res = await inviaRapportino(corrente.id, { manuale: true, sovrascrivi });
+    return mostraEsito(res, completa);
   }catch(e){
-    salvaLocale();
-    messaggio(e.message + (/connessione/i.test(e.message) ? " Le modifiche restano sul telefono." : ""), "err");
+    messaggio(e.message, "err");
     return false;
   }finally{
     pulsanti.forEach(b=>{ b.disabled = false; b.classList.remove("in-corso"); });
   }
+}
+// foto confermate dal server: dalla coda all'elenco delle foto del rapportino
+async function riconciliaFoto(fotoInviate){
+  (fotoInviate || []).forEach(({ id, allegato })=>{
+    const v = inAttesa.find(x=>x.id === id);
+    if(allegato && !allegati.some(a=>a.id === allegato.id)) allegati.push({ ...allegato, src: v ? v._src : "" });
+  });
+  const vecchie = new Map(inAttesa.map(v=>[v.id, v._src]));
+  const ora = (await fotoDelRapportino(corrente.id).catch(()=>[])).filter(v=>profilo && v.autore === profilo.id);
+  for(const v of ora) v._src = vecchie.get(v.id) || await blobInDataUrl(v.blob).catch(()=>"");
+  inAttesa = ora;
+  disegnaAllegati();
+  if(allegati.some(a=>a.percorso && !a.src && !a.errore)) scaricaFotoServer();
+}
+function applicaServer(s){
+  if(!s) return;
+  corrente = Object.assign(corrente, { id: s.id, salvato: true, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
+}
+async function mostraEsito(res, completa){
+  const nFoto = n=>n === 1 ? "1 foto" : n + " foto";
+  await riconciliaFoto(res.fotoInviate);
+  if(res.esito === "inviato"){
+    applicaServer(res.rapportino);
+    sporco = false;
+    nascondiConflitto();
+    aggiornaStatoUI();
+    messaggio(corrente.stato === "completato" ? "Rapportino completato e inviato." : (res.fotoInviate && res.fotoInviate.length ? "Bozza salvata con le foto." : "Bozza salvata."));
+    return true;
+  }
+  if(res.esito === "conflitto"){
+    applicaServer(Object.assign({}, res.conflitto ? res.conflitto.rapportino : {}, { stato: corrente.stato }));
+    corrente.salvato = true;
+    aggiornaStatoUI();
+    const l = await leggiBozza(corrente.id);
+    if(l) mostraConflitto(l);
+    corrente.sovrascrivi = !!(res.conflitto && (res.conflitto.rapportino.stato === "bozza" || puo("rapportini.riapri")));
+    return false;
+  }
+  if(res.rapportino) applicaServer(res.rapportino);
+  aggiornaStatoUI();
+  if(res.esito === "modificato"){ messaggio("Inviato; nel frattempo ci sono nuove modifiche: verranno inviate a breve (o premi Salva).", "att"); return false; }
+  if(res.esito === "locale"){ messaggio("Data e cliente sono obbligatori.", "err"); return false; }
+  if(res.esito === "sessione"){ messaggio("Sessione scaduta: accedi di nuovo. Le modifiche restano sul telefono e verranno inviate dopo l'accesso.", "err"); return false; }
+  const rete = res.tipo === "rete" || res.tipo === "temporaneo";
+  if(res.rimaste){
+    messaggio(completa
+      ? "Rapportino NON completato: " + nFoto(res.rimaste) + " non ancora inviate (" + res.errore + "). È salvato in bozza: verrà completato automaticamente quando le foto saranno inviate."
+      : "Bozza salvata, ma " + nFoto(res.rimaste) + " non ancora inviate (" + res.errore + "): restano sul telefono e verranno inviate automaticamente; puoi anche usare \"Invia foto\".", completa ? "err" : "att");
+    return false;
+  }
+  messaggio(res.errore + (rete
+    ? " Le modifiche restano sul telefono e verranno inviate automaticamente quando la connessione torna" + (completa ? " (il completamento verrà fatto all'invio)." : ".")
+    : ""), "err");
+  return false;
 }
 export function salvaBozzaRapportino(){ return salva(false); }
 export function completaRapportino(){ return salva(true); }
@@ -458,52 +528,35 @@ export async function aggiungiFotoRapportino(input){
       aggiunte++;
     }catch(e){ scartate.push(nomeSicuro(f.name) + ": " + e.message); }
   }
-  aggiornaIndiceFoto();
-  salvaLocale();
   disegnaAllegati();
-  if(scartate.length) messaggio("Foto non aggiunte — " + scartate.join("; ") + ".", "err");
+  const avviso = scartate.length ? "Foto non aggiunte — " + scartate.join("; ") + "." : "";
+  if(avviso) messaggio(avviso, "err");
   if(aggiunte && !(await codaPersistente())) messaggio("Attenzione: questo browser non conserva le foto se chiudi l'app prima dell'invio.", "att");
-  if(aggiunte) await inviaFotoOra(!!scartate.length);
+  if(aggiunte){
+    await inviaFotoOra();
+    if(avviso) messaggio(avviso + " " + $("rap-msg").textContent, "err");
+  }
 }
-// "Invia foto": serve il rapportino sul server (si salva la bozza se necessario)
-export async function inviaFotoOra(silenzioso){
+// "Invia foto": stesso percorso di Salva (testo se serve, poi foto)
+export async function inviaFotoOra(){
   if(!corrente || !inAttesa.length || !modificabile()) return;
-  if(!corrente.salvato || sporco){ await salva(false); return; }
   $("rf-foto-invia").disabled = true;
   try{
-    const f = await inviaFotoInAttesa();
-    if(!silenzioso || f.rimaste) messaggio(f.rimaste
-      ? f.rimaste + " foto non ancora inviate" + (f.errore ? " (" + f.errore + ")" : "") + ": restano sul telefono, riprova più tardi."
-      : "Foto inviate.", f.rimaste ? "att" : "");
+    if(sporco || !corrente.salvato || !(await leggiBozza(corrente.id))) await scriviBozzaLocale(sporco || !corrente.salvato ? {} : { testoDaInviare: false, stato: "allegati_in_attesa" });
+    const res = await inviaRapportino(corrente.id, { manuale: true });
+    await mostraEsito(res, false);
+    if(res.esito === "inviato") messaggio(res.fotoInviate && res.fotoInviate.length ? "Foto inviate." : "Bozza salvata.");
   }finally{ $("rf-foto-invia").disabled = false; }
 }
-// invio della coda: 1) file nello Storage (gia' presente = ok), 2) metadati (il database verifica il
-// file), 3) solo allora la foto esce dalla coda. Stesso id a ogni tentativo: nessun doppione.
-async function inviaFotoInAttesa(){
-  if(!corrente || !corrente.salvato) return { inviate: 0, rimaste: inAttesa.length };
-  let inviate = 0, errore = "";
-  for(const v of [...inAttesa]){
-    try{
-      await caricaFotoStorage(v.percorso, v.blob, v.mime);
-      const r = await registraAllegato({ id: v.id, rapportino_id: v.rapportino_id, percorso: v.percorso, nome: v.nome, mime: v.mime,
-        dimensione: v.dimensione, larghezza: v.larghezza, altezza: v.altezza, impronta: v.impronta });
-      if(r.esito === "duplicato"){ try{ await rimuoviFotoStorage([v.percorso]); }catch(e){} }
-      else if(!allegati.some(a=>a.id === r.allegato.id)) allegati.push({ ...r.allegato, src: v._src });
-      await togli(v.id);
-      inAttesa = inAttesa.filter(x=>x.id !== v.id);
-      inviate++;
-    }catch(e){
-      errore = e.message;
-      v.stato = "errore"; v.errore = e.message;
-      const { _src, ...daSalvare } = v;
-      await metti(daSalvare).catch(()=>{});
-      if(/connessione/i.test(e.message)) break;     // senza rete inutile provare le altre
-    }
-  }
-  aggiornaIndiceFoto();
-  disegnaAllegati();
-  return { inviate, rimaste: inAttesa.length, errore };
-}
+// la sincronizzazione automatica ha lavorato sul rapportino aperto: si aggiorna il modulo
+su("rapportino-sincronizzato", async res=>{
+  if(!corrente || !res || !res.rec || res.rec.id !== corrente.id || vistaCorrente !== "rapportino") return;
+  if(res.rapportino) applicaServer(res.rapportino);
+  await riconciliaFoto(res.fotoInviate);
+  if(res.esito === "inviato" && !timerLocale){ sporco = false; messaggio(corrente.stato === "completato" ? "Rapportino completato e inviato (in automatico)." : "Inviato in automatico."); }
+  if(res.esito === "conflitto"){ const l = await leggiBozza(corrente.id); if(l) mostraConflitto(l); }
+  aggiornaStatoUI();
+});
 
 // PDF: stessa impaginazione delle schede del foglio giornaliero
 // Foto: quelle del server (scaricate con la sessione dell'utente), le vecchie in base64 e quelle ancora

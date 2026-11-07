@@ -56,7 +56,8 @@ js/
     sync.js                sincronizzazione Supabase con la sessione dell'utente
     api-lavori.js          accesso a interventi, rapportini, ore e allegati (tabelle nuove)
     avanzamento.js         chi ha completato e chi manca su un intervento con più operai (stessa regola del database)
-    coda-foto.js           foto dei rapportini in attesa di invio (IndexedDB), finché Storage e database non le confermano
+    coda-locale.js         archivio locale (IndexedDB) dei rapportini e delle foto non ancora confermati dal server
+    sinc-rapportini.js     coda di invio automatico: connessione, tentativi, risposte perse, conflitti
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON

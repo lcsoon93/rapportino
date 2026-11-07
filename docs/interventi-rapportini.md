@@ -186,6 +186,71 @@ Migrazione `supabase/migrations/20261110090000_allegati_storage.sql`
   `backup.allegati_storage` e poi li toglie da `allegati` (la tabella della Fase B richiede il base64);
   i file restano nel bucket. Ordine: rollback C, poi B, poi A.
 
+## Sincronizzazione offline (Fase D)
+
+Solo frontend: **nessuna modifica SQL** (si usano `salva_rapportino`, il controllo di versione e la
+registrazione delle foto già esistenti). File: `services/coda-locale.js` (archivio locale),
+`services/sinc-rapportini.js` (coda e invio), `modules/modulo-rapportino.js`, `modules/lavoro.js`
+("Da inviare"), `core/sessione.js` (tempo massimo delle richieste, riapertura senza rete).
+
+- **Persistenza** (IndexedDB `rapportino-foto`, versione 2): tabella `bozze` (un record per rapportino:
+  id stabile generato dal telefono, intervento, autore, contenuto con attività, materiale, **ore e
+  firma**, richiesta di completamento, versione del server conosciuta, ultima modifica, stato, tentativi,
+  ultimo/prossimo tentativo, errore, copia del server in caso di conflitto, ultimo contenuto inviato) e
+  tabella `foto` (Fase C). Niente bozze né immagini in localStorage (le bozze del formato precedente
+  vengono spostate in IndexedDB all'avvio); nessun token nella coda. Sopravvive a cambio schermata,
+  refresh, chiusura della scheda e riapertura. Si chiede al browser la persistenza
+  (`navigator.storage.persist`, dove esiste). **Limite iPhone/Safari**: un sito non usato per 7 giorni
+  può perdere i dati locali se l'app non è aggiunta alla schermata Home; IndexedDB in navigazione privata
+  può non essere disponibile (l'app lo segnala).
+- **Stati**: `locale` (dati incompleti), `in_attesa`, `in_sincronizzazione`, `allegati_in_attesa`
+  (foto ancora da trasferire), `conflitto`, `errore`, `inviato` (confermato dal server: resta solo un
+  riepilogo senza contenuto per il conteggio delle ultime 24 ore). Un rapportino risulta inviato solo
+  dopo la conferma del server; un errore di rete non è mai un errore definitivo.
+- **Quando parte**: dopo l'accesso / alla riapertura dell'app, all'evento `online`, al ritorno nell'app
+  (`visibilitychange`) e ogni 60 s mentre l'app è aperta e visibile, solo se c'è qualcosa da inviare.
+  Prima di inviare si verifica davvero il server (non basta `navigator.onLine`): `/auth/v1/health` con
+  8 s di tempo massimo, poi la sessione (`getSession` + `getUser`). Ogni richiesta a Supabase ha un tempo
+  massimo (30 s; 120 s per i file), così una rete "appesa" non blocca la coda. Indicatore in "Da inviare":
+  online / offline / server non raggiungibile / sessione scaduta.
+- **Coda**: un rapportino alla volta, in ordine; blocco per rapportino (Web Locks, anche tra due schede;
+  altrimenti in memoria) e un solo giro di sincronizzazione alla volta → mai due invii contemporanei
+  dello stesso rapportino. Errore su un rapportino: si passa al successivo. Errori temporanei (rete,
+  server 5xx, migrazione mancante): nuovo tentativo dopo 30 s, 1, 2, 4… minuti (massimo 30), poi dopo 8
+  tentativi l'invio automatico si sospende ("Riprova"). Al ritorno della rete gli errori di rete si
+  riprovano subito. Errori di autorizzazione (non più assegnato, non modificabile, già completato) e di
+  dati: stato `errore`, nessun nuovo tentativo automatico. Sessione scaduta: la coda si ferma e riparte
+  dopo l'accesso.
+- **Invio di un rapportino**: 1) testo e ore (`salva_rapportino` con la versione conosciuta; se c'è da
+  completare e ci sono foto, prima in bozza); 2) foto (upload → metadati → fuori dalla coda); 3)
+  completamento, solo con tutte le foto confermate; 4) `inviato`. "Completa" premuto senza rete viene
+  ricordato e fatto all'invio. Se durante l'invio l'operaio modifica il rapportino, le nuove modifiche
+  restano da inviare (non vengono sovrascritte dalla risposta).
+- **Risposte perse e idempotenza**: l'id del rapportino è del telefono e il telefono ricorda l'ultimo
+  contenuto inviato (salvato prima della richiesta). Al tentativo successivo il server risponde
+  `conflitto`: se la sua versione è uguale alla copia del telefono → già sincronizzato; se è uguale
+  all'ultimo invio del telefono (la sua scrittura, di cui si era persa la risposta) → si invia con la
+  versione del server; nessun nuovo rapportino, ore sostituite in blocco (mai duplicate), foto con id
+  fisso (mai duplicate).
+- **Conflitti** (contenuto diverso da entrambe): stato `conflitto`, nulla viene sovrascritto; restano
+  la copia del telefono e quella del server. Aprendo il rapportino: confronto campo per campo (telefono /
+  server) e scelta esplicita "Invia la mia versione" (non disponibile all'operaio se il rapportino è già
+  completato) o "Usa la versione del server" (le modifiche del telefono si perdono, con conferma). La
+  sincronizzazione automatica non risolve mai un conflitto da sola.
+- **"Da inviare"** (Lavoro): indicatore di connessione, conteggi (in attesa, inviati nelle ultime 24 ore,
+  conflitti, non riusciti), "Sincronizza ora"; per ogni rapportino cliente, intervento, data, stato,
+  ultimo e prossimo tentativo, errore, foto da inviare; "Apri", "Riprova", "Vedi conflitto", "Elimina"
+  (solo bozze mai inviate, con conferma: un rapportino già sul server non si elimina da qui).
+- **In background**: nessun service worker né Background Sync (non supportato da Safari): ad app chiusa
+  l'invio NON continua, su iPhone non è garantito. Riaprendo l'app si riprende da dove si era rimasti.
+- **Riapertura senza rete**: la sessione non viene più chiusa se il server non risponde (prima l'app
+  tornava al login); si usa il profilo dell'ultimo accesso dello stesso utente (id, nome, ruolo: niente
+  token) solo per l'interfaccia; i dati restano protetti da RLS. Effetto collaterale corretto: anche la
+  sincronizzazione del foglio giornaliero non esce più dall'account quando manca la rete.
+- **Sicurezza**: la coda invia solo i rapportini dell'utente collegato (campo `autore`); cambiando
+  account i rapportini del precedente restano sul telefono, non vengono mostrati né inviati, e partono
+  quando lui accede di nuovo. Tutto passa da RLS, trigger e policy Storage; nessuna service role key.
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:

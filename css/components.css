@@ -709,3 +709,25 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
   font-size:12px;text-align:center;padding:6px;cursor:pointer}
 .foto-item.carica{background:var(--sfondo)}
 #rf-foto-stato{margin:8px 0 0}
+/* ================= SINCRONIZZAZIONE: "Da inviare" e conflitti ================= */
+.sinc-testa{padding:12px 14px;margin-bottom:10px}
+.sinc-conn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14.5px}
+.sinc-conn small{color:var(--testo-2);font-size:12.5px}
+.sinc-punto{width:10px;height:10px;border-radius:50%;flex:none;background:var(--neutro-stato)}
+.sinc-punto.ok{background:var(--ok)}
+.sinc-punto.att{background:var(--att)}
+.sinc-punto.err{background:var(--err)}
+.sinc-conti{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:var(--testo-2)}
+.sinc-conti b{color:var(--testo)}
+.coda-voce{padding:12px 14px;margin-bottom:10px}
+.coda-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.coda-voce .cli-ind{display:flex;align-items:center;gap:4px;margin-top:3px;font-size:13.5px;color:var(--testo-2)}
+.coda-errore{margin-top:6px;font-size:13.5px;color:var(--err-testo);background:var(--err-chiaro);border-radius:10px;padding:6px 10px}
+.coda-voce .int-azioni{margin-top:10px;padding-top:10px}
+.conf-box{padding:14px;margin-bottom:12px;border:1px solid var(--att)}
+.conf-tab{display:grid;gap:0;border:1px solid var(--bordo);border-radius:12px;overflow:hidden;font-size:13.5px}
+.conf-riga{display:grid;grid-template-columns:minmax(70px,.8fr) 1fr 1fr;gap:8px;padding:7px 10px;border-top:1px solid var(--bordo)}
+.conf-riga:first-child{border-top:none}
+.conf-riga span{word-break:break-word;white-space:pre-wrap}
+.conf-testa{background:var(--sfondo);font-weight:700;color:var(--testo-2)}
+.coda-voce .cli-ind{white-space:normal;overflow:visible;flex-wrap:wrap}

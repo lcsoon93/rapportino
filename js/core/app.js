@@ -4,7 +4,7 @@ import "./azioni-html.js";
 import { LOGO_B64 } from "../../assets/logo/logo.js";
 import { SINC_ATTIVA } from "./config.js";
 import { costruisciNav, mostraVista } from "./navigation.js";
-import { applicaPermessi, vistaIniziale } from "./permessi.js";
+import { applicaPermessi, puo, vistaIniziale } from "./permessi.js";
 import { leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese } from "./preferenze.js";
 import { caricaArchivio, impostaProprietarioArchivio, leggiDB, leggiMappa, proprietarioArchivio, svuotaArchivioLocale } from "./storage.js";
 import { su } from "./eventi.js";
@@ -15,6 +15,7 @@ import { caricaGiornata } from "../modules/rapportini.js";
 import { esportaBackup } from "../services/backup.js";
 import { sincronizza } from "../services/sync.js";
 import { oggiIso } from "../utils/dates.js";
+import { avviaSincronizzazione, fermaSincronizzazione } from "../services/sinc-rapportini.js";
 // moduli che si registrano da soli (viste, eventi, pad della firma)
 import "../modules/dashboard.js";
 import "../modules/calendario.js";
@@ -79,6 +80,8 @@ async function entra(p){
   document.getElementById("data").value = oggi;
   caricaGiornata(oggi);
   mostraVista(vistaIniziale());
+  // rapportini rimasti sul telefono: invio automatico (all'avvio, al ritorno della rete e nell'app)
+  if(puo("rapportini.compila")) avviaSincronizzazione().catch(e=>console.error(e));
   if(SINC_ATTIVA()){
     sincronizza();
     if(!ascoltoSincronizzazione){
@@ -93,6 +96,7 @@ async function entra(p){
 
 // uscita volontaria, sessione scaduta o account disattivato: di nuovo il login
 su("uscita", async motivo=>{
+  fermaSincronizzazione();
   const p = await chiediAccesso(motivo === "scaduta" ? "Sessione scaduta: accedi di nuovo." : "");
   await entra(p);
 });
