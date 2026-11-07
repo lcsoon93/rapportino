@@ -34,7 +34,8 @@ export async function chiamaFunzione(nome, corpo, conSessione = true){
   const token = conSessione ? await tokenAccesso() : null;
   let risposta;
   try{
-    risposta = await fetch(FUNZIONI + nome, {
+    // stesso tempo massimo delle altre richieste: su una rete "appesa" non si resta in attesa
+    risposta = await fetchConLimite(FUNZIONI + nome, {
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY, "Authorization": "Bearer " + (token || SUPABASE_KEY) },
       body: JSON.stringify(corpo || {}),

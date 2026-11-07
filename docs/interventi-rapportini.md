@@ -263,6 +263,16 @@ stato, avanzamento, ore totali e un rapportino per operaio con le sue ore e le f
 dell'intervento o rapportino (foto e PDF dalle schermate esistenti). Rapportini autonomi e rapportini
 di interventi fuori periodo compaiono come voci a sé.
 
+## Rifiniture di sicurezza (Fase F)
+
+- Migrazione `supabase/migrations/20261111090000_rapporti_privilegi.sql` (rollback
+  `supabase/rollback/20261111090000_rapporti_privilegi_rollback.sql`): toglie a `authenticated`
+  TRUNCATE, REFERENCES e TRIGGER sulla tabella storica `rapporti` (TRUNCATE ignora RLS). Restano
+  SELECT/INSERT/UPDATE/DELETE filtrati dalle policy, che non cambiano; i dati non vengono toccati.
+  Verificato in locale: con il ruolo `authenticated` TRUNCATE → "permission denied", 51 giornate intatte.
+- Le chiamate alle Edge Function (accesso, cambio password, gestione utenti) hanno lo stesso tempo
+  massimo delle altre richieste (30 s): su una rete senza risposta compare "Nessuna connessione".
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
@@ -272,7 +282,8 @@ di interventi fuori periodo compaiono come voci a sé.
    (la migrazione non tocca `rapporti`, ma è la stessa prudenza del rilascio precedente).
 2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run;
    poi, nello stesso modo, `supabase/migrations/20261109090000_interventi_piu_operai.sql` → Run
-   e `supabase/migrations/20261110090000_allegati_storage.sql` → Run. Verifica del bucket:
+   e `supabase/migrations/20261110090000_allegati_storage.sql` → Run, infine
+   `supabase/migrations/20261111090000_rapporti_privilegi.sql` → Run. Verifica del bucket:
    `select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'allegati-rapportini';`
    (deve dare `public = false`, 3145728, i tre tipi) e
    `select policyname, cmd from pg_policies where schemaname = 'storage' and policyname like 'allegati_rapportini_%';`
