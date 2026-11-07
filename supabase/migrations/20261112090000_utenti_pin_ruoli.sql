@@ -12,9 +12,6 @@
 --    nulla, agli admin esistenti si aggiunge "worker" (Luca resta assegnabile e compila come prima).
 -- 3. nomi_utenti(): nome leggibile degli utenti che compaiono nei dati visibili (anche disattivati),
 --    cosi' l'app non mostra mai "—" o identificativi al posto dei nomi.
--- 5. Recupero dell'accesso (PIN e password dimenticati): l'admin reimposta la password; la password
---    temporanea scade dopo 72 ore se non viene cambiata, il PIN viene eliminato, le sessioni aperte
---    non si rinnovano piu'. Restano data e autore del reset (profili.password_reimpostata_*).
 -- 4. PIN di 6 cifre: tabella pin_accesso leggibile SOLO dal server (service_role, Edge Functions).
 --    Il PIN non e' mai salvato in chiaro: c'e' solo l'impronta PBKDF2 calcolata dalla Edge Function.
 --    Tentativi: al massimo 5 di fila, poi blocco di 15 minuti; dopo 10 errori consecutivi il PIN
@@ -26,12 +23,7 @@
 -- ---------------------------------------------------------------- 1-2. profili
 alter table public.profili
   add column if not exists cognome text not null default '',
-  add column if not exists ruoli text[],
-  -- recupero dell'accesso: la password temporanea data dall'admin scade (null = nessuna scadenza,
-  -- es. account esistenti); chi e quando ha reimpostato la password. Colonne non leggibili dal browser.
-  add column if not exists password_temporanea_scade timestamptz,
-  add column if not exists password_reimpostata_il timestamptz,
-  add column if not exists password_reimpostata_da uuid references auth.users(id) on delete set null;
+  add column if not exists ruoli text[];
 alter table public.profili drop constraint if exists profili_cognome_lunghezza;
 alter table public.profili add constraint profili_cognome_lunghezza check (length(cognome) <= 80);
 

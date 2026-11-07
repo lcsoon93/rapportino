@@ -275,8 +275,8 @@ di interventi fuori periodo compaiono come voci a sé.
 
 ## Utenti, PIN e doppio ruolo (Fase G)
 
-Migrazione `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` (rollback
-`supabase/rollback/20261112090000_utenti_pin_ruoli_rollback.sql`). Non cancella account o dati:
+Migrazioni `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` e
+`supabase/migrations/20261113090000_recupero_accesso.sql` (rollback in `supabase/rollback/`, in ordine inverso). Non cancella account o dati:
 UUID, giornate, interventi e rapportini restano identici.
 
 - **Nome e cognome.** `profili.cognome` (nuova, vuota per gli account esistenti, che hanno già nome
@@ -372,6 +372,10 @@ Fase G (ramo `fase-g-utenti-pin`; le migrazioni 20261108–20261111 sono già in
 2. SQL Editor → `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` → Run. Verifica:
    `select username, ruolo, ruoli from public.profili order by username;` (Luca `{admin,worker}`,
    gli altri il solo ruolo principale) e `select count(*) from public.pin_accesso;` (0).
+   [applicata in produzione l'8/11/2026]
+   Poi `supabase/migrations/20261113090000_recupero_accesso.sql` → Run (colonne del recupero
+   dell'accesso). Verifica: `select count(*) from information_schema.columns where table_name = 'profili'
+   and column_name like 'password_%';` (3).
 3. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza` e la nuova `pin`
    (`supabase functions deploy accesso cambia-password utenti inizializza pin`). Prima della migrazione le funzioni
    nuove non vanno pubblicate: leggono le colonne `cognome`, `ruoli` e `password_temporanea_scade`.
@@ -379,6 +383,7 @@ Fase G (ramo `fase-g-utenti-pin`; le migrazioni 20261108–20261111 sono già in
 5. Facoltativo: completare il cognome degli account esistenti da Gestione utenti → Modifica
    (oggi nome e cognome sono insieme nel campo Nome; l'app li mostra correttamente lo stesso).
 Rollback Fase G: ripristinare frontend e Edge Functions precedenti, eliminare la funzione `pin`, poi
+`supabase/rollback/20261113090000_recupero_accesso_rollback.sql` e
 `supabase/rollback/20261112090000_utenti_pin_ruoli_rollback.sql` (perde cognomi e PIN, non i dati).
 
 Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
