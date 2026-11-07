@@ -731,3 +731,6 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .conf-riga span{word-break:break-word;white-space:pre-wrap}
 .conf-testa{background:var(--sfondo);font-weight:700;color:var(--testo-2)}
 .coda-voce .cli-ind{white-space:normal;overflow:visible;flex-wrap:wrap}
+.coda-inviati{padding:10px 14px;margin-bottom:10px}
+.coda-inviati summary{cursor:pointer;font-weight:600;font-size:14.5px;min-height:32px;display:flex;align-items:center}
+.coda-inviato{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--bordo);font-size:14px}

@@ -116,7 +116,7 @@ const oraBrevissima = iso=>iso ? new Date(iso).toLocaleString("it-IT", { day: "2
 let disegnoCoda = 0;
 export async function disegnaDaInviare(){
   const n = ++disegnoCoda;
-  const { voci, conteggi, connessione } = await elencoCoda();
+  const { voci, inviati, conteggi, connessione } = await elencoCoda();
   if(n !== disegnoCoda) return;
   $("lavoro-locali-box").classList.toggle("nascosto", !voci.length);
   const punto = { online: "ok", offline: "err", server: "att", sessione: "err", sconosciuto: "neutro" }[connessione.stato] || "neutro";
@@ -125,6 +125,7 @@ export async function disegnaDaInviare(){
       esc(messaggioConnessione(connessione.stato)) + '</b>' + (connessione.quando ? '<small>verificata ' + esc(oraBrevissima(connessione.quando)) + '</small>' : '') + '</div>' +
     '<div class="sinc-conti" id="sinc-conti">' +
       '<span data-c="attesa"><b>' + conteggi.attesa + '</b> in attesa</span>' +
+      '<span data-c="sincronizzazione"><b>' + conteggi.inSincronizzazione + '</b> in sincronizzazione</span>' +
       '<span data-c="inviati"><b>' + conteggi.inviati + '</b> inviati (24 h)</span>' +
       '<span data-c="conflitti"><b>' + conteggi.conflitti + '</b> conflitti</span>' +
       '<span data-c="falliti"><b>' + conteggi.falliti + '</b> non riusciti</span></div>';
@@ -152,7 +153,12 @@ export async function disegnaDaInviare(){
       (v.errore ? '<div class="coda-errore">' + esc(v.errore) + '</div>' : '') +
       '<div class="int-azioni">' + azioni + '</div>' +
     '</article>';
-  }).join("");
+  }).join("") +
+  // inviati nelle ultime 24 ore (confermati dal server)
+  (inviati.length ? '<details class="card coda-inviati"><summary>Inviati nelle ultime 24 ore (' + inviati.length + ')</summary>' +
+    inviati.map(r=>'<div class="coda-inviato"><span>' + esc((r.rapportino && r.rapportino.cliente) || "(senza cliente)") +
+      (r.rapportino && r.rapportino.data ? ' · ' + esc(dataIt(r.rapportino.data)) : '') + '</span>' +
+      '<span class="badge ok">' + icona("check") + 'Inviato ' + esc(oraBrevissima(r.inviato_il)) + '</span></div>').join("") + '</details>' : '');
 }
 export async function sincronizzaOra(){
   const b = $("sinc-ora");

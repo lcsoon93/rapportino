@@ -237,8 +237,8 @@ registrazione delle foto già esistenti). File: `services/coda-locale.js` (archi
   server) e scelta esplicita "Invia la mia versione" (non disponibile all'operaio se il rapportino è già
   completato) o "Usa la versione del server" (le modifiche del telefono si perdono, con conferma). La
   sincronizzazione automatica non risolve mai un conflitto da sola.
-- **"Da inviare"** (Lavoro): indicatore di connessione, conteggi (in attesa, inviati nelle ultime 24 ore,
-  conflitti, non riusciti), "Sincronizza ora"; per ogni rapportino cliente, intervento, data, stato,
+- **"Da inviare"** (Lavoro): indicatore di connessione, conteggi (in attesa, in sincronizzazione, inviati
+  nelle ultime 24 ore, conflitti, non riusciti), elenco degli inviati nelle ultime 24 ore, "Sincronizza ora"; per ogni rapportino cliente, intervento, data, stato,
   ultimo e prossimo tentativo, errore, foto da inviare; "Apri", "Riprova", "Vedi conflitto", "Elimina"
   (solo bozze mai inviate, con conferma: un rapportino già sul server non si elimina da qui).
 - **In background**: nessun service worker né Background Sync (non supportato da Safari): ad app chiusa

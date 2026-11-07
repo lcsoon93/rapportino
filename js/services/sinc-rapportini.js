@@ -255,19 +255,20 @@ export async function elencoCoda(){
   const perRap = {};
   foto.forEach(v=>{ perRap[v.rapportino_id] = (perRap[v.rapportino_id] || 0) + 1; });
   const limite = Date.now() - ORE_INVIATI * 3600000;
-  const voci = [];
-  let inviati = 0;
+  const voci = [], inviati = [];
   for(const r of bozze){
-    if(r.stato === "inviato" && !perRap[r.id]){ if(Date.parse(r.inviato_il || 0) >= limite) inviati++; continue; }
+    if(r.stato === "inviato" && !perRap[r.id]){ if(Date.parse(r.inviato_il || 0) >= limite) inviati.push(r); continue; }
     voci.push({ ...r, fotoInAttesa: perRap[r.id] || 0 });
   }
   Object.keys(perRap).forEach(id=>{ if(!bozze.some(b=>b.id === id)) voci.push({ id, autore: io, rapportino: { cliente: "", data: "" }, salvato: true, stato: "allegati_in_attesa", fotoInAttesa: perRap[id] }); });
   voci.sort((a, b)=>String(b.modificato || "").localeCompare(String(a.modificato || "")));
+  inviati.sort((a, b)=>String(b.inviato_il || "").localeCompare(String(a.inviato_il || "")));
   return {
-    voci, connessione,
+    voci, inviati, connessione,
     conteggi: {
-      attesa: voci.filter(v=>!["conflitto", "errore"].includes(v.stato)).length,
-      inviati, conflitti: voci.filter(v=>v.stato === "conflitto").length, falliti: voci.filter(v=>v.stato === "errore").length,
+      attesa: voci.filter(v=>!["conflitto", "errore", "in_sincronizzazione"].includes(v.stato)).length,
+      inSincronizzazione: voci.filter(v=>v.stato === "in_sincronizzazione").length,
+      inviati: inviati.length, conflitti: voci.filter(v=>v.stato === "conflitto").length, falliti: voci.filter(v=>v.stato === "errore").length,
     },
   };
 }
