@@ -1,8 +1,10 @@
 // Creazione UNA TANTUM degli account iniziali "Luca" (admin) e "comphas" (company).
 // I codici iniziali NON stanno nel codice: il proprietario li imposta come segreti delle
 // Edge Functions (CODICE_INIZIALE_LUCA, CODICE_INIZIALE_COMPHAS) dal pannello Supabase.
-// Funziona solo finche' non esiste un amministratore; gli account dovranno cambiare password
-// al primo accesso. Dopo l'uso si possono cancellare segreti e funzione.
+// Funziona solo finche' non esiste un amministratore. Per scelta del proprietario i codici sono le
+// password DEFINITIVE di questi due account (nessun cambio obbligatorio; si possono cambiare da
+// Altro -> Cambia password). Gli operai creati dopo devono invece cambiarla al primo accesso.
+// Dopo l'uso si possono cancellare segreti e funzione.
 import { CORS, clientAdmin, emailInterna, errore, risposta } from "../_shared/comune.ts";
 
 const INIZIALI = [
@@ -29,7 +31,7 @@ Deno.serve(async (req) => {
     });
     if (error || !data.user) return errore(`Creazione di ${a.username} non riuscita: ${error?.message || ""}`, 500);
     const { error: e2 } = await admin.from("profili").insert({
-      id: data.user.id, username: a.username, nome: a.nome, ruolo: a.ruolo, deve_cambiare_password: true,
+      id: data.user.id, username: a.username, nome: a.nome, ruolo: a.ruolo, deve_cambiare_password: false,
     });
     if (e2) {
       await admin.auth.admin.deleteUser(data.user.id);

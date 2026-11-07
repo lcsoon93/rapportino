@@ -173,9 +173,10 @@ esporta/importa backup. Nei test non usare il server vero: blocca `supabase.co`.
    (`accesso` e `inizializza` con verify_jwt disattivato).
 3. Pannello Supabase → Authentication → disattivare "Allow new users to sign up".
 4. Pannello Supabase → Edge Functions → Secrets: `CODICE_INIZIALE_LUCA` e `CODICE_INIZIALE_COMPHAS`
-   con i codici iniziali scelti dal proprietario; poi chiamare una volta `inizializza`
-   (crea Luca/admin e comphas/company solo se non esiste ancora un admin). Dopo l'uso si possono
-   cancellare i segreti.
+   con i codici scelti dal proprietario; poi chiamare una volta `inizializza`
+   (crea Luca/admin e comphas/company solo se non esiste ancora un admin). Per scelta del proprietario
+   questi codici sono le password definitive dei due account (si cambiano da Altro → Cambia password);
+   gli operai devono invece cambiare la password al primo accesso. Dopo l'uso si possono cancellare i segreti.
 5. Pubblicare il frontend (push su `main`).
 
 Test locali: stack Supabase con `supabase start` e le stesse migrazioni; le prove usano solo

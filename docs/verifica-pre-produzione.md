@@ -253,7 +253,7 @@ Data di modifica nel futuro (> 5 min) → riportata all'ora del server.
 | `accesso` | no | chiunque | username → account; password verificata da Supabase Auth; stesso messaggio per username/password errati; blocco 15 min dopo 5 errori; email interna mai restituita |
 | `cambia-password` | sì | l'utente per sé | richiede la password attuale; regole robustezza; restituisce una nuova sessione (Supabase chiude le altre) |
 | `utenti` | sì | solo admin attivo | elenco, crea (sempre `worker`), disattiva/riattiva e reset solo su operai, mai su sé stessi; compensazione se la creazione fallisce a metà |
-| `inizializza` | no | una volta | crea Luca (admin) e comphas (company) dai segreti `CODICE_INIZIALE_*`; 409 se esiste un admin; non restituisce i codici |
+| `inizializza` | no | una volta | crea Luca (admin) e comphas (company) dai segreti `CODICE_INIZIALE_*`; 409 se esiste un admin; non restituisce i codici. Per scelta del proprietario i codici (6 cifre) sono le password definitive: nessun cambio obbligatorio per questi due account |
 
 ## 4. Test eseguiti (stack Supabase locale, credenziali di prova)
 
