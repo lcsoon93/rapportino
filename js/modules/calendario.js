@@ -44,7 +44,7 @@ export function disegnaSettimana(){
         '<div class="gclienti">' + esc(opTesto) + '</div>' +
         (r.clienti ? '<div class="gclienti cli">' + esc(r.clienti) + '</div>' : '') + '</div>' +
         '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
-        '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiorno(\'' + r.iso + '\')">&times;</button>';
+        '<button type="button" class="gdel" data-permesso="rapportino.elimina" aria-label="Elimina giorno" onclick="eliminaGiorno(\'' + r.iso + '\')">&times;</button>';
     } else {
       div.innerHTML =
         '<span class="gnome">' + r.nome + '</span>' +
@@ -99,7 +99,7 @@ export function disegnaMese(){
       (r.clienti ? '<div class="gclienti cli">' + esc(r.clienti) + '</div>' : '') +
       '</div>' +
       '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
-      '<button type="button" class="gdel" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
+      '<button type="button" class="gdel" data-permesso="rapportino.elimina" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
     cont.appendChild(div);
   });
 

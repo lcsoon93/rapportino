@@ -74,3 +74,19 @@
 }
 .nav-btn[aria-current="page"]{color:var(--brand)}
 .nav-btn[aria-current="page"] .nav-pill{background:var(--brand-chiaro)}
+
+/* accesso: finche' non c'e' un utente autorizzato si vede solo la schermata di login */
+body.non-autenticato .app-top,
+body.non-autenticato main,
+body.non-autenticato .navbar,
+body.non-autenticato .barra{display:none!important}
+body.non-autenticato{padding-bottom:0}
+.schermata{
+  min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;
+  padding:calc(24px + env(safe-area-inset-top,0px)) 16px calc(24px + env(safe-area-inset-bottom,0px));
+}
+.schermata-in{width:100%;max-width:400px}
+.schermata h1{font-size:28px;font-weight:700;letter-spacing:-.5px;text-align:center;margin-top:18px}
+.schermata-sub{color:var(--testo-2);text-align:center;margin:6px 0 20px;font-size:15px}
+.schermata-nota{color:var(--testo-2);text-align:center;font-size:13px;margin-top:16px;line-height:1.5}
+.accesso-logo{height:64px;width:max-content;margin:0 auto;padding:8px 14px;border-radius:16px}

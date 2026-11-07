@@ -18,10 +18,15 @@ Deno.serve(async (req) => {
 
   const verifica = await clientAnonimo().auth.signInWithPassword({ email: io.email, password: attuale });
   if (verifica.error) return errore("La password attuale non è corretta.", 401);
-  if (verifica.data.session) await admin.auth.admin.signOut(verifica.data.session.access_token).catch(() => {});
+  // chiude solo la sessione usata per la verifica (non quella del telefono)
+  if (verifica.data.session) await admin.auth.admin.signOut(verifica.data.session.access_token, "local").catch(() => {});
 
   const { error } = await admin.auth.admin.updateUserById(io.profilo.id, { password: nuova });
   if (error) return errore("Non è stato possibile cambiare la password.", 500);
   await admin.from("profili").update({ deve_cambiare_password: false }).eq("id", io.profilo.id);
-  return risposta({ ok: true });
+  // Supabase Auth chiude tutte le sessioni quando cambia la password: se ne apre una nuova per questo telefono
+  const nuovaSessione = await clientAnonimo().auth.signInWithPassword({ email: io.email, password: nuova });
+  return risposta({ ok: true, sessione: nuovaSessione.data.session
+    ? { access_token: nuovaSessione.data.session.access_token, refresh_token: nuovaSessione.data.session.refresh_token }
+    : null });
 });

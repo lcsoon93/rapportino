@@ -5,7 +5,10 @@ spese, firma del cliente, PDF da inviare per mail, report settimanali e mensili.
 Funziona nel browser (pensata per iPhone/Safari) ed è pubblicata con GitHub Pages.
 
 Nessun framework e nessun sistema di build: HTML, CSS e JavaScript a **moduli ES** nativi.
-L'unica libreria esterna è **jsPDF 2.5.1** (da cdnjs), più il font Inter da Google Fonts.
+Librerie: **jsPDF 2.5.1** (da cdnjs) e **supabase-js 2.45.4** (copia locale in `js/vendor/`), più il font Inter.
+
+L'app richiede l'accesso con **username e password** (nessuna registrazione pubblica, nessuna email).
+Ruoli: `admin` (Luca), `company` (comphas), `worker` (operai creati dall'amministratore).
 
 ## Struttura
 
@@ -20,7 +23,9 @@ css/
 assets/logo/logo.js        logo aziendale (base64): serve all'intestazione e ai PDF
 js/
   core/                    infrastruttura dell'app
-    app.js                 punto di ingresso: importa i moduli e avvia l'app
+    app.js                 punto di ingresso: sessione/login, archivio dell'utente, avvio per ruolo
+    sessione.js            Supabase Auth: login via Edge Function, sessione, profilo, cambio password
+    permessi.js            UNICA tabella dei permessi dell'interfaccia (data-permesso="…") e menu per ruolo
     azioni-html.js         espone su window le funzioni usate da onclick/onchange/oninput
     config.js              destinatario mail e progetto Supabase
     eventi.js              bus di eventi tra moduli (su / emetti / segnalaModifica)
@@ -37,11 +42,17 @@ js/
     clienti.js             anagrafica dai rapporti, ricerca, storico, suggerimenti nome/indirizzo
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
+    accesso.js             schermate di login e cambio password
+    lavoro.js              dashboard dell'operaio (interventi assegnati, in lavorazione, completati, storico)
+    pianificazione.js      company/admin: schede cliente, assegnazione operai, invio (con controllo concorrenza)
+    consultazione.js       company/admin: rapportini compilati per mese e PDF
+    utenti.js              admin: crea operai, disattiva/riattiva, reimposta password
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
     immagini.js            compressione foto, foto a schermo intero
-    sync.js                sincronizzazione Supabase
+    sync.js                sincronizzazione Supabase con la sessione dell'utente
+    stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     backup.js              esporta / importa archivio JSON
     condivisione.js        invio PDF (condivisione Mail/Gmail) e testo (mailto)
     pdf/comune.js          intestazione, piè di pagina, misure firma
@@ -52,6 +63,37 @@ js/
     formatters.js          ore, euro, saldo, HTML sicuro, evidenziazione
     dom.js                 icone SVG, pulsante "Ora"
 ```
+
+supabase/                  backend (Supabase Free)
+  migrations/              schema: profili, ruoli, policy RLS, trigger di controllo
+  functions/               Edge Functions: accesso, cambia-password, utenti, inizializza
+  config.toml              niente registrazione pubblica; verify_jwt per funzione
+```
+
+## Accesso, ruoli e sicurezza
+
+- **Login**: la schermata chiede username e password. La Edge Function `accesso` trova l'account dallo
+  username e fa verificare la password a **Supabase Auth**; il browser riceve la sessione standard.
+  L'email interna (casuale, dominio riservato `.invalid`) non arriva mai al browser. Dopo 5 errori lo
+  username è bloccato 15 minuti. Username inesistente e password sbagliata danno lo stesso messaggio.
+- **Password**: nessuna password è nel codice o nel database applicativo. Primo accesso e reset
+  obbligano a sceglierne una personale (≥ 10 caratteri, lettere e numeri, senza lo username).
+  Cambiare password chiude tutte le sessioni (comportamento di Supabase): il telefono ne riceve una nuova.
+- **Ruoli**: tabella `profili` (scrivibile solo dalle Edge Functions con la service_role key, che
+  resta sul server). La funzione `utenti` crea **solo** operai e solo se chiamata dall'admin.
+- **RLS** su `rapporti` (nessun accesso anonimo):
+
+  | | admin | company | worker |
+  |---|---|---|---|
+  | leggere | tutto | tutto | solo giornate in `assegnati` |
+  | creare giornate | sì | sì, senza ore/spese/lavoro/firme | sì (ne diventa assegnatario) |
+  | modificare | sì | solo schede non ancora compilate e assegnazioni | giornate assegnate, non le assegnazioni |
+  | eliminare | sì | no | no |
+
+  Le regole che le policy non possono esprimere stanno nel trigger `controlla_rapporto`.
+- **Account disattivati**: non entrano, e le sessioni già aperte non leggono né scrivono più nulla.
+- **Interfaccia**: `js/core/permessi.js` nasconde ciò che il ruolo non può usare; la protezione vera
+  resta il database.
 
 ## Dipendenze tra moduli
 
@@ -119,6 +161,22 @@ foto:[{src,w,h}], firma, urgente}], spese:[{d, i, allegato, clienteId}] }`.
 
 Dopo una modifica prova almeno: nuovo rapportino, firma, PDF della giornata, calendario,
 esporta/importa backup. Nei test non usare il server vero: blocca `supabase.co`.
+
+## Supabase: messa in produzione
+
+1. Applicare `supabase/migrations/20261107120000_utenti_ruoli.sql` (il file `…schema_iniziale.sql`
+   descrive solo lo schema già esistente).
+2. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza`
+   (`accesso` e `inizializza` con verify_jwt disattivato).
+3. Pannello Supabase → Authentication → disattivare "Allow new users to sign up".
+4. Pannello Supabase → Edge Functions → Secrets: `CODICE_INIZIALE_LUCA` e `CODICE_INIZIALE_COMPHAS`
+   con i codici iniziali scelti dal proprietario; poi chiamare una volta `inizializza`
+   (crea Luca/admin e comphas/company solo se non esiste ancora un admin). Dopo l'uso si possono
+   cancellare i segreti.
+5. Pubblicare il frontend (push su `main`).
+
+Test locali: stack Supabase con `supabase start` e le stesse migrazioni; le prove usano solo
+credenziali di prova e non contattano il progetto di produzione.
 
 ## Eseguire e pubblicare
 

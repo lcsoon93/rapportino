@@ -104,3 +104,27 @@ export function leggiTimbri(){
 export function scriviTimbri(t){
   try{ localStorage.setItem("timbri", JSON.stringify(t)); }catch(e){}
 }
+
+// ---- archivio del telefono legato all'utente collegato ----
+// Le mappe di servizio stanno in localStorage: "assegnazioni" (giorno -> operai assegnati, dal server),
+// "inSospeso" (giorni salvati qui ma non ancora confermati dal server), "rifiutati" (giorni che il
+// server non accetta da questo utente: non si ritentano finche' non cambiano).
+export function leggiMappa(nome){
+  try{ return JSON.parse(localStorage.getItem(nome) || "{}"); }catch(e){ return {}; }
+}
+export function scriviMappa(nome, valore){
+  try{ localStorage.setItem(nome, JSON.stringify(valore)); }catch(e){}
+}
+export function proprietarioArchivio(){
+  try{ return localStorage.getItem("archivioUtente"); }catch(e){ return null; }
+}
+export function impostaProprietarioArchivio(id){
+  try{ localStorage.setItem("archivioUtente", id); }catch(e){}
+}
+// toglie dal telefono i rapporti (es. quando entra un utente diverso); le preferenze restano
+export function svuotaArchivioLocale(){
+  const db = leggiDB();
+  Object.keys(db).forEach(k=>{ delete db[k]; });
+  scriviDB(db);
+  ["timbri", "assegnazioni", "inSospeso", "rifiutati"].forEach(k=>{ try{ localStorage.removeItem(k); }catch(e){} });
+}

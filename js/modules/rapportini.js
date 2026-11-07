@@ -101,7 +101,9 @@ export function salvaGiornata(){
       if(db[iso]){
         inviaGiorno(iso, db[iso])
           .then(()=>statoSinc(""))
-          .catch(()=>statoSinc("In attesa di rete", "#C97B3D"));
+          .catch(e=>statoSinc(e && e.stato === 403
+            ? "Non sei autorizzato a salvare questa giornata sul server: resta solo su questo telefono."
+            : "In attesa di rete", e && e.stato === 403 ? "#B3413A" : "#C97B3D"));
       } else {
         cancellaGiornoRemoto(iso);
       }
@@ -128,6 +130,9 @@ export function caricaGiornata(iso){
       } else {
         aggiungiOperaio({dalle:d.dalle, alle:d.alle});
       }
+    } else if(d.pianificato && d.tecnici){
+      // giornata preparata dalla pianificazione: gli operai proposti sono quelli assegnati
+      d.tecnici.split("/").map(s=>s.trim()).filter(Boolean).forEach(n=>aggiungiOperaio({nome:n, dalle:"08:00", alle:"17:00"}));
     } else {
       aggiungiOperaio({nome:"Luca", dalle:"08:00", alle:"17:00"});
       aggiungiOperaio({nome:"Francesco", dalle:"08:00", alle:"17:00"});

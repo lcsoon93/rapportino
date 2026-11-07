@@ -573,3 +573,50 @@ select{
 .firma-overlay-bottom .fo-conferma{flex:1.4;background:var(--ok);border:2px solid var(--ok);color:#fff}
 .firma-overlay-bottom button:disabled{background:#E3E7EC;border-color:#E3E7EC;color:#97A0AD;cursor:default}
 .firma-overlay-bottom button:not(:disabled):active{transform:translateY(1px)}
+
+/* ================= ACCESSO, RUOLI E UTENTI ================= */
+.vietato{display:none!important}
+.schermata-card{padding:20px 16px}
+.campo-sep{margin-top:14px}
+.campo-password{position:relative}
+.campo-password input{padding-right:52px}
+.mostra-pw{
+  position:absolute;right:4px;top:50%;transform:translateY(-50%);
+  width:44px;height:40px;border:none;background:transparent;color:var(--testo-2);
+  border-radius:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+}
+.mostra-pw:active{background:var(--sfondo)}
+.schermata-card .btn-primario{margin-top:16px}
+.msg-errore{color:var(--err-testo);font-size:14px;font-weight:500;margin-top:10px;min-height:0}
+.msg-errore:empty,.msg-info:empty{display:none}
+.msg-info{color:var(--ok-testo);background:var(--ok-chiaro);border-radius:12px;padding:10px 12px;font-size:14px;margin:0 0 12px}
+.msg-info.att{color:var(--att-testo);background:var(--att-chiaro)}
+.msg-info.err{color:var(--err-testo);background:var(--err-chiaro)}
+.pw-regole{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:4px;font-size:13px;color:var(--testo-2)}
+.pw-regole li{display:flex;align-items:center;gap:8px}
+.pw-regole li::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--bordo-forte);flex:none}
+.pw-regole li.ok{color:var(--ok-testo)}
+.pw-regole li.ok::before{background:var(--ok)}
+.btn.in-corso{opacity:.7;pointer-events:none}
+
+/* righe utenti / operai */
+.utente-riga{display:flex;align-items:center;gap:12px;padding:12px 14px;border-bottom:1px solid var(--bordo);flex-wrap:wrap}
+.utente-riga:last-child{border-bottom:none}
+.utente-riga .cli-testi{min-width:140px}
+.utente-azioni{display:flex;gap:8px;width:100%;padding-left:54px}
+.utente-azioni .btn{min-height:40px;padding:6px 12px;font-size:14px;flex:1}
+.spunta-operaio{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--bordo);cursor:pointer;margin:0;color:var(--testo);font-size:15.5px;font-weight:500}
+.spunta-operaio:last-child{border-bottom:none}
+.spunta-operaio input{width:22px;height:22px;min-height:0;padding:0;accent-color:var(--brand);flex:none}
+.spunta-operaio small{color:var(--testo-2);font-weight:400}
+
+/* schede pianificate */
+.pian-scheda{padding:12px 0;border-bottom:1px solid var(--bordo)}
+.pian-scheda:last-child{border-bottom:none}
+.pian-scheda .int-azioni{border-top:none;padding-top:0;margin-top:10px}
+.pian-richiesta{font-size:14px;color:var(--testo);background:var(--sfondo);border-radius:10px;padding:8px 10px;margin-top:8px;white-space:pre-wrap}
+.giorno-rap{padding:14px;margin-bottom:12px}
+.giorno-rap .gr-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.giorno-rap .gr-clienti{margin-top:8px;display:grid;gap:6px}
+.giorno-rap .gr-cliente{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14.5px}
+.giorno-rap .gr-cliente b{font-weight:600}
