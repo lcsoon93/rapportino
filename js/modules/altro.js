@@ -3,7 +3,7 @@ import { DESTINATARIO, SINC_ATTIVA } from "../core/config.js";
 import { leggiDB } from "../core/storage.js";
 import { mostraVista, registraVista } from "../core/navigation.js";
 import { aggiornaTestiData } from "./rapportini.js";
-import { profilo } from "../core/sessione.js";
+import { nomeCompleto, profilo } from "../core/sessione.js";
 
 export function vaiASezione(cls){
   mostraVista("giorno");
@@ -16,7 +16,7 @@ export function aggiornaAltro(){
   document.getElementById("info-giorni").textContent = n;
   document.getElementById("info-sinc").textContent = SINC_ATTIVA() ? (navigator.onLine === false ? "Attiva (offline)" : "Attiva") : "Non configurata";
   document.getElementById("info-mail").textContent = DESTINATARIO;
-  document.getElementById("altro-utente").textContent = profilo ? (profilo.nome || profilo.username) + " (@" + profilo.username + ")" : "—";
+  document.getElementById("altro-utente").textContent = profilo ? nomeCompleto(profilo) + " (@" + profilo.username + ")" : "—";
 }
 
 registraVista("altro", aggiornaAltro);

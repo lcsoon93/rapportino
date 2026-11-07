@@ -1,6 +1,9 @@
-// Schermate di accesso e di cambio password. Nessuna password viene salvata nel browser:
-// i campi si svuotano subito dopo l'invio.
-import { accedi, cambiaPassword, esci, profilo } from "../core/sessione.js";
+// Schermate di accesso (password o PIN), cambio password e PIN di accesso.
+// Nessuna password e nessun PIN vengono salvati nel browser: i campi si svuotano subito dopo l'invio.
+// Del PIN il telefono ricorda solo lo username di chi l'ha attivato (per proporre l'accesso con PIN).
+import {
+  accedi, accediConPin, cambiaPassword, esci, impostaPin, profilo, ricordaUtentePin, rimuoviPin, statoPin, utentePin,
+} from "../core/sessione.js";
 import { sincronizza } from "../services/sync.js";
 
 const $ = id=>document.getElementById(id);
@@ -12,7 +15,7 @@ function occupato(btn, si, testo){
   if(s && testo) s.textContent = testo;
 }
 function mostraSchermata(id){
-  ["schermata-accesso", "schermata-password"].forEach(k=>$(k).classList.toggle("nascosto", k !== id));
+  ["schermata-accesso", "schermata-password", "schermata-pin"].forEach(k=>$(k).classList.toggle("nascosto", k !== id));
   document.body.classList.toggle("non-autenticato", !!id);
 }
 
@@ -28,33 +31,62 @@ document.addEventListener("click", e=>{
 
 // ---------------------------------------------------------------- accesso
 let risolviAccesso = null;
-// mostra il login e si risolve con il profilo quando l'accesso riesce
+let modoPin = false;
+function impostaModo(pin){
+  modoPin = pin;
+  $("acc-blocco-password").classList.toggle("nascosto", pin);
+  $("acc-blocco-pin").classList.toggle("nascosto", !pin);
+  $("acc-cambia-modo").textContent = pin ? "Accedi con la password" : "Accedi con il PIN";
+  $("acc-sottotitolo").textContent = pin ? "Accedi con il tuo username e il PIN" : "Accedi con il tuo username e la password";
+  $("acc-password").value = ""; $("acc-pin").value = "";
+}
+const campoDaRiempire = ()=>!$("acc-username").value ? $("acc-username") : modoPin ? $("acc-pin") : $("acc-password");
+// mostra il login e si risolve con il profilo quando l'accesso riesce. Se su questo telefono e' stato
+// attivato un PIN si propone l'accesso con PIN per quello username.
 export function chiediAccesso(messaggio){
   $("acc-errore").textContent = messaggio || "";
-  $("acc-password").value = "";
+  const u = utentePin();
+  if(u) $("acc-username").value = u;
+  impostaModo(!!u);
   mostraSchermata("schermata-accesso");
-  setTimeout(()=>($("acc-username").value ? $("acc-password") : $("acc-username")).focus(), 50);
+  setTimeout(()=>campoDaRiempire().focus(), 50);
   return new Promise(r=>{ risolviAccesso = r; });
 }
+$("acc-cambia-modo").addEventListener("click", ()=>{
+  impostaModo(!modoPin);
+  $("acc-errore").textContent = "";
+  campoDaRiempire().focus();
+});
+// il PIN accetta solo cifre
+document.addEventListener("input", e=>{
+  if(e.target.classList && e.target.classList.contains("campo-pin")) e.target.value = e.target.value.replace(/[^0-9]/g, "").slice(0, 6);
+});
 $("form-accesso").addEventListener("submit", async e=>{
   e.preventDefault();
   const username = $("acc-username").value.trim();
-  const password = $("acc-password").value;
-  if(!username || !password){
-    $("acc-errore").textContent = "Inserisci username e password.";
+  const segreto = modoPin ? $("acc-pin").value : $("acc-password").value;
+  if(!username || !segreto){
+    $("acc-errore").textContent = modoPin ? "Inserisci username e PIN." : "Inserisci username e password.";
     return;
   }
+  if(modoPin && !/^[0-9]{6}$/.test(segreto)){ $("acc-errore").textContent = "Il PIN è di 6 cifre."; return; }
   const btn = $("acc-invia");
   occupato(btn, true, "Accesso…");
   $("acc-errore").textContent = "";
-  const r = await accedi(username, password);
-  $("acc-password").value = "";
+  const r = modoPin ? await accediConPin(username, segreto) : await accedi(username, segreto);
+  $("acc-password").value = ""; $("acc-pin").value = "";
   occupato(btn, false, "Accedi");
   if(!r.ok){
     $("acc-errore").textContent = r.errore;
-    $("acc-password").focus();
+    // PIN non piu' valido per questo username (disattivato, eliminato dopo troppi errori): si torna alla password
+    if(modoPin && r.stato === 401 && /password/i.test(r.errore || "")){
+      if(utentePin().toLowerCase() === username.toLowerCase()) ricordaUtentePin("");
+      impostaModo(false);
+    }
+    campoDaRiempire().focus();
     return;
   }
+  if(modoPin) ricordaUtentePin(r.profilo.username);
   if(risolviAccesso){ const f = risolviAccesso; risolviAccesso = null; f(r.profilo); }
 });
 
@@ -120,3 +152,54 @@ export async function esciDallApp(){
   await esci();
 }
 export function nascondiSchermate(){ mostraSchermata(null); }
+
+// ---------------------------------------------------------------- PIN di accesso (Altro)
+let pinAttivo = false;
+function campiPin(){ ["pin-nuovo", "pin-conferma", "pin-password"].forEach(id=>{ $(id).value = ""; }); }
+function disegnaPin(){
+  $("pin-stato").textContent = pinAttivo
+    ? "Il PIN è attivo: puoi cambiarlo o disattivarlo. Per cambiarlo serve la password attuale."
+    : "Accedi più in fretta con un PIN di 6 cifre. Per attivarlo serve la password attuale.";
+  $("pin-salva").querySelector("span").textContent = pinAttivo ? "Cambia PIN" : "Attiva PIN";
+  $("pin-rimuovi").classList.toggle("nascosto", !pinAttivo);
+}
+export async function apriPin(){
+  campiPin();
+  $("pin-errore").textContent = ""; $("pin-ok").textContent = "";
+  mostraSchermata("schermata-pin");
+  $("pin-stato").textContent = "Controllo del PIN…";
+  const s = await statoPin();
+  if(!s.ok){ $("pin-stato").textContent = ""; $("pin-errore").textContent = s.errore; return; }
+  pinAttivo = s.attivo;
+  // PIN tolto da un'altra parte (es. dall'amministratore): il telefono smette di proporlo
+  if(!pinAttivo && profilo && utentePin().toLowerCase() === profilo.username.toLowerCase()) ricordaUtentePin("");
+  disegnaPin();
+  setTimeout(()=>$("pin-nuovo").focus(), 50);
+}
+$("form-pin").addEventListener("submit", async e=>{
+  e.preventDefault();
+  $("pin-errore").textContent = ""; $("pin-ok").textContent = "";
+  const pin = $("pin-nuovo").value, conferma = $("pin-conferma").value, password = $("pin-password").value;
+  if(!/^[0-9]{6}$/.test(pin)){ $("pin-errore").textContent = "Il PIN deve essere di 6 cifre."; return; }
+  if(pin !== conferma){ $("pin-errore").textContent = "I due PIN non coincidono."; return; }
+  if(!password){ $("pin-errore").textContent = "Inserisci la password attuale."; return; }
+  const btn = $("pin-salva");
+  occupato(btn, true, "Salvataggio…");
+  const r = await impostaPin(pin, { password });
+  campiPin();
+  occupato(btn, false);
+  if(!r.ok){ disegnaPin(); $("pin-errore").textContent = r.errore; return; }
+  pinAttivo = true;
+  disegnaPin();
+  $("pin-ok").textContent = "PIN salvato. Al prossimo accesso da questo telefono ti verrà chiesto il PIN.";
+});
+$("pin-rimuovi").addEventListener("click", async ()=>{
+  if(!confirm("Disattivare il PIN? Per accedere servirà la password.")) return;
+  $("pin-errore").textContent = ""; $("pin-ok").textContent = "";
+  const r = await rimuoviPin();
+  if(!r.ok){ $("pin-errore").textContent = r.errore; return; }
+  pinAttivo = false;
+  disegnaPin();
+  $("pin-ok").textContent = "PIN disattivato.";
+});
+$("pin-chiudi").addEventListener("click", ()=>{ campiPin(); mostraSchermata(null); });

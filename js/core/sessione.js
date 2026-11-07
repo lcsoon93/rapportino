@@ -21,7 +21,8 @@ export const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   global: { fetch: fetchConLimite },
 });
 
-// profilo dell'utente collegato: { id, username, nome, ruolo, attivo, deve_cambiare_password }
+// profilo dell'utente collegato: { id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password }
+// ruolo = ruolo principale (menu e permessi); ruoli = tutti i ruoli (es. admin + worker)
 export let profilo = null;
 
 export async function tokenAccesso(){
@@ -54,24 +55,70 @@ const PROFILO_LOCALE = "rapportino-profilo";
 const erroreRete = e=>!!e && (/fetch|network|abort|timeout|Load failed/i.test(String(e.message || e)) || /Retryable/i.test(String(e.name || "")));
 class ErroreRete extends Error {}
 
+// nome da mostrare: "nome cognome" (mai l'identificativo); in mancanza lo username
+export function nomeCompleto(p){
+  if(!p) return "";
+  return [p.nome, p.cognome].map(x=>String(x || "").trim()).filter(Boolean).join(" ") || p.username || "";
+}
+// il profilo ha questo ruolo? (ruoli: admin + worker per chi e' amministratore e operaio)
+export function haRuolo(r, p = profilo){
+  return !!p && (Array.isArray(p.ruoli) ? p.ruoli.includes(r) : p.ruolo === r);
+}
+
+const CAMPI_PROFILO = "id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password";
+const CAMPI_PROFILO_PRIMA = "id, username, nome, ruolo, attivo, deve_cambiare_password";   // senza la migrazione 20261112
+
 // rilegge il profilo dal database; null se manca o l'account e' disattivato; ErroreRete se il server
 // non e' raggiungibile (in quel caso non si decide nulla sulla sessione)
 export async function caricaProfilo(){
   const { data: u, error: ue } = await client.auth.getUser();
   if(erroreRete(ue)) throw new ErroreRete("rete");
   if(!u || !u.user){ profilo = null; return null; }
-  const { data, error } = await client.from("profili")
-    .select("id, username, nome, ruolo, attivo, deve_cambiare_password").eq("id", u.user.id).maybeSingle();
+  let { data, error } = await client.from("profili").select(CAMPI_PROFILO).eq("id", u.user.id).maybeSingle();
+  // database non ancora aggiornato (colonne cognome/ruoli assenti): si legge come prima
+  if(error && /42703|cognome|ruoli/i.test((error.code || "") + (error.message || ""))){
+    ({ data, error } = await client.from("profili").select(CAMPI_PROFILO_PRIMA).eq("id", u.user.id).maybeSingle());
+  }
   if(erroreRete(error)) throw new ErroreRete("rete");
   if(error || !data || !data.attivo){ profilo = null; try{ localStorage.removeItem(PROFILO_LOCALE); }catch(e){} return null; }
+  if(!Array.isArray(data.ruoli)) data.ruoli = [data.ruolo];
+  if(typeof data.cognome !== "string") data.cognome = "";
   profilo = data;
-  try{ localStorage.setItem(PROFILO_LOCALE, JSON.stringify({ id: data.id, username: data.username, nome: data.nome, ruolo: data.ruolo, attivo: true, deve_cambiare_password: false })); }catch(e){}
+  try{ localStorage.setItem(PROFILO_LOCALE, JSON.stringify({ id: data.id, username: data.username, nome: data.nome, cognome: data.cognome, ruolo: data.ruolo, ruoli: data.ruoli, attivo: true, deve_cambiare_password: false })); }catch(e){}
   return profilo;
 }
 
-export async function accedi(username, password){
-  const r = await chiamaFunzione("accesso", { username: (username || "").trim(), password }, false);
-  if(!r.ok) return { ok: false, errore: r.errore };
+// ---------------------------------------------------------------- PIN
+// Su questo telefono si ricorda SOLO lo username di chi ha attivato il PIN (per proporre l'accesso
+// con PIN); il PIN non viene mai salvato nel browser.
+const UTENTE_PIN = "rapportino-pin-utente";
+export function utentePin(){ try{ return localStorage.getItem(UTENTE_PIN) || ""; }catch(e){ return ""; } }
+export function ricordaUtentePin(username){ try{ username ? localStorage.setItem(UTENTE_PIN, username) : localStorage.removeItem(UTENTE_PIN); }catch(e){} }
+
+export function accediConPin(username, pin){
+  return completaAccesso(chiamaFunzione("accesso", { username: (username || "").trim(), pin }, false));
+}
+export async function statoPin(){
+  const r = await chiamaFunzione("pin", { azione: "stato" });
+  return r.ok ? { ok: true, attivo: !!r.dati.attivo } : { ok: false, errore: r.errore };
+}
+export async function impostaPin(pin, credenziale){
+  const r = await chiamaFunzione("pin", { azione: "imposta", pin, ...credenziale });
+  if(r.ok && profilo) ricordaUtentePin(profilo.username);
+  return r;
+}
+export async function rimuoviPin(){
+  const r = await chiamaFunzione("pin", { azione: "rimuovi" });
+  if(r.ok && profilo && utentePin().toLowerCase() === profilo.username.toLowerCase()) ricordaUtentePin("");
+  return r;
+}
+
+export function accedi(username, password){
+  return completaAccesso(chiamaFunzione("accesso", { username: (username || "").trim(), password }, false));
+}
+async function completaAccesso(richiesta){
+  const r = await richiesta;
+  if(!r.ok) return { ok: false, errore: r.errore, stato: r.stato };
   const { error } = await client.auth.setSession(r.dati.sessione);
   if(error) return { ok: false, errore: "Sessione non valida. Riprova." };
   const p = await caricaProfilo();

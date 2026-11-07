@@ -17,11 +17,11 @@ import { mostraFotoIntera } from "../services/immagini.js";
 import { annullaFirmaOverlay, apriFirmaOverlay, chiudiFirmaOverlay, pulisciFirma, pulisciFirmaOverlay } from "../services/signature.js";
 import { sincronizza } from "../services/sync.js";
 import { oraAdesso } from "../utils/dom.js";
-import { apriCambioPassword, esciDallApp } from "../modules/accesso.js";
+import { apriCambioPassword, apriPin, esciDallApp } from "../modules/accesso.js";
 import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi } from "../modules/gestione-interventi.js";
 import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
-import { azioneUtente, generaPasswordIniziale } from "../modules/utenti.js";
+import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
 import { azzeraFiltriStorico, cercaStorico, disegnaStorico } from "../modules/storico.js";
 import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
@@ -42,13 +42,13 @@ Object.assign(window, {
   annullaFirmaOverlay, apriFirmaOverlay, chiudiFirmaOverlay, pulisciFirma, pulisciFirmaOverlay,
   sincronizza,
   oraAdesso,
-  apriCambioPassword, esciDallApp,
+  apriCambioPassword, apriPin, esciDallApp,
   annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi,
   aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
   azzeraFiltriStorico, cercaStorico, disegnaStorico,
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
-  azioneUtente, generaPasswordIniziale,
+  annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal
 });

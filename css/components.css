@@ -746,3 +746,11 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .st-rap .chev{color:#A3ACB8;flex:none}
 .st-ore{white-space:normal !important}
 .st-autonomo .cli-ind{margin-top:2px}
+
+/* Fase G: PIN di accesso e modifica utenti */
+.campo-pin{letter-spacing:.5em;font-size:22px;text-align:center;font-variant-numeric:tabular-nums}
+.acc-modo{width:100%;justify-content:center;margin-top:6px}
+.utente-modifica{width:100%;padding-left:54px}
+.utente-modifica .spunta{display:flex;gap:10px;align-items:flex-start;margin:10px 0 4px;font-size:14px;line-height:1.35}
+.utente-modifica .spunta input{width:20px;height:20px;flex:none;margin-top:1px}
+@media (max-width:420px){ .utente-modifica,.utente-azioni{padding-left:0} }
