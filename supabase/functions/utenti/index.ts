@@ -12,6 +12,9 @@ import {
 } from "../_shared/comune.ts";
 
 const PER_SEMPRE = "876000h"; // ~100 anni: blocca anche il rinnovo delle sessioni aperte
+// password temporanea (nuovo account o reset): vale 72 ore, poi serve un nuovo reset dell'admin
+const ORE_PASSWORD_TEMPORANEA = 72;
+const scadenzaTemporanea = () => new Date(Date.now() + ORE_PASSWORD_TEMPORANEA * 3600000).toISOString();
 const testo = (v: unknown) => typeof v === "string" ? v.trim().replace(/\s+/g, " ") : "";
 
 Deno.serve(async (req) => {
@@ -28,11 +31,19 @@ Deno.serve(async (req) => {
 
   if (azione === "elenco") {
     const { data, error } = await admin.from("profili")
-      .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, creato_il").order("ruolo").order("username");
+      .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, creato_il, password_temporanea_scade, password_reimpostata_il, password_reimpostata_da")
+      .order("ruolo").order("username");
     if (error) return errore("Errore nel leggere gli utenti.", 500);
     const { data: pin } = await admin.from("pin_accesso").select("utente_id");
     const conPin = new Set((pin || []).map((x) => x.utente_id));
-    return risposta({ utenti: (data || []).map((u) => ({ ...u, pin: conPin.has(u.id) })) });
+    // chi ha reimpostato la password: nome, non identificativo
+    const nomi = new Map((data || []).map((u) => [u.id, [u.nome, u.cognome].filter(Boolean).join(" ") || u.username]));
+    return risposta({
+      utenti: (data || []).map(({ password_reimpostata_da, ...u }) => ({
+        ...u, pin: conPin.has(u.id),
+        password_reimpostata_da: password_reimpostata_da ? (nomi.get(password_reimpostata_da) || "amministratore") : null,
+      })),
+    });
   }
 
   if (azione === "crea") {
@@ -56,7 +67,7 @@ Deno.serve(async (req) => {
 
     const { error: e2 } = await admin.from("profili").insert({
       id: creato.user.id, username, nome, cognome, ruolo: "worker", ruoli: ["worker"], attivo: true,
-      deve_cambiare_password: true, creato_da: io.profilo.id,
+      deve_cambiare_password: true, creato_da: io.profilo.id, password_temporanea_scade: scadenzaTemporanea(),
     });
     if (e2) {
       // compensazione: niente account Auth senza profilo (e mai due profili: id e username sono unici)
@@ -109,7 +120,10 @@ Deno.serve(async (req) => {
     if (problema) return errore(problema);
     const { error } = await admin.auth.admin.updateUserById(id, { password });
     if (error) return errore("Operazione non riuscita.", 500);
-    await admin.from("profili").update({ deve_cambiare_password: true, tentativi_falliti: 0, bloccato_fino: null }).eq("id", id);
+    await admin.from("profili").update({
+      deve_cambiare_password: true, tentativi_falliti: 0, bloccato_fino: null, password_temporanea_scade: scadenzaTemporanea(),
+      password_reimpostata_il: new Date().toISOString(), password_reimpostata_da: io.profilo.id,
+    }).eq("id", id);
     // password reimpostata (dimenticata o compromessa): anche il PIN va scelto di nuovo
     await admin.from("pin_accesso").delete().eq("utente_id", id);
     return risposta({ ok: true });

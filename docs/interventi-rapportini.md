@@ -307,7 +307,38 @@ UUID, giornate, interventi e rapportini restano identici.
     utente senza PIN ricevono la stessa risposta.
   - Il PIN viene eliminato quando l'admin reimposta la password o disattiva l'account; l'admin
     può anche rimuoverlo dall'elenco utenti ("PIN attivo").
-- **Edge Functions:** `accesso` (PIN), nuova `pin`, `utenti` (azioni `modifica` e `rimuovi_pin`,
+- **Recupero dell'accesso (PIN e password dimenticati).** Procedura per l'admin:
+  1. verificare che la richiesta venga davvero dall'operaio (di persona o con una telefonata al suo
+     numero noto: mai su richiesta arrivata da un canale non verificato);
+  2. Altro → Gestione utenti → riga dell'operaio → **Reimposta password**;
+  3. comunicare di persona o per telefono la password temporanea mostrata (una sola volta, con
+     "Copia"). Vale **72 ore**: poi scade e serve un nuovo reset;
+  4. l'operaio accede con username e password temporanea, sceglie la sua password e, se vuole,
+     attiva un nuovo PIN da Altro → PIN di accesso.
+
+  Il reset elimina il PIN, toglie i blocchi per tentativi, chiude le sessioni aperte (il vecchio
+  telefono non rinnova più la sessione; un token già emesso resta valido al massimo fino alla sua
+  scadenza, 1 ora) e registra data e autore (visibili all'admin nell'elenco: "Password reimpostata
+  il … da …"). Interventi, rapportini e foto già sul server non vengono toccati.
+  Il reset dall'app vale solo per gli operai (non per company né per se stessi).
+
+  **Emergenza** (l'unico amministratore, o company, ha dimenticato password e PIN): nel pannello
+  Supabase → SQL Editor, sostituendo USERNAME e la password temporanea (almeno 10 caratteri, lettere e
+  numeri, senza lo username). Provata sul database locale:
+  ```sql
+  begin;
+  update auth.users set encrypted_password = extensions.crypt('Temporanea-2026x', extensions.gen_salt('bf'))
+    where id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  delete from auth.sessions where user_id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  delete from public.pin_accesso where utente_id = (select id from public.profili where lower(username) = lower('USERNAME'));
+  update public.profili set deve_cambiare_password = true, tentativi_falliti = 0, bloccato_fino = null,
+    password_temporanea_scade = now() + interval '72 hours', password_reimpostata_il = now(), password_reimpostata_da = null
+    where lower(username) = lower('USERNAME');
+  commit;
+  ```
+  Poi si accede con la password temporanea e se ne sceglie una nuova. Lo SQL Editor tiene la
+  cronologia delle query: dopo l'uso cancellare la query salvata.
+- **Edge Functions:** `accesso` (PIN, password temporanea scaduta), `cambia-password`, nuova `pin`, `utenti` (azioni `modifica` e `rimuovi_pin`,
   elenco con cognome, ruoli e PIN), `inizializza` (ruoli). L'app funziona anche se il database non
   ha ancora la migrazione (profilo letto senza cognome/ruoli), ma le Edge Functions nuove la
   richiedono: **prima la migrazione, poi le funzioni, poi il frontend**.
@@ -341,9 +372,9 @@ Fase G (ramo `fase-g-utenti-pin`; le migrazioni 20261108–20261111 sono già in
 2. SQL Editor → `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` → Run. Verifica:
    `select username, ruolo, ruoli from public.profili order by username;` (Luca `{admin,worker}`,
    gli altri il solo ruolo principale) e `select count(*) from public.pin_accesso;` (0).
-3. Pubblicare le Edge Functions `accesso`, `utenti`, `inizializza` e la nuova `pin`
-   (`supabase functions deploy accesso utenti inizializza pin`). Prima della migrazione le funzioni
-   nuove non vanno pubblicate: leggono le colonne `cognome` e `ruoli`.
+3. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza` e la nuova `pin`
+   (`supabase functions deploy accesso cambia-password utenti inizializza pin`). Prima della migrazione le funzioni
+   nuove non vanno pubblicate: leggono le colonne `cognome`, `ruoli` e `password_temporanea_scade`.
 4. Pubblicare il frontend (merge su `main`).
 5. Facoltativo: completare il cognome degli account esistenti da Gestione utenti → Modifica
    (oggi nome e cognome sono insieme nel campo Nome; l'app li mostra correttamente lo stesso).

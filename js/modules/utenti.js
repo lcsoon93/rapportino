@@ -1,5 +1,8 @@
 // Gestione utenti (solo admin): elenco, nuovo operaio, modifica di nome/cognome (e del ruolo di
 // operaio per gli amministratori), PIN, disattiva/riattiva, reimposta password.
+// Recupero dell'accesso (PIN e password dimenticati): "Reimposta password" genera una password
+// temporanea (72 ore), elimina il PIN e chiude le sessioni del vecchio telefono; l'operaio entra con
+// la password temporanea, ne sceglie una sua e, se vuole, attiva un nuovo PIN.
 // Tutte le operazioni passano dalla Edge Function "utenti", che ricontrolla che chi chiama sia admin.
 // Nell'elenco si mostrano nome e cognome, ruoli, stato e username: mai gli identificativi interni.
 import { chiamaFunzione, nomeCompleto, profilo } from "../core/sessione.js";
@@ -49,6 +52,18 @@ function moduloModifica(u){
     '<div class="utente-azioni" style="padding-left:0"><button type="submit" class="btn btn-primario">Salva</button>' +
     '<button type="button" class="btn btn-secondario" onclick="annullaModificaUtente()">Annulla</button></div></form>';
 }
+const quando = t=>new Date(t).toLocaleString("it-IT", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+const scaduta = u=>!!u.password_temporanea_scade && new Date(u.password_temporanea_scade) <= new Date();
+// password temporanea appena generata: mostrata UNA volta all'admin, con il pulsante per copiarla
+function mostraPasswordTemporanea(testo, password){
+  $("ut-ok").innerHTML = esc(testo) + ' <b class="ut-pw">' + esc(password) + '</b>' +
+    ' <button type="button" class="link-btn" id="ut-copia">Copia</button><br>' +
+    'Comunicala di persona o per telefono (non verrà più mostrata). Vale 72 ore: al primo accesso dovrà sceglierne una sua e potrà attivare un nuovo PIN.';
+  $("ut-copia").onclick = async ()=>{
+    try{ await navigator.clipboard.writeText(password); $("ut-copia").textContent = "Copiata"; }
+    catch(e){ $("ut-copia").textContent = "Copia non riuscita: trascrivila"; }
+  };
+}
 function disegna(){
   $("utenti-elenco").innerHTML = '<div class="card">' + utenti.map(u=>{
     const ruoli = ruoliDi(u);
@@ -56,7 +71,9 @@ function disegna(){
       ...["admin", "company", "worker"].filter(r=>ruoli.includes(r))
         .map(r=>'<span class="badge ' + (r === "worker" ? "pervinca" : "ok") + '">' + NOMI_RUOLO[r] + '</span>'),
       u.attivo ? '<span class="badge neutro">Attivo</span>' : '<span class="badge err">' + icona("lock") + 'Disattivato</span>',
-      u.attivo && u.deve_cambiare_password ? '<span class="badge att">Primo accesso da fare</span>' : "",
+      u.attivo && u.deve_cambiare_password ? (scaduta(u)
+        ? '<span class="badge err">Password temporanea scaduta</span>'
+        : '<span class="badge att">Primo accesso da fare' + (u.password_temporanea_scade ? " entro " + quando(u.password_temporanea_scade) : "") + '</span>') : "",
       u.pin ? '<span class="badge neutro">PIN attivo</span>' : "",
     ].join("");
     const pulsanti = [
@@ -72,7 +89,9 @@ function disegna(){
       '<span class="avatar" aria-hidden="true">' + esc(iniziali(nomeCompleto(u))) + '</span>' +
       '<span class="cli-testi"><span class="cli-nome" style="display:block">' + esc(nomeCompleto(u)) + (io ? " (tu)" : "") + '</span>' +
       '<span class="cli-ind" style="display:block">@' + esc(u.username) + '</span>' +
-      '<span class="int-badge" style="margin-top:6px">' + badge + '</span></span>' +
+      '<span class="int-badge" style="margin-top:6px">' + badge + '</span>' +
+      (u.password_reimpostata_il ? '<span class="cli-ind ut-reset" style="display:block">Password reimpostata il ' + esc(quando(u.password_reimpostata_il)) +
+        (u.password_reimpostata_da ? ' da ' + esc(u.password_reimpostata_da) : '') + '</span>' : '') + '</span>' +
       (inModifica === u.id ? moduloModifica(u) : '<div class="utente-azioni">' + pulsanti.join("") + '</div>') + '</div>';
   }).join("") + '</div>';
 }
@@ -104,14 +123,14 @@ export async function azioneUtente(id, azione){
   if(azione === "disattiva" && !confirm("Disattivare l'account di " + nome + "? Non potrà più accedere. Interventi e rapportini già fatti restano.")) return;
   if(azione === "rimuovi_pin" && !confirm("Rimuovere il PIN di " + nome + "? Per accedere servirà la password.")) return;
   if(azione === "reset_password"){
-    if(!confirm("Reimpostare la password di " + nome + "? Riceverà una nuova password iniziale da cambiare al primo accesso (il PIN viene disattivato).")) return;
+    if(!confirm("Recupero accesso per " + nome + " (@" + u.username + ").\n\nVerrà creata una password temporanea valida 72 ore da comunicargli di persona o per telefono. La password e il PIN attuali smettono di funzionare e il telefono in uso dovrà accedere di nuovo.\n\nProcedere solo dopo aver verificato che la richiesta viene davvero da lui.")) return;
     corpo.password = generaPasswordIniziale();
     $("ut-password").value = "";
   }
   const r = await chiamaFunzione("utenti", corpo);
   if(!r.ok){ $("ut-errore").textContent = r.errore; $("utenti-form").scrollIntoView({block:"start"}); return; }
   if(azione === "reset_password"){
-    $("ut-ok").textContent = "Nuova password iniziale per @" + u.username + ": " + corpo.password + " — comunicala all'operaio (non verrà più mostrata).";
+    mostraPasswordTemporanea("Password temporanea per " + nome + " (@" + u.username + "):", corpo.password);
     $("utenti-form").scrollIntoView({block:"start"});
   }
   if(azione === "disattiva" || azione === "riattiva") dimenticaOperai();
@@ -130,7 +149,7 @@ $("utenti-form").addEventListener("submit", async e=>{
   const r = await chiamaFunzione("utenti", { azione: "crea", nome, cognome, username, password });
   btn.disabled = false; btn.classList.remove("in-corso");
   if(!r.ok){ $("ut-errore").textContent = r.errore; return; }
-  $("ut-ok").textContent = "Account creato per " + nome + " " + cognome + ": @" + username + " con password iniziale " + password + " — comunicala all'operaio (non verrà più mostrata).";
+  mostraPasswordTemporanea("Account creato per " + nome + " " + cognome + " (@" + username + "). Password temporanea:", password);
   ["ut-nome", "ut-cognome", "ut-username", "ut-password"].forEach(k=>{ $(k).value = ""; });
   dimenticaOperai();
   await carica();

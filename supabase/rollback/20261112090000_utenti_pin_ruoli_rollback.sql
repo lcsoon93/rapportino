@@ -69,5 +69,7 @@ drop trigger if exists profili_ruoli on public.profili;
 drop function if exists public.profili_ruoli_predefiniti();
 alter table public.profili drop constraint if exists profili_ruoli_validi;
 alter table public.profili drop constraint if exists profili_cognome_lunghezza;
-alter table public.profili drop column if exists ruoli, drop column if exists cognome;
+alter table public.profili drop column if exists ruoli, drop column if exists cognome,
+  drop column if exists password_temporanea_scade, drop column if exists password_reimpostata_il,
+  drop column if exists password_reimpostata_da;
 commit;

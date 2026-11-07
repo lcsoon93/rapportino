@@ -28,7 +28,7 @@ Deno.serve(async (req) => {
   const { username, password, pin } = await corpoJson(req);
   const admin = clientAdmin();
   const cerca = (u: string) => admin.from("profili")
-    .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, tentativi_falliti, bloccato_fino")
+    .select("id, username, nome, cognome, ruolo, ruoli, attivo, deve_cambiare_password, tentativi_falliti, bloccato_fino, password_temporanea_scade")
     .ilike("username", u.trim().replace(/[\\%_]/g, "\\$&")).maybeSingle();
 
   // ---------------------------------------------------------------- PIN
@@ -92,6 +92,11 @@ Deno.serve(async (req) => {
   }
   if (p.tentativi_falliti || p.bloccato_fino) {
     await admin.from("profili").update({ tentativi_falliti: 0, bloccato_fino: null }).eq("id", p.id);
+  }
+  // password temporanea (nuovo account o reset dell'admin) non cambiata in tempo: non vale piu'
+  if (p.deve_cambiare_password && p.password_temporanea_scade && new Date(p.password_temporanea_scade) <= new Date()) {
+    await admin.auth.admin.signOut(s.session.access_token, "local").catch(() => {});
+    return errore("La password temporanea è scaduta. Chiedi all'amministratore di reimpostarla.", 401);
   }
   return risposta({
     sessione: {

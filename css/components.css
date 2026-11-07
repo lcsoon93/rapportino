@@ -754,3 +754,5 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .utente-modifica .spunta{display:flex;gap:10px;align-items:flex-start;margin:10px 0 4px;font-size:14px;line-height:1.35}
 .utente-modifica .spunta input{width:20px;height:20px;flex:none;margin-top:1px}
 @media (max-width:420px){ .utente-modifica,.utente-azioni{padding-left:0} }
+.ut-pw{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;letter-spacing:.04em;user-select:all;-webkit-user-select:all}
+#ut-ok .link-btn{display:inline;min-height:0;padding:0 4px}
