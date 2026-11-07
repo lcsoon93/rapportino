@@ -1,0 +1,25 @@
+/* Base: reset, body, pulsanti generici, utilita' (.nascosto, .sr), icone, focus. */
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%;scroll-padding-top:12px}
+body{
+  background:var(--sfondo);
+  color:var(--testo);
+  font-family:var(--font);
+  font-size:16px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;
+  padding-bottom:calc(var(--nav-h) + var(--safe-b) + 24px);
+  padding-left:env(safe-area-inset-left,0px);
+  padding-right:env(safe-area-inset-right,0px);
+  overflow-x:hidden;
+}
+body.con-barra{padding-bottom:calc(var(--nav-h) + var(--barra-h) + var(--safe-b) + 28px)}
+button{font-family:inherit}
+.nascosto{display:none!important}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+:focus-visible{outline:3px solid var(--azzurro);outline-offset:2px}
+.i{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;display:inline-block;vertical-align:middle}
+.i-sm{width:16px;height:16px}
+.i-lg{width:24px;height:24px}
+@media (prefers-reduced-motion: reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto!important}
+}

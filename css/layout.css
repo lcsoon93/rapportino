@@ -1,0 +1,76 @@
+/* Struttura: intestazione, titoli delle schermate, barra azioni in basso, navigazione. */
+.colonna{max-width:600px;margin:0 auto;padding:0 16px}
+/* ================= HEADER ================= */
+
+.app-top{
+  max-width:600px;margin:0 auto;
+  padding:calc(12px + env(safe-area-inset-top,0px)) 16px 4px;
+  display:flex;align-items:center;gap:12px;
+}
+.app-logo{
+  flex:none;height:44px;background:#fff;border-radius:12px;
+  padding:5px 9px;border:1px solid var(--bordo);
+  display:flex;align-items:center;
+}
+.app-logo img{height:100%;width:auto;display:block}
+.app-titolo{flex:1;min-width:0;line-height:1.15}
+.app-nome{display:block;font-weight:700;font-size:19px;letter-spacing:-.2px}
+.app-sub{display:block;font-size:12.5px;color:var(--testo-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.icon-btn{
+  flex:none;width:44px;height:44px;border-radius:12px;
+  border:1px solid var(--bordo);background:var(--superficie);color:var(--testo-2);
+  display:flex;align-items:center;justify-content:center;cursor:pointer;
+}
+.icon-btn:active{background:var(--sfondo)}
+/* ================= TITOLI ================= */
+
+.saluto{padding:18px 2px 14px}
+.saluto h1{font-size:28px;font-weight:700;letter-spacing:-.5px;line-height:1.15}
+.saluto p{color:var(--testo-2);font-size:15px;margin-top:4px}
+.vista-head{display:flex;align-items:center;gap:10px;padding:16px 0 14px}
+.vista-head h1{font-size:26px;font-weight:700;letter-spacing:-.4px;line-height:1.15}
+.vista-head .vh-testi{flex:1;min-width:0}
+.vista-head .vh-sub{color:var(--testo-2);font-size:14px;margin-top:2px}
+.sezione-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:24px 2px 12px}
+.sezione-head h2{font-size:20px;font-weight:700;letter-spacing:-.3px}
+.link-btn{
+  border:none;background:none;color:var(--azzurro);font-weight:600;font-size:14px;
+  cursor:pointer;padding:10px 4px;display:inline-flex;align-items:center;gap:4px;min-height:44px;
+}
+.indietro{
+  flex:none;width:44px;height:44px;border-radius:12px;border:1px solid var(--bordo);
+  background:var(--superficie);color:var(--testo);cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+/* ================= BARRA AZIONI E NAVIGAZIONE ================= */
+
+.barra{
+  position:fixed;left:var(--rail-w);right:0;
+  bottom:calc(var(--nav-h) + var(--safe-b));
+  z-index:90;
+  background:rgba(244,246,248,.94);
+  -webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+  border-top:1px solid var(--bordo);
+  padding:10px 16px 10px;
+}
+.barra .dentro{max-width:600px;margin:0 auto;display:flex;gap:10px}
+.avviso{max-width:600px;margin:6px auto 0;text-align:center;font-size:12px;color:var(--testo-2)}
+.navbar{
+  position:fixed;left:0;right:0;bottom:0;z-index:100;
+  background:var(--superficie);border-top:1px solid var(--bordo);
+  padding-bottom:var(--safe-b);
+  box-shadow:0 -4px 16px rgba(23,32,51,.05);
+}
+.navbar .nav-in{max-width:600px;margin:0 auto;display:flex;height:var(--nav-h)}
+.nav-btn{
+  flex:1;min-width:0;border:none;background:transparent;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#7A8494;font-size:11.5px;font-weight:600;position:relative;
+}
+.nav-btn .i{width:24px;height:24px}
+.nav-btn .nav-pill{
+  width:56px;height:30px;border-radius:999px;display:flex;align-items:center;justify-content:center;
+  transition:background .15s;
+}
+.nav-btn[aria-current="page"]{color:var(--brand)}
+.nav-btn[aria-current="page"] .nav-pill{background:var(--brand-chiaro)}

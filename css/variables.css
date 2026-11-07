@@ -1,0 +1,46 @@
+/* Variabili: colori COMP.HAS, stati, raggi, ombre, spazi, font e misure della struttura. */
+/* ================= DESIGN SYSTEM COMP.HAS ================= */
+
+:root{
+  /* brand (dal logo) */
+  --brand:#087F78;          /* verde petrolio: CTA, attivo, conferme */
+  --brand-scuro:#06655F;
+  --brand-chiaro:#EAF4F2;   /* sfondo selezionato */
+  --pervinca:#8586B5;       /* informativo, secondario */
+  --pervinca-scuro:#5E5F93;
+  --pervinca-chiaro:#EEEEF6;
+  --azzurro:#3B7FA6;        /* link, icone secondarie */
+  --azzurro-chiaro:#EAF2F7;
+  /* neutri */
+  --sfondo:#F4F6F8;
+  --superficie:#FFFFFF;
+  --testo:#172033;
+  --testo-2:#647084;
+  --bordo:#E1E6EC;
+  --bordo-forte:#CDD4DC;
+  --selezionato:#EAF4F2;
+  /* stati */
+  --ok:#24834A;    --ok-testo:#1D6B3C;    --ok-chiaro:#E7F3EC;
+  --att:#C17A20;   --att-testo:#8A5512;   --att-chiaro:#FBF1E2;
+  --err:#C43D45;   --err-testo:#A8313A;   --err-chiaro:#FBECED;
+  --neutro-stato:#647084; --neutro-chiaro:#EEF1F4;
+  /* forme */
+  --r-card:18px;
+  --r-btn:13px;
+  --r-campo:12px;
+  --ombra-1:0 1px 2px rgba(23,32,51,.05), 0 1px 1px rgba(23,32,51,.03);
+  --ombra-2:0 6px 20px rgba(23,32,51,.08);
+  --ombra-3:0 12px 32px rgba(23,32,51,.16);
+  /* spazi */
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:20px; --s6:24px; --s8:32px;
+  /* tipografia */
+  --font:'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  /* struttura */
+  --nav-h:64px;
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --barra-h:72px;
+  --rail-w:0px;
+  /* alias usati dal codice esistente */
+  --neutro:var(--azzurro);
+  --quadro:var(--testo);
+}
