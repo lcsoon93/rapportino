@@ -33,17 +33,18 @@ js/
     preferenze.js          spunte di stampa salvate in localStorage
     storage.js             archivio: IndexedDB + copia in memoria + timbri di modifica
   modules/                 una sezione dell'app per file
-    dashboard.js           Home: riepilogo giornata, elenco interventi, "Nuovo rapportino"
+    dashboard.js           Home admin: riepilogo interventi pianificati, riepilogo e schede del foglio giornaliero, "Nuovo rapportino"
     rapportini.js          rapportino della giornata: carica, raccoglie, salva, cambia data
     interventi.js          schede cliente: fasce orarie, materiale, foto, urgenze, riordino
     operai.js              orario per operaio
     spese.js               spese ed extra con scontrino
-    calendario.js          viste settimana e mese, griglia del mese
+    calendario.js          viste settimana e mese (interventi + report giornate per l'admin), griglia del mese
+    agenda.js              interventi in Home e Calendario: righe compatte, dettaglio intervento (stato per operaio), vista Giorno
     clienti.js             anagrafica dai rapporti, ricerca, storico, suggerimenti nome/indirizzo
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
     accesso.js             schermate di login e cambio password
-    lavoro.js              dashboard dell'operaio: interventi assegnati, bozze, completati, ore del mese
+    lavoro.js              Home dell'operaio: i miei interventi (oggi, prossimi, da completare), da inviare, bozze, completati
     gestione-interventi.js admin/company: crea e modifica interventi, assegna operai, stato e rapportini collegati
     modulo-rapportino.js   modulo del rapportino (bozza/completa, ore, materiale, foto, firma, PDF; bozza sul telefono senza rete)
     consultazione.js       rapportini degli operai per mese (filtri) e giornate del foglio giornaliero
@@ -51,9 +52,12 @@ js/
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
-    immagini.js            compressione foto, foto a schermo intero
+    immagini.js            compressione foto (foglio giornaliero e rapportini: tipo, dimensione, impronta), schermo intero con ingrandimento
     sync.js                sincronizzazione Supabase con la sessione dell'utente
     api-lavori.js          accesso a interventi, rapportini, ore e allegati (tabelle nuove)
+    avanzamento.js         chi ha completato e chi manca su un intervento con più operai (stessa regola del database)
+    coda-locale.js         archivio locale (IndexedDB) dei rapportini e delle foto non ancora confermati dal server
+    sinc-rapportini.js     coda di invio automatico: connessione, tentativi, risposte perse, conflitti
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON

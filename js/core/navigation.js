@@ -5,10 +5,11 @@ import { puo, vistaIniziale, vocinav } from "./permessi.js";
 
 // home = cruscotto (admin); giorno = rapportino (editor); sett/mese = calendario; cerca = clienti;
 // altro = strumenti; lavoro = dashboard operaio; interventi = pianificazione (admin, company);
-// rapportino = modulo del rapportino; rapporti = consultazione; utenti = gestione utenti (admin)
-export const VISTE = ["home","giorno","sett","mese","cerca","altro","lavoro","interventi","rapportino","rapporti","utenti"];
-export const VOCE_NAV = {home:"home", giorno:"home", sett:"cal", mese:"cal", cerca:"clienti", altro:"altro",
-  lavoro:"lavoro", interventi:"interventi", rapportino:"rapporti", rapporti:"rapporti", utenti:"altro"};
+// rapportino = modulo del rapportino; rapporti = consultazione; utenti = gestione utenti (admin);
+// calgiorno = interventi di un giorno (Calendario)
+export const VISTE = ["home","giorno","calgiorno","sett","mese","cerca","altro","lavoro","interventi","rapportino","rapporti","utenti","storico"];
+export const VOCE_NAV = {home:"home", giorno:"home", calgiorno:"cal", sett:"cal", mese:"cal", cerca:"clienti", altro:"altro",
+  lavoro:"lavoro", interventi:"interventi", storico:"altro", rapportino:"rapporti", rapporti:"rapporti", utenti:"altro"};
 export let vistaCorrente = "home";
 export let ultimaVistaCal = "mese";
 export const disegnatori = {};          // vista -> funzione che la ridisegna quando viene mostrata
@@ -18,7 +19,8 @@ export function mostraVista(v){
   if(!VISTE.includes(v) || !puo("vista." + v)) v = vistaIniziale();
   emetti("vista-cambiata", v);
   vistaCorrente = v;
-  if(v === "sett" || v === "mese") ultimaVistaCal = v;
+  const calendario = v === "calgiorno" || v === "sett" || v === "mese";
+  if(calendario) ultimaVistaCal = v;
   // il rapportino dell'operaio torna alla sua dashboard
   VOCE_NAV.giorno = puo("vista.home") ? "home" : "lavoro";
   VISTE.forEach(k=>{
@@ -26,8 +28,10 @@ export function mostraVista(v){
     const barra = document.getElementById("barra-" + k);
     if(barra) barra.classList.toggle("nascosto", k !== v);
   });
-  document.body.classList.toggle("con-barra", !!document.getElementById("barra-" + v));
-  document.getElementById("cal-testa").classList.toggle("nascosto", !(v === "sett" || v === "mese"));
+  const barra = document.getElementById("barra-" + v);
+  document.body.classList.toggle("con-barra", !!barra && !barra.classList.contains("vietato"));
+  document.getElementById("cal-testa").classList.toggle("nascosto", !calendario);
+  document.getElementById("seg-giorno").setAttribute("aria-pressed", v === "calgiorno");
   document.getElementById("seg-sett").setAttribute("aria-pressed", v === "sett");
   document.getElementById("seg-mese").setAttribute("aria-pressed", v === "mese");
   document.querySelectorAll(".navbar .nav-btn").forEach(b=>{

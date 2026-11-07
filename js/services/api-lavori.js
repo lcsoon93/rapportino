@@ -2,11 +2,16 @@
 // Solo letture/scritture con la sessione dell'utente: cosa si vede e cosa si puo' fare lo decidono
 // le policy RLS e i trigger del database (autore, creatore e assegnatore li impone il server).
 import { client, profilo } from "../core/sessione.js";
+import { su } from "../core/eventi.js";
 
-function controlla({ data, error }){
+function controlla({ data, error, status }){
   if(error){
-    const e = new Error(traduci(error));
+    let m = traduci(error);
+    // risposta 5xx (server momentaneamente non disponibile): errore temporaneo, si riprova
+    if(status >= 500 && !/connessione|non sono ancora attivi/i.test(m)) m += " (errore temporaneo del server)";
+    const e = new Error(m);
     e.codice = error.code;
+    e.stato = status;
     throw e;
   }
   return data;
@@ -15,6 +20,7 @@ function controlla({ data, error }){
 function traduci(error){
   const m = (error && (error.message || error.details)) || "";
   if(/attivit/i.test(m)) return "Per completare descrivi le attività svolte.";
+  if(/Storage|Percorso della foto|Tipo di file|incompleto/i.test(m)) return m;
   if(/ore lavorate/i.test(m)) return "Per completare indica le ore lavorate di almeno un operaio.";
   if(/completato/i.test(m)) return "Il rapportino è completato: può riaprirlo solo l'amministratore.";
   if(/assegnato/i.test(m)) return "Non sei assegnato a questo intervento.";
@@ -22,8 +28,10 @@ function traduci(error){
   if(/non modificabile|duplicate key|23505/i.test(m + error.code)) return "Questo rapportino non è modificabile da te.";
   // frontend pubblicato prima della migrazione: le tabelle nuove non esistono ancora
   if(/PGRST205|42P01|PGRST202|does not exist|Could not find the (table|function)/i.test(m + error.code)) return "Interventi e rapportini non sono ancora attivi sul server.";
+  if(/JWT expired|PGRST301|PGRST303|invalid JWT/i.test(m + error.code)) return "Sessione scaduta: accedi di nuovo.";
   if(/permission|policy|42501|row-level/i.test(m + error.code)) return "Operazione non consentita.";
-  if(/Failed to fetch|NetworkError|network/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
+  if(/Failed to fetch|NetworkError|network|Load failed/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
+  if(/abort|timed? ?out/i.test(m)) return "Nessuna connessione (tempo scaduto). Riprova quando c'è rete.";
   return m || "Errore del server.";
 }
 
@@ -41,22 +49,55 @@ export function nomeOperaio(id){
 }
 
 // ---------------------------------------------------------------- interventi
+// assegnazioni con rimosso_il: quelle rimosse restano come storico (vedi agenda.js / avanzamento)
 const CAMPI_INTERVENTO = "id, data, ora, cliente, indirizzo, descrizione, priorita, tipologia, stato, creato_il, " +
-  "intervento_operai(operaio_id), rapportini(id, autore_id, stato, data)";
+  "intervento_operai(operaio_id, rimosso_il), rapportini(id, autore_id, stato, data, completato_il)";
+// nel dettaglio servono anche le ore di ciascun rapportino (visibili secondo RLS)
+const CAMPI_DETTAGLIO = CAMPI_INTERVENTO.replace("completato_il)", "completato_il, rapportino_operai(operaio_id, dalle, alle))");
 export async function elencoInterventi({ dal, al, soloMiei } = {}){
   let q = client.from("interventi").select(soloMiei
-    ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id)", "intervento_operai!inner(operaio_id)")
+    ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id, rimosso_il)", "intervento_operai!inner(operaio_id, rimosso_il)")
     : CAMPI_INTERVENTO);
   if(dal) q = q.gte("data", dal);
   if(al) q = q.lte("data", al);
-  if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id);
+  if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id).is("intervento_operai.rimosso_il", null);
   return controlla(await q.order("data").order("ora", { nullsFirst: true }));
 }
+// Interventi di un periodo per Calendario e riepiloghi: una sola richiesta per periodo, riusata per
+// 30 secondi (spostarsi tra giorni dello stesso mese non rifa' la richiesta). Ogni scrittura
+// (intervento, assegnazione, rapportino) svuota la memoria: la volta dopo si rilegge dal database.
+const memoria = new Map();
+const DURATA = 30000;
+export function invalidaInterventi(){ memoria.clear(); }
+export function interventiPeriodo(dal, al){
+  const chiave = dal + "|" + al;
+  const m = memoria.get(chiave);
+  if(m && Date.now() - m.quando < DURATA) return m.promessa;
+  const promessa = elencoInterventi({ dal, al });
+  memoria.set(chiave, { quando: Date.now(), promessa });
+  promessa.catch(()=>{ if(memoria.get(chiave)?.promessa === promessa) memoria.delete(chiave); });
+  return promessa;
+}
+// quanti rapportini in un certo stato (solo il conteggio: nessun dato scaricato)
+export async function contaRapportini({ stato } = {}){
+  let q = client.from("rapportini").select("id", { count: "exact", head: true });
+  if(stato) q = q.eq("stato", stato);
+  const { count, error } = await q;
+  controlla({ data: null, error });
+  return count || 0;
+}
+// cambio utente: niente dati del precedente in memoria
+su("uscita", ()=>{ memoria.clear(); cacheOperai = null; });
+su("accesso", ()=>{ memoria.clear(); cacheOperai = null; });
+
 export async function leggiIntervento(id){
-  return controlla(await client.from("interventi").select(CAMPI_INTERVENTO).eq("id", id).maybeSingle());
+  return controlla(await client.from("interventi").select(CAMPI_DETTAGLIO).eq("id", id).maybeSingle());
 }
 // crea o aggiorna e allinea le assegnazioni
 export async function salvaIntervento(dati, operai){
+  try{ return await scriviIntervento(dati, operai); }finally{ invalidaInterventi(); }
+}
+async function scriviIntervento(dati, operai){
   const campi = { data: dati.data, ora: dati.ora || null, cliente: dati.cliente, indirizzo: dati.indirizzo || "",
     descrizione: dati.descrizione || "", priorita: dati.priorita || "normale", tipologia: dati.tipologia || "" };
   let intervento;
@@ -65,7 +106,9 @@ export async function salvaIntervento(dati, operai){
   } else {
     intervento = controlla(await client.from("interventi").insert(campi).select("id").single());
   }
-  const attuali = controlla(await client.from("intervento_operai").select("operaio_id").eq("intervento_id", intervento.id)).map(x=>x.operaio_id);
+  // solo le assegnazioni attive; togliere = rimozione logica (il database conserva lo storico),
+  // riassegnare un operaio rimosso = il database riattiva la sua riga
+  const attuali = controlla(await client.from("intervento_operai").select("operaio_id").eq("intervento_id", intervento.id).is("rimosso_il", null)).map(x=>x.operaio_id);
   const daTogliere = attuali.filter(x=>!operai.includes(x));
   const daAggiungere = operai.filter(x=>!attuali.includes(x));
   if(daTogliere.length) controlla(await client.from("intervento_operai").delete().eq("intervento_id", intervento.id).in("operaio_id", daTogliere));
@@ -73,10 +116,10 @@ export async function salvaIntervento(dati, operai){
   return intervento.id;
 }
 export async function annullaIntervento(id, annullato){
-  controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id));
+  try{ controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id)); }finally{ invalidaInterventi(); }
 }
 export async function eliminaIntervento(id){
-  controlla(await client.from("interventi").delete().eq("id", id));
+  try{ controlla(await client.from("interventi").delete().eq("id", id)); }finally{ invalidaInterventi(); }
 }
 
 // ---------------------------------------------------------------- rapportini
@@ -92,30 +135,100 @@ export async function elencoRapportini({ dal, al, stato, autore, intervento } = 
   if(intervento) q = q.eq("intervento_id", intervento);
   return controlla(await q.order("data", { ascending: false }).order("aggiornato_il", { ascending: false }));
 }
+// Storico: rapportini di un periodo (per data del rapportino) e quelli collegati agli interventi
+// indicati, con ore e numero di foto. Solo cio' che RLS consente all'utente.
+const CAMPI_STORICO = "id, intervento_id, autore_id, data, cliente, indirizzo, attivita, note, stato, completato_il, " +
+  "rapportino_operai(operaio_id, dalle, alle), allegati(count)";
+export async function storicoRapportini({ dal, al, interventi = [] }){
+  let q = client.from("rapportini").select(CAMPI_STORICO);
+  if(dal) q = q.gte("data", dal);
+  if(al) q = q.lte("data", al);
+  const delPeriodo = controlla(await q.order("data", { ascending: false }));
+  const visti = new Set(delPeriodo.map(r=>r.id));
+  let collegati = [];
+  for(let i = 0; i < interventi.length; i += 100){            // a blocchi: URL non troppo lunghi
+    const blocco = interventi.slice(i, i + 100);
+    collegati = collegati.concat(controlla(await client.from("rapportini").select(CAMPI_STORICO).in("intervento_id", blocco)));
+  }
+  return delPeriodo.concat(collegati.filter(r=>!visti.has(r.id)));
+}
 export async function leggiRapportino(id){
   return controlla(await client.from("rapportini").select(CAMPI_RAPPORTINO).eq("id", id).maybeSingle());
 }
 // salvataggio atomico (testata + ore); risultato { esito: "ok" | "conflitto", rapportino, ore? (solo in conflitto) }
 export async function salvaRapportino(rapportino, ore, completa){
-  return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa }));
+  // lo stato dell'intervento lo ricalcola il database: dopo il salvataggio si rilegge
+  try{ return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa })); }
+  finally{ invalidaInterventi(); }
 }
 export async function riapriRapportino(id){
-  controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id));
+  try{ controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id)); }finally{ invalidaInterventi(); }
 }
 export async function eliminaRapportino(id){
-  controlla(await client.from("rapportini").delete().eq("id", id));
+  // prima i file delle foto nello Storage (la cancellazione del rapportino porta via i metadati)
+  const percorsi = controlla(await client.from("allegati").select("percorso").eq("rapportino_id", id).not("percorso", "is", null)).map(a=>a.percorso);
+  if(percorsi.length) await client.storage.from(BUCKET_FOTO).remove(percorsi);
+  try{ controlla(await client.from("rapportini").delete().eq("id", id)); }finally{ invalidaInterventi(); }
 }
 
-// ---------------------------------------------------------------- allegati
+// ---------------------------------------------------------------- allegati (foto)
+// Le foto stanno nel bucket PRIVATO "allegati-rapportini" di Supabase Storage; nella tabella
+// "allegati" solo i metadati. Righe vecchie con "contenuto" (base64) restano leggibili.
+// Nessun URL viene salvato: i file si scaricano con la sessione dell'utente (policy Storage).
+export const BUCKET_FOTO = "allegati-rapportini";
 export async function elencoAllegati(rapportinoId){
-  return controlla(await client.from("allegati").select("id, tipo, nome, contenuto, larghezza, altezza").eq("rapportino_id", rapportinoId).order("creato_il"));
+  const r = await client.from("allegati")
+    .select("id, tipo, nome, percorso, mime, dimensione, larghezza, altezza, impronta, contenuto")
+    .eq("rapportino_id", rapportinoId).order("creato_il");
+  // database senza la migrazione della Fase C: si leggono le foto nel formato precedente
+  if(r.error && (r.error.code === "42703" || /column .* does not exist/i.test(r.error.message || ""))){
+    return controlla(await client.from("allegati").select("id, tipo, nome, contenuto, larghezza, altezza").eq("rapportino_id", rapportinoId).order("creato_il"));
+  }
+  return controlla(r);
 }
-export async function aggiungiAllegato(rapportinoId, foto){
-  return controlla(await client.from("allegati").insert({ rapportino_id: rapportinoId, tipo: "foto", contenuto: foto.src,
-    larghezza: foto.w || null, altezza: foto.h || null }).select("id").single());
+function erroreStorage(error){
+  const m = ((error && (error.message || error.error)) || "") + " " + ((error && error.statusCode) || "");
+  if(/Failed to fetch|NetworkError|network|Load failed|abort/i.test(m)) return "Nessuna connessione.";
+  if(/exceeded the maximum|too large|413/i.test(m)) return "Foto troppo grande.";
+  if(/mime type|invalid_mime|415/i.test(m)) return "Tipo di file non consentito.";
+  if(/not found|404/i.test(m)) return "Foto non trovata.";
+  if(/row-level|policy|403|Unauthorized|401|400/i.test(m)) return "Foto non accessibile o non autorizzata.";
+  return "Errore dello Storage.";
 }
-export async function eliminaAllegato(id){
-  controlla(await client.from("allegati").delete().eq("id", id));
+// 1. carica il file; se c'e' gia' (nuovo tentativo dopo una risposta persa) va bene: il percorso
+//    contiene l'id dell'allegato, quindi e' lo stesso file. Nessuna sovrascrittura (upsert: false).
+export async function caricaFotoStorage(percorso, blob, mime){
+  let res;
+  try{ res = await client.storage.from(BUCKET_FOTO).upload(percorso, blob, { contentType: mime, upsert: false, cacheControl: "3600" }); }
+  catch(e){ throw new Error(erroreStorage(e)); }
+  if(res.error){
+    if(/already exists|Duplicate|409/i.test((res.error.message || "") + " " + (res.error.statusCode || ""))) return "presente";
+    throw new Error(erroreStorage(res.error));
+  }
+  return "caricata";
+}
+// 2. registra i metadati (il database verifica che il file esista e abbia la dimensione indicata)
+export async function registraAllegato(meta){
+  return controlla(await client.rpc("registra_allegato", { p_allegato: meta }));
+}
+// file di una foto (solo se autorizzati); null se manca
+export async function scaricaFoto(percorso){
+  let res;
+  try{ res = await client.storage.from(BUCKET_FOTO).download(percorso); }
+  catch(e){ throw new Error(erroreStorage(e)); }
+  if(res.error) throw new Error(erroreStorage(res.error));
+  return res.data;
+}
+export async function rimuoviFotoStorage(percorsi){
+  const { error } = await client.storage.from(BUCKET_FOTO).remove(percorsi);
+  if(error) throw new Error(erroreStorage(error));
+}
+// toglie la foto: prima i metadati (cosi' il rapportino non punta mai a un file mancante), poi il file
+// (se il file non si riesce a togliere resta orfano nel bucket, senza riferimenti: vedi la documentazione)
+export async function eliminaAllegato(a){
+  const via = controlla(await client.from("allegati").delete().eq("id", a.id).select("id"));
+  if(!via || !via.length) throw new Error("Foto non eliminabile da te.");
+  if(a.percorso){ try{ await rimuoviFotoStorage([a.percorso]); }catch(e){} }
 }
 
 // minuti tra due orari "HH:MM"

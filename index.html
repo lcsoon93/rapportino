@@ -121,6 +121,17 @@
 
 <main class="colonna">
 
+  <!-- ================= DETTAGLIO INTERVENTO (foglio dal basso) ================= -->
+  <div id="int-dettaglio" class="foglio nascosto" role="dialog" aria-modal="true" aria-labelledby="idt-titolo">
+    <div class="foglio-sfondo" onclick="chiudiDettaglioIntervento()"></div>
+    <div class="foglio-pannello">
+      <div class="foglio-testa"><h2 id="idt-titolo">Intervento</h2>
+        <button type="button" class="foglio-chiudi" id="idt-chiudi" aria-label="Chiudi" onclick="chiudiDettaglioIntervento()">&times;</button></div>
+      <div class="foglio-corpo" id="idt-corpo"></div>
+      <div class="foglio-azioni" id="idt-azioni"></div>
+    </div>
+  </div>
+
   <!-- ================= HOME ================= -->
   <section id="vista-home" aria-labelledby="home-saluto">
     <div class="home-griglia">
@@ -163,8 +174,32 @@
       </div>
 
       <div>
+        <!-- interventi pianificati (tabella interventi): riepilogo operativo -->
+        <div class="sezione-head" style="margin-top:4px">
+          <h2>Interventi pianificati</h2>
+          <button type="button" class="link-btn" onclick="mostraVista('interventi')">Gestisci</button>
+        </div>
+        <div class="msg-info nascosto" id="ha-stato" role="status" aria-live="polite"></div>
+        <div class="card riepilogo" id="ha-riepilogo">
+          <div class="stat-griglia stat-sei">
+            <button type="button" class="stat brand" onclick="apriGiornoCal('')"><span class="stat-val" id="ha-oggi-n">–</span><span class="stat-lab">Oggi</span></button>
+            <button type="button" class="stat" onclick="mostraVista('sett')"><span class="stat-val" id="ha-prossimi-n">–</span><span class="stat-lab">Prossimi 7 giorni</span></button>
+            <button type="button" class="stat att" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-incorso-n">–</span><span class="stat-lab">In corso</span></button>
+            <button type="button" class="stat ok" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-completati-n">–</span><span class="stat-lab">Completati (30 gg)</span></button>
+            <button type="button" class="stat" onclick="mostraVista('interventi')"><span class="stat-val" id="ha-senza-n">–</span><span class="stat-lab">Con rapportini mancanti</span></button>
+            <button type="button" class="stat" onclick="mostraVista('rapporti')"><span class="stat-val" id="ha-bozze-n">–</span><span class="stat-lab">Rapportini in bozza</span></button>
+          </div>
+          <p class="elenco-nota nascosto" id="ha-locali" style="margin:10px 2px 0"></p>
+        </div>
+        <div class="gruppo-tit" style="margin:16px 4px 8px">Oggi</div>
+        <div id="ha-oggi"></div>
+        <div class="gruppo-tit" style="margin:16px 4px 8px">Prossimi giorni</div>
+        <div id="ha-prossimi"></div>
+        <div class="gruppo-tit" style="margin:16px 4px 8px">Rapportini mancanti · giorni precedenti</div>
+        <div id="ha-mancanti"></div>
+
         <div class="sezione-head">
-          <h2 id="home-int-titolo">Interventi di oggi</h2>
+          <h2 id="home-int-titolo">Foglio giornaliero di oggi</h2>
         </div>
         <div id="home-interventi"></div>
       </div>
@@ -248,12 +283,29 @@
 
   <!-- ================= CALENDARIO: selettore Settimana / Mese ================= -->
   <div id="cal-testa" class="nascosto">
-    <div class="vista-head"><div class="vh-testi"><h1>Calendario</h1><div class="vh-sub">Report, ore e giornate compilate</div></div></div>
+    <div class="vista-head"><div class="vh-testi"><h1>Calendario</h1><div class="vh-sub"><span data-permesso="report">Interventi, report, ore e giornate compilate</span><span class="solo-senza-report">Interventi in programma</span></div></div></div>
     <div class="seg" role="group" aria-label="Periodo">
+      <button type="button" id="seg-giorno" aria-pressed="false" onclick="mostraVista('calgiorno')">Giorno</button>
       <button type="button" id="seg-sett" aria-pressed="false" onclick="mostraVista('sett')">Settimana</button>
       <button type="button" id="seg-mese" aria-pressed="true" onclick="mostraVista('mese')">Mese</button>
     </div>
   </div>
+
+  <!-- ================= CALENDARIO: GIORNO (interventi del giorno) ================= -->
+  <section id="vista-calgiorno" class="nascosto">
+    <div class="modulo">
+      <div class="periodo">
+        <button type="button" class="freccia" onclick="spostaGiornoCal(-1)" aria-label="Giorno precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
+        <input type="date" id="cg-data" onchange="if(this.value) apriGiornoCal(this.value)" aria-label="Giorno">
+        <button type="button" class="freccia" onclick="spostaGiornoCal(1)" aria-label="Giorno successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
+      </div>
+      <div class="ag-titolo"><h2 id="cg-titolo"></h2><span id="cg-conteggio" class="ag-conta"></span>
+        <button type="button" class="mini nascosto" id="cg-oggi" onclick="apriGiornoCal('')">Oggi</button></div>
+      <div class="msg-info nascosto" id="cg-stato" role="status" aria-live="polite"></div>
+      <div id="cg-elenco"></div>
+      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:12px" data-permesso="vista.giorno" onclick="apriFoglioGiornoCal()"><svg class="i"><use href="#i-file"/></svg>Apri il foglio giornaliero di questo giorno</button>
+    </div>
+  </section>
 
   <!-- ================= SETTIMANA ================= -->
   <section id="vista-sett" class="nascosto">
@@ -263,6 +315,10 @@
         <input type="date" id="settdata" onchange="disegnaSettimana()" aria-label="Un giorno qualsiasi della settimana">
         <button type="button" class="freccia" onclick="spostaSettimana(1)" aria-label="Settimana successiva"><svg class="i"><use href="#i-chev-r"/></svg></button>
       </div>
+      <div class="titolo" style="margin-bottom:6px"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span><span>Interventi della settimana</span></div>
+      <div class="msg-info nascosto" id="sett-int-stato" role="status" aria-live="polite"></div>
+      <div id="sett-interventi"></div>
+      <div data-permesso="report" style="margin-top:18px">
       <div class="titolo" style="margin-bottom:6px"><span class="t-icona pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span id="sett-titolo">Report settimanale</span></div>
       <div id="settelenco"></div>
       <div class="totore" id="giornilav" style="margin-top:12px"></div>
@@ -274,6 +330,7 @@
         <input type="checkbox" id="stampa-extra-sett">
         <span>Stampa le ore in più nel PDF</span>
       </label>
+      </div>
     </div>
   </section>
 
@@ -289,14 +346,17 @@
         <div class="cal-intest" aria-hidden="true"><span>L</span><span>M</span><span>M</span><span>G</span><span>V</span><span>S</span><span>D</span></div>
         <div class="cal-griglia" id="mese-griglia"></div>
         <div class="cal-legenda">
-          <span><i style="background:var(--brand)"></i>Selezionata</span>
-          <span><i style="background:var(--ok-chiaro)"></i><svg class="i" style="color:var(--ok-testo)"><use href="#i-check"/></svg>Firmata</span>
-          <span><i style="background:var(--att-chiaro)"></i><svg class="i" style="color:var(--att-testo)"><use href="#i-pen"/></svg>Da firmare</span>
-          <span><i style="background:var(--neutro-chiaro)"></i><svg class="i" style="color:var(--testo-2)"><use href="#i-minus"/></svg>Mancante</span>
+          <span><b class="cal-n legenda">2</b>Interventi in programma</span>
+          <span data-permesso="report"><i style="background:var(--brand)"></i>Selezionata</span>
+          <span data-permesso="report"><i style="background:var(--ok-chiaro)"></i><svg class="i" style="color:var(--ok-testo)"><use href="#i-check"/></svg>Firmata</span>
+          <span data-permesso="report"><i style="background:var(--att-chiaro)"></i><svg class="i" style="color:var(--att-testo)"><use href="#i-pen"/></svg>Da firmare</span>
+          <span data-permesso="report"><i style="background:var(--neutro-chiaro)"></i><svg class="i" style="color:var(--testo-2)"><use href="#i-minus"/></svg>Mancante</span>
         </div>
+        <div class="msg-info nascosto" id="mese-int-stato" role="status" aria-live="polite" style="margin:12px 0 0"></div>
+        <p class="elenco-nota" id="mese-int-riepilogo" style="margin:12px 2px 0"></p>
       </div>
 
-      <div class="modulo m-sett">
+      <div class="modulo m-sett" data-permesso="report">
         <div class="titolo" style="margin-bottom:6px"><span class="t-icona pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span id="mese-titolo">Report mensile</span></div>
         <div id="meseelenco"></div>
         <div id="mesericap" style="margin-top:12px"></div>
@@ -349,6 +409,13 @@
             <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te e tuoi rapportini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
+        <div class="gruppo" data-permesso="vista.storico">
+          <div class="gruppo-tit">Consultazione</div>
+          <div class="card">
+            <button type="button" class="voce" onclick="mostraVista('storico')"><span class="v-ic pervinca"><svg class="i"><use href="#i-search"/></svg></span><span class="v-testi"><span class="v-tit">Storico</span><span class="v-sub">Interventi e rapportini: filtri, ricerca, ore, foto e PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+          </div>
+        </div>
+
         <div class="gruppo" data-permesso="rapportino.compila">
           <div class="gruppo-tit">Gestione giornata</div>
           <div class="card">
@@ -417,11 +484,14 @@
     </div>
     <div class="msg-info" id="lavoro-stato" role="status" aria-live="polite"></div>
     <div id="lavoro-locali-box" class="nascosto">
-      <div class="sezione-head"><h2>Da inviare</h2></div>
-      <p class="elenco-nota">Salvati solo su questo telefono: aprili e premi Salva quando c'è rete.</p>
+      <div class="sezione-head"><h2>Da inviare</h2>
+        <button type="button" class="link-btn" id="sinc-ora" onclick="sincronizzaOra()">Sincronizza ora</button></div>
+      <div class="card sinc-testa" id="sinc-testa" role="status" aria-live="polite"></div>
+      <p class="elenco-nota">Salvati su questo telefono: vengono inviati in automatico quando c'è rete e l'app è aperta
+        (anche alla riapertura). Su iPhone l'invio non continua ad app chiusa.</p>
       <div id="lavoro-locali"></div>
     </div>
-    <div class="sezione-head"><h2>Interventi assegnati</h2></div>
+    <div class="sezione-head"><h2>I miei interventi</h2></div>
     <div id="lavoro-interventi"></div>
     <div class="sezione-head"><h2>Bozze</h2></div>
     <div id="lavoro-bozze"></div>
@@ -469,6 +539,38 @@
     <div id="int-elenco"></div>
   </section>
 
+  <!-- ================= STORICO (admin, company) ================= -->
+  <section id="vista-storico" class="nascosto">
+    <div class="vista-head">
+      <button type="button" class="indietro" onclick="mostraVista('altro')" aria-label="Indietro"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Storico</h1><div class="vh-sub">Interventi e rapportini</div></div>
+    </div>
+    <div class="cerca-input">
+      <span class="cerca-lente"><svg class="i"><use href="#i-search"/></svg></span>
+      <input type="search" id="st-cerca" placeholder="Cerca cliente, indirizzo, descrizione…" autocomplete="off" aria-label="Cerca nello storico" oninput="cercaStorico()">
+    </div>
+    <details class="card st-filtri" open>
+      <summary>Filtri</summary>
+      <div class="due">
+        <div><label for="st-dal">Dal</label><input type="date" id="st-dal" onchange="disegnaStorico()"></div>
+        <div><label for="st-al">Al</label><input type="date" id="st-al" onchange="disegnaStorico()"></div>
+      </div>
+      <div class="campo"><label for="st-cliente">Cliente</label><select id="st-cliente" onchange="disegnaStorico()"><option value="">Tutti i clienti</option></select></div>
+      <div class="due campo">
+        <div><label for="st-operaio">Operaio</label><select id="st-operaio" onchange="disegnaStorico()"><option value="">Tutti gli operai</option></select></div>
+        <div><label for="st-stato">Stato</label>
+          <select id="st-stato" onchange="disegnaStorico()">
+            <option value="">Tutti gli stati</option><option value="pianificato">Pianificato</option><option value="in_corso">In corso</option>
+            <option value="completato">Completato</option><option value="annullato">Annullato</option><option value="bozza">Con rapportini in bozza</option>
+          </select></div>
+      </div>
+      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:12px" id="st-azzera" onclick="azzeraFiltriStorico()">Azzera i filtri</button>
+    </details>
+    <div class="msg-info nascosto" id="st-stato-msg" role="status" aria-live="polite"></div>
+    <p class="elenco-nota" id="st-conteggio"></p>
+    <div id="st-elenco"></div>
+  </section>
+
   <!-- ================= RAPPORTINO (modulo) ================= -->
   <section id="vista-rapportino" class="nascosto">
     <div class="vista-head">
@@ -476,6 +578,7 @@
       <div class="vh-testi"><h1>Rapportino</h1><div class="vh-sub" id="rap-sottotitolo"></div></div>
     </div>
     <div class="msg-info" id="rap-msg" role="status" aria-live="polite"></div>
+    <div class="card conf-box nascosto" id="rap-conflitto" role="region" aria-label="Conflitto"></div>
     <div class="card cli-scheda nascosto" id="rap-intervento"></div>
 
     <form id="rap-form" novalidate>
@@ -504,12 +607,14 @@
       <div class="modulo">
         <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-camera"/></svg></span>Foto</div>
         <div class="foto-galleria" id="rf-foto"></div>
-        <input type="file" id="rf-foto-file" accept="image/*" multiple style="display:none" onchange="aggiungiFotoRapportino(this)">
+        <input type="file" id="rf-foto-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple style="display:none" onchange="aggiungiFotoRapportino(this)">
         <input type="file" id="rf-foto-camera" accept="image/*" capture="environment" style="display:none" onchange="aggiungiFotoRapportino(this)">
         <div class="foto-bottoni rf-solo-bozza">
           <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-file').click()"><svg class="i"><use href="#i-image"/></svg>Carica foto</button>
           <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-camera').click()"><svg class="i"><use href="#i-camera"/></svg>Scatta foto</button>
         </div>
+        <div class="msg-info att nascosto" id="rf-foto-stato" role="status" aria-live="polite"></div>
+        <button type="button" class="mat-add nascosto" id="rf-foto-invia" onclick="inviaFotoOra()"><svg class="i"><use href="#i-upload"/></svg>Invia foto</button>
       </div>
 
       <div class="modulo">
@@ -586,7 +691,7 @@
 </div>
 
 <!-- barra settimana -->
-<div class="barra nascosto" id="barra-sett">
+<div class="barra nascosto" id="barra-sett" data-permesso="report">
   <div class="dentro">
     <button type="button" class="invia" id="btn-pdf-sett" onclick="inviaPDFSettimana()">
       <svg class="i"><use href="#i-send"/></svg>
@@ -596,7 +701,7 @@
   </div>
 </div>
 
-<div class="barra nascosto" id="barra-mese">
+<div class="barra nascosto" id="barra-mese" data-permesso="report">
   <div class="dentro">
     <button type="button" class="invia" id="btn-pdf-mese" onclick="inviaPDFMese()">
       <svg class="i"><use href="#i-send"/></svg>

@@ -631,3 +631,118 @@ select{
 #rap-form .op-riga .testata select{flex:1;min-width:0;font-weight:600}
 #barra-rapportino .dentro{flex-wrap:wrap}
 #barra-rapportino .secondario{padding:0 12px}
+
+/* ================= AGENDA INTERVENTI (Home, Lavoro, Calendario) ================= */
+/* riepilogo con sei numeri: sono pulsanti (portano al calendario o alla gestione) */
+button.stat{border:none;text-align:left;font:inherit;color:inherit;cursor:pointer;width:100%}
+button.stat:active{filter:brightness(.97)}
+.stat-sei .stat .stat-lab{line-height:1.25}
+/* riga compatta di un intervento: ora a sinistra, cliente e dettagli, stato */
+.ag-riga{align-items:flex-start}
+.ag-ora{flex:none;min-width:48px;height:40px;border-radius:11px;background:var(--brand-chiaro);color:var(--brand);
+  font-weight:700;font-size:14.5px;display:flex;align-items:center;justify-content:center;padding:0 6px}
+.ag-ora .i{width:17px;height:17px}
+.ag-riga.mio{box-shadow:inset 3px 0 0 var(--brand)}
+.ag-riga.annullato{opacity:.6}
+.ag-riga .int-badge .badge{font-size:12px}
+.ag-titolo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 12px}
+.ag-titolo h2{font-size:18px;font-weight:700;flex:1;min-width:0}
+.ag-conta{font-size:13px;color:var(--testo-2);font-weight:600}
+.ag-giorno{margin-bottom:10px}
+.ag-giorno-testa{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;
+  background:none;border:none;padding:10px 4px 6px;font:inherit;font-weight:700;font-size:14.5px;color:var(--testo);cursor:pointer;text-align:left}
+.ag-giorno.oggi .ag-giorno-testa>span:first-child{color:var(--brand)}
+.ag-giorno .cli-elenco{margin:0}
+/* numero di interventi nella griglia del mese */
+.cal-n{position:absolute;bottom:2px;right:2px;min-width:15px;height:15px;border-radius:8px;padding:0 3px;
+  background:var(--pervinca-chiaro);color:var(--pervinca-scuro);font-size:10.5px;font-weight:700;line-height:15px;text-align:center}
+.cal-n.molti{background:var(--pervinca-scuro);color:#fff}
+.cal-n.legenda{position:static;display:inline-block}
+.cal-g.sel .cal-n{background:#fff;color:var(--brand)}
+/* "Assegnato a te"/urgenze sulle card dell'operaio: bordo, non colori pieni */
+.intervento.urgente{box-shadow:inset 3px 0 0 var(--err),var(--ombra-1)}
+.int-azioni .btn-dettagli{flex:0 0 auto}
+.gruppo-int{margin-bottom:6px}
+/* dettaglio intervento: foglio dal basso (raggiungibile col pollice), centrato su schermi larghi */
+.foglio{position:fixed;inset:0;z-index:200;display:flex;align-items:flex-end;justify-content:center}
+.foglio-sfondo{position:absolute;inset:0;background:rgba(23,32,51,.45)}
+.foglio-pannello{position:relative;width:100%;max-width:640px;max-height:88vh;overflow:auto;background:var(--superficie);
+  border-radius:20px 20px 0 0;padding:16px 16px calc(16px + var(--safe-b));box-shadow:var(--ombra-3)}
+.foglio-testa{display:flex;align-items:flex-start;gap:12px;margin-bottom:10px}
+.foglio-testa h2{flex:1;min-width:0;font-size:19px;font-weight:700;line-height:1.3;word-break:break-word}
+.foglio-chiudi{flex:none;width:44px;height:44px;border-radius:12px;border:none;background:var(--sfondo);font-size:26px;line-height:1;color:var(--testo);cursor:pointer}
+.foglio-azioni{display:grid;gap:10px;margin-top:16px}
+.idt-riga{display:flex;align-items:flex-start;gap:10px;padding:7px 0;font-size:15px}
+.idt-riga .i{flex:none;color:var(--testo-2);margin-top:2px}
+.idt-desc{margin-top:10px;background:var(--sfondo);border-radius:12px;padding:10px 12px;font-size:15px;white-space:pre-wrap;word-break:break-word}
+body.foglio-aperto{overflow:hidden}
+.solo-senza-report{display:inline}
+body[data-ruolo="admin"] .solo-senza-report{display:none}
+@media (min-width: 600px){
+  .stat-griglia.stat-sei{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .foglio{align-items:center}
+  .foglio-pannello{border-radius:20px;max-height:80vh}
+}
+@media (min-width: 960px){
+  body:not([data-ruolo="admin"]) .cal-griglia-layout{display:block;max-width:560px}
+}
+/* stato dei singoli operai nel dettaglio intervento */
+.op-elenco{padding:2px 14px}
+.op-stato{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--bordo)}
+.op-stato:last-child{border-bottom:none}
+.op-stato .cli-nome{font-size:15.5px}
+.op-stato>.cli-nome{flex:1;min-width:0}
+.op-sub{display:block;font-size:13px;color:var(--testo-2);margin-top:2px}
+.op-stato>.op-sub{margin:0}
+.int-avanz{display:inline-flex;align-items:center;gap:5px;color:var(--testo)}
+/* foto a schermo intero: tocco = ingrandimento (dimensione reale, si scorre) */
+.foto-vuoto-overlay .foto-chiudi{position:absolute;top:calc(12px + env(safe-area-inset-top,0px));right:12px;width:44px;height:44px;border-radius:12px;
+  border:none;background:rgba(255,255,255,.16);color:#fff;font-size:26px;line-height:1;cursor:pointer}
+.foto-vuoto-overlay img{cursor:zoom-in}
+.foto-vuoto-overlay.zoom{overflow:auto;align-items:flex-start;justify-content:flex-start}
+.foto-vuoto-overlay.zoom img{max-width:none;max-height:none;cursor:zoom-out}
+/* foto del rapportino: stato di invio */
+.foto-item .foto-stato{position:absolute;left:4px;right:4px;bottom:4px;border-radius:8px;padding:2px 6px;font-size:11px;font-weight:700;
+  text-align:center;background:var(--att-chiaro);color:var(--att-testo)}
+.foto-item .foto-stato.err{background:var(--err-chiaro);color:var(--err-testo)}
+.foto-item.manca{display:flex;align-items:center;justify-content:center;background:var(--neutro-chiaro);color:var(--testo-2);
+  font-size:12px;text-align:center;padding:6px;cursor:pointer}
+.foto-item.carica{background:var(--sfondo)}
+#rf-foto-stato{margin:8px 0 0}
+/* ================= SINCRONIZZAZIONE: "Da inviare" e conflitti ================= */
+.sinc-testa{padding:12px 14px;margin-bottom:10px}
+.sinc-conn{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14.5px}
+.sinc-conn small{color:var(--testo-2);font-size:12.5px}
+.sinc-punto{width:10px;height:10px;border-radius:50%;flex:none;background:var(--neutro-stato)}
+.sinc-punto.ok{background:var(--ok)}
+.sinc-punto.att{background:var(--att)}
+.sinc-punto.err{background:var(--err)}
+.sinc-conti{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:8px;font-size:13px;color:var(--testo-2)}
+.sinc-conti b{color:var(--testo)}
+.coda-voce{padding:12px 14px;margin-bottom:10px}
+.coda-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.coda-voce .cli-ind{display:flex;align-items:center;gap:4px;margin-top:3px;font-size:13.5px;color:var(--testo-2)}
+.coda-errore{margin-top:6px;font-size:13.5px;color:var(--err-testo);background:var(--err-chiaro);border-radius:10px;padding:6px 10px}
+.coda-voce .int-azioni{margin-top:10px;padding-top:10px}
+.conf-box{padding:14px;margin-bottom:12px;border:1px solid var(--att)}
+.conf-tab{display:grid;gap:0;border:1px solid var(--bordo);border-radius:12px;overflow:hidden;font-size:13.5px}
+.conf-riga{display:grid;grid-template-columns:minmax(70px,.8fr) 1fr 1fr;gap:8px;padding:7px 10px;border-top:1px solid var(--bordo)}
+.conf-riga:first-child{border-top:none}
+.conf-riga span{word-break:break-word;white-space:pre-wrap}
+.conf-testa{background:var(--sfondo);font-weight:700;color:var(--testo-2)}
+.coda-voce .cli-ind{white-space:normal;overflow:visible;flex-wrap:wrap}
+.coda-inviati{padding:10px 14px;margin-bottom:10px}
+.coda-inviati summary{cursor:pointer;font-weight:600;font-size:14.5px;min-height:32px;display:flex;align-items:center}
+.coda-inviato{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid var(--bordo);font-size:14px}
+/* ================= STORICO ================= */
+.st-filtri{padding:10px 14px;margin:14px 0}
+.st-filtri summary{cursor:pointer;font-weight:700;min-height:36px;display:flex;align-items:center}
+.st-voce{padding:12px 14px;margin-bottom:12px}
+.st-testa{display:flex;align-items:flex-start;gap:12px;width:100%;background:none;border:none;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.st-testa .chev{color:#A3ACB8;flex:none;margin-top:4px}
+.st-rapportini{margin-top:10px;border-top:1px dashed var(--bordo)}
+.st-rap{display:flex;align-items:center;gap:8px;width:100%;background:none;border:none;border-bottom:1px solid var(--bordo);padding:10px 0;text-align:left;font:inherit;color:inherit;cursor:pointer}
+.st-rap:last-child{border-bottom:none}
+.st-rap .chev{color:#A3ACB8;flex:none}
+.st-ore{white-space:normal !important}
+.st-autonomo .cli-ind{margin-top:2px}

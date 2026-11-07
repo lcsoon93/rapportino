@@ -1,22 +1,22 @@
 # Interventi e rapportini multiutente
 
-Ramo `interventi-rapportini` · **Non applicato a Supabase** · `main` invariato.
+Ramo `interventi-rapportini` · SQL **non ancora applicato** a Supabase (il frontend è già su `main` e mostra "non ancora attivi" finché manca).
 
 ## Modello dati (tabelle nuove; `rapporti` storica intatta)
 
 | Tabella | Contenuto | Chi legge | Chi scrive |
 |---|---|---|---|
 | `interventi` | data, ora, cliente, indirizzo, descrizione, priorità (bassa/normale/alta/urgente), tipologia, stato (pianificato/in_corso/completato/annullato), creato_da | admin, company; operaio solo se assegnato | admin, company (elimina solo admin, solo senza rapportini) |
-| `intervento_operai` | assegnazioni (uno o più operai) | admin, company; operaio per i propri interventi | admin, company |
+| `intervento_operai` | assegnazioni (uno o più operai); dalla Fase B `rimosso_il`/`rimosso_da` = storico delle assegnazioni tolte | admin, company; operaio per i propri interventi (solo assegnazione attiva) | admin, company (togliere = rimozione logica) |
 | `rapportini` | collegato a un intervento o autonomo; attività, materiali, note, esito, firma, stato bozza/completato, versione | admin, company; operaio se autore o indicato nelle ore | autore (operaio o admin) finché è bozza; admin sempre (anche riapre) |
 | `rapportino_operai` | ore (dalle/alle) per operaio | come il rapportino | come il rapportino |
-| `allegati` | foto (immagine compressa) | come il rapportino | come il rapportino |
+| `allegati` | metadati delle foto (Fase C: file nel bucket privato `allegati-rapportini`; righe vecchie con `contenuto` base64 ancora leggibili) | come il rapportino | come il rapportino |
 
 Regole imposte dal database (non falsificabili dal browser): `creato_da`, `assegnato_da`, `autore_id`,
 `caricato_da` = `auth.uid()`; un operaio scrive rapportini solo per interventi a cui è assegnato (o autonomi);
 completare richiede attività e ore; un rapportino completato non si modifica (solo l'admin lo riapre);
 si assegnano solo account attivi `worker`/`admin`; account disattivati: nessun accesso, anche con sessione aperta;
-lo stato dell'intervento segue i rapportini (bozza → in_corso, completato → completato).
+lo stato dell'intervento lo calcola il database (Fase B, sotto).
 Salvataggio atomico con `salva_rapportino` (testata + ore in una transazione, controllo di versione).
 L'id del rapportino lo genera il telefono. `salva_rapportino` crea un rapportino solo se quell'id non
 esiste ancora sul server; un rapportino esistente si modifica solo indicando la versione letta: se la
@@ -27,6 +27,252 @@ reinvia con la versione del server o lo considera già salvato; altrimenti tiene
 e si sostituisce solo premendo di nuovo Salva. I rapportini
 salvati solo sul telefono (senza rete) compaiono in Lavoro → "Da inviare".
 
+## Home e Calendario (Fase A)
+
+Solo frontend: nessuna modifica a SQL, policy o salvataggio dei rapportini. I dati sono quelli delle
+tabelle `interventi`, `intervento_operai`, `rapportini` letti con la sessione dell'utente (RLS);
+lo stato mostrato è sempre quello restituito dal database.
+
+- **Home amministratore** (`dashboard.js`): riepilogo "Interventi pianificati" con sei numeri e le
+  liste Oggi / Prossimi giorni; sotto resta il foglio giornaliero. Definizioni (periodo letto: ultimi
+  30 giorni + prossimi 7, una richiesta, più il conteggio dei rapportini in bozza):
+  Oggi e Prossimi 7 giorni = interventi non annullati con quella data; In corso = stato `in_corso`;
+  Completati (30 gg) = stato `completato` con data fino a oggi; Senza rapportino completato = non
+  annullati, data fino a oggi, nessun rapportino completato collegato; Rapportini in bozza = rapportini
+  con stato `bozza` (più l'avviso di quelli salvati solo sul telefono).
+- **Home operaio** (`lavoro.js`, "I miei interventi"): Oggi (prima gli urgenti), Prossimi giorni,
+  Da completare · giorni precedenti; ogni scheda: cliente, descrizione, data e ora, indirizzo,
+  stato, priorità se alta/urgente, "Compila / Riprendi bozza" e "Dettagli". "Da inviare" (rapportini
+  solo sul telefono) compare anche senza rete.
+- **Calendario** (`calendario.js` + `agenda.js`): Giorno / Settimana / Mese per admin, operaio e
+  azienda. Giorno: interventi con ora, luogo, operai, stato; tocco = dettaglio. Settimana: interventi
+  giorno per giorno. Mese: numero di interventi (non annullati) per giorno, evidenziato da 4 in su, e
+  "giorno più carico"; tocco su un giorno = vista Giorno (l'admin da lì apre anche il foglio
+  giornaliero). Il report delle giornate (ore, saldi, PDF) resta solo all'admin (permesso `report`).
+- **Dettaglio intervento** (foglio dal basso): dati, operai assegnati, rapportini visibili;
+  "Compila rapportino / Riprendi bozza" (usa `rapportinoPerIntervento`) per chi è assegnato e per
+  l'admin; "Modifica o riassegna" (usa `apriModuloIntervento`) per chi ha già `interventi.gestisci`.
+- **Ruoli**: l'operaio vede solo ciò che la policy `interventi_lettura` gli restituisce (assegnati);
+  l'azienda consulta e mantiene i permessi di prima (nessuna compilazione); nuove voci di menu
+  "Calendario" per operaio e azienda (solo viste, nessun nuovo permesso sui dati).
+- **Aggiornamento dati**: aprendo Home, Lavoro o Calendario da un'altra schermata si rilegge dal
+  database; spostandosi dentro il Calendario si riusa per 30 s quanto già letto (una richiesta per
+  mese o settimana). Ogni scrittura (intervento, assegnazione, rapportino) svuota questa memoria.
+- **Errori**: rete assente, sessione scaduta ("Sessione scaduta: accedi di nuovo.") e migrazione non
+  applicata ("non sono ancora attivi") mostrano un messaggio nella sezione; il resto della Home
+  (foglio giornaliero) continua a funzionare.
+- **Non presente nel modello dati**: un campo "note" dell'intervento (si mostra la descrizione).
+
+## Interventi con più operai (Fase B)
+
+Migrazione incrementale `supabase/migrations/20261109090000_interventi_piu_operai.sql`
+(rollback: `supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql`). Serve perché la
+struttura precedente non distingueva assegnazioni attive e tolte (togliere un operaio cancellava la riga)
+e completava l'intervento al primo rapportino completato. Non cambia `salva_rapportino`, non cambia
+nessuna policy RLS, non aggiunge stati.
+
+- **Ogni operaio il proprio rapportino**: già garantito dalla Fase A (autore imposto dal database,
+  solo l'autore modifica la bozza, l'operaio non legge i rapportini dei colleghi). Ore e foto stanno
+  nel rapportino del loro autore.
+- **Stato complessivo** (funzione `stato_intervento_calcolato`, stessi quattro stati):
+  `annullato` lo decide chi pianifica; `completato` solo se **ogni operaio assegnato (attivo) ha un
+  proprio rapportino completato** — senza assegnati non è mai completato, le ore di un collega nel
+  rapportino di un altro e il rapportino di chi non è assegnato (es. admin) non bastano;
+  `in_corso` se esiste almeno un rapportino collegato; altrimenti `pianificato`.
+- **Ricalcolo atomico**: trigger su `rapportini` e su `intervento_operai` → `ricalcola_stato_intervento`,
+  che prima blocca la riga dell'intervento (`FOR UPDATE`) e poi calcola con un'istruzione successiva:
+  completamenti e cambi di assegnazione contemporanei vengono messi in fila e l'ultimo vede i dati
+  dell'altro. Idempotente (scrive solo se lo stato cambia). Verificato che senza il blocco il test
+  "due operai completano nello stesso istante" fallisce (3 casi su 6), con il blocco 6 su 6 corretti.
+- **Stato non scrivibile a mano**: un inserimento parte da `pianificato`; un aggiornamento può solo
+  annullare; ripristinare (o qualsiasi altro valore) rimette lo stato calcolato.
+- **Operaio tolto** (DELETE dall'app): la riga resta con `rimosso_il`/`rimosso_da` (trigger
+  `rimuovi_assegnazione`); rapportini, ore e foto non vengono mai toccati. L'operaio non vede più
+  l'intervento e non può crearne nuovi rapportini; il suo rapportino resta suo e visibile all'admin
+  (nel dettaglio: "rimosso dall'intervento, rapportino conservato"). Lo stato si ricalcola senza di lui.
+  L'app chiede conferma se si toglie qualcuno che ha già un rapportino.
+- **Operaio aggiunto** (anche a intervento iniziato o completato): entra tra chi deve completare →
+  lo stato torna `in_corso`, salvo che abbia già un proprio rapportino completato per quell'intervento.
+  Riassegnare chi era stato tolto riattiva la stessa riga (nessun doppione); riassegnare chi è già
+  assegnato non dà errore. Solo admin/company possono farlo (controllo ripetuto nel trigger, perché
+  la riattivazione non passa dal controllo RLS dell'inserimento).
+- **Dettaglio intervento**: sezione "Operai" con nome, stato del lavoro (Da iniziare / In corso /
+  Completato), stato del rapportino, ore, data di completamento, "n di m completati" e "Mancano: …".
+  L'operaio vede il proprio stato e solo i nomi dei colleghi; company in sola consultazione.
+- **Home / Calendario / Interventi**: "n di m completati" e "manca: …" sugli interventi in corso
+  (admin, company); "Tuo rapportino: bozza/completato/da compilare" per l'operaio; in Home admin
+  "Con rapportini mancanti" (non annullati, data fino a oggi, stato ≠ completato) e la lista
+  "Rapportini mancanti · giorni precedenti".
+- **Ordine**: applicare la Fase B dopo `20261108090000`; per tornare indietro eseguire prima il
+  rollback della Fase B e poi, se serve, quello della Fase A. Il rollback della Fase B elimina le
+  righe di assegnazione "rimosse" (altrimenti tornerebbero attive): esportarle prima.
+- **Compatibilità**: il frontend della Fase B legge `rimosso_il`, quindi va pubblicato insieme alla
+  migrazione (senza migrazione mostra "non ancora attivi", come per la Fase A).
+
+## Foto nello Storage (Fase C)
+
+Migrazione `supabase/migrations/20261110090000_allegati_storage.sql`
+(rollback `supabase/rollback/20261110090000_allegati_storage_rollback.sql`). Riusa la tabella
+`allegati` (nessun sistema parallelo); non cambia `salva_rapportino` né le policy delle altre tabelle.
+
+- **Bucket** `allegati-rapportini`: **privato** (nessun URL pubblico), limite 3 MB per file (come il
+  limite già previsto per una foto: `contenuto` ≤ 3.000.000 caratteri), tipi `image/jpeg`, `image/png`,
+  `image/webp`. Percorso `<id rapportino>/<id allegato>.jpg`: l'id dell'allegato è un UUID casuale
+  generato dal telefono (non prevedibile); nomi di altra forma sono rifiutati.
+- **Policy Storage** (su `storage.objects`, solo questo bucket), coerenti con quelle RLS di `allegati`:
+  lettura = `vede_rapportino(rapportino del percorso)` (autore, operaio indicato nelle ore, admin,
+  company); caricamento e cancellazione = `modifica_rapportino(...)` (autore con rapportino in bozza,
+  oppure admin); **nessuna policy di UPDATE**: un file caricato non si sovrascrive (neanche con upsert).
+  Utente non autenticato: niente. La service role key non è mai nel frontend.
+- **Metadati** in `allegati`: `percorso`, `nome` (nome originale ripulito), `mime`, `dimensione`,
+  `larghezza`, `altezza`, `impronta` (SHA-256 del file originale), `caricato_da`, `creato_il` (questi due
+  imposti dal database). Indici unici su `percorso` e su (`rapportino_id`, `impronta`).
+- **Controlli del database** (trigger `controlla_allegato`): una nuova foto in base64 è rifiutata; il
+  percorso deve corrispondere a rapportino e id; tipo consentito; **il file deve esistere nello Storage
+  con la stessa dimensione** dichiarata → nessun riferimento a file non caricati o caricati a metà.
+- **Registrazione idempotente** `registra_allegato(jsonb)` (SECURITY INVOKER): stesso id già registrato
+  → `ok` (nuovo tentativo dopo una risposta persa); stessa foto già presente nel rapportino con un altro
+  id → `duplicato` (l'app toglie il file appena caricato). Nessun doppione.
+- **App** (`services/coda-foto.js`, `modules/modulo-rapportino.js`, `services/immagini.js`):
+  1. foto scelta → controllo tipo (JPEG/PNG/WebP/HEIC…), massimo 25 MB in ingresso, immagine
+     leggibile; impronta; compressione a 1600 px JPEG 0,78 (come prima; se superasse 3 MB qualità
+     minore); nome ripulito;
+  2. la foto va nella **coda del telefono** (IndexedDB `rapportino-foto`, sopravvive alla chiusura
+     dell'app) e compare con "Da inviare";
+  3. se il rapportino non è ancora sul server si salva la bozza; poi per ogni foto: upload (file già
+     presente = ok) → registrazione dei metadati → **solo allora** esce dalla coda;
+  4. errori (rete, Storage, metadati, autorizzazione): la foto resta in coda con l'errore, messaggio
+     chiaro, pulsante "Invia foto" per riprovare; stesso id a ogni tentativo → nessun doppione;
+  5. **"Completa" solo con tutte le foto confermate**: prima bozza + invio foto; se ne resta anche una
+     il rapportino rimane in bozza ("Rapportino NON completato") e nulla è dichiarato inviato.
+- **Senza rete**: si compila e si aggiungono foto; testo e firma restano nella bozza del telefono, le
+  foto nella coda; il rapportino è in Lavoro → "Da inviare" (con "N foto da inviare"), anche dopo aver
+  chiuso e riaperto l'app; riaprendolo si riprendono testo, firma e foto; con la rete "Salva" o "Invia
+  foto" riprendono l'invio. Nessun invio automatico in background (come per il resto dell'app).
+  Aprire un rapportino già sul server senza rete usa la copia del telefono, se c'è.
+- **Visualizzazione**: le foto del rapportino aperto si scaricano con la sessione dell'utente (3 alla
+  volta) e si mostrano da memoria: **nessun URL** (né pubblico né firmato) viene creato o salvato, quindi
+  niente URL scaduti; gli elenchi non scaricano foto. Foto mancante / non autorizzata / offline: riquadro
+  con il motivo (tocco = riprova). Tocco su una foto: schermo intero; altro tocco: ingrandimento.
+- **PDF** (`generaPDFPerCliente`, invariato): riceve le foto già scaricate (server), quelle in base64 e
+  quelle ancora sul telefono; le foto non disponibili vengono saltate e segnalate ("PDF creato senza N
+  foto non disponibili"); nessun URL nel PDF.
+- **Cancellazione**: si tolgono prima i metadati, poi il file (il rapportino non punta mai a un file
+  mancante). Se il file non si riesce a togliere resta orfano nel bucket, senza riferimenti; eliminando
+  un rapportino l'app toglie prima i suoi file. Per trovare file orfani (sola lettura):
+  `select o.name from storage.objects o where o.bucket_id = 'allegati-rapportini' and not exists (select 1 from public.allegati a where a.percorso = o.name);`
+- **Compatibilità**: le righe `allegati` con `contenuto` (base64, formato Fase A) restano leggibili, nel
+  modulo e nel PDF. Con il frontend nuovo su un database **senza** questa migrazione: le foto vecchie si
+  vedono, le nuove restano sul telefono con un errore (nessuna perdita) → pubblicare il frontend solo
+  dopo aver applicato la migrazione.
+- **Foto storiche**: in produzione la tabella `allegati` non esiste ancora (Fasi A–C non applicate),
+  quindi non ci sono foto di rapportini in base64 da migrare. Le foto del **foglio giornaliero** (le 51
+  giornate) stanno nel JSON della giornata (`rapporti.dati → clienti[].foto`, `{src: data URL, w, h}` o
+  solo data URL; scontrini in `spese[].allegato`) e fanno parte del meccanismo di sincronizzazione e
+  unione del foglio giornaliero e del suo PDF: **non vengono migrate in questa fase** (rischio di toccare
+  lo storico); restano dove sono e funzionano come prima. Conteggio da eseguire (sola lettura) quando
+  autorizzato:
+  ```sql
+  select count(*) as foto, count(distinct r.data) as giornate,
+         round(sum(length(coalesce(f->>'src', f #>> '{}')))/1048576.0, 1) as mb_base64,
+         count(*) filter (where coalesce(f->>'src', f #>> '{}') not like 'data:image/%') as non_valide
+  from public.rapporti r, jsonb_array_elements(coalesce(r.dati->'clienti', '[]')) c,
+       jsonb_array_elements(coalesce(c->'foto', '[]')) f;
+  ```
+  Una migrazione futura dovrebbe: copiare le foto nello Storage lasciando il base64, aggiungere i
+  riferimenti nel JSON, verificare conteggi e dimensioni e il PDF di ogni giornata; il base64 si potrà
+  eliminare solo dopo un periodo di verifica e con un backup.
+- **Rollback della Fase C**: toglie policy e funzione; copia i metadati delle foto nello Storage in
+  `backup.allegati_storage` e poi li toglie da `allegati` (la tabella della Fase B richiede il base64);
+  i file restano nel bucket. Ordine: rollback C, poi B, poi A.
+
+## Sincronizzazione offline (Fase D)
+
+Solo frontend: **nessuna modifica SQL** (si usano `salva_rapportino`, il controllo di versione e la
+registrazione delle foto già esistenti). File: `services/coda-locale.js` (archivio locale),
+`services/sinc-rapportini.js` (coda e invio), `modules/modulo-rapportino.js`, `modules/lavoro.js`
+("Da inviare"), `core/sessione.js` (tempo massimo delle richieste, riapertura senza rete).
+
+- **Persistenza** (IndexedDB `rapportino-foto`, versione 2): tabella `bozze` (un record per rapportino:
+  id stabile generato dal telefono, intervento, autore, contenuto con attività, materiale, **ore e
+  firma**, richiesta di completamento, versione del server conosciuta, ultima modifica, stato, tentativi,
+  ultimo/prossimo tentativo, errore, copia del server in caso di conflitto, ultimo contenuto inviato) e
+  tabella `foto` (Fase C). Niente bozze né immagini in localStorage (le bozze del formato precedente
+  vengono spostate in IndexedDB all'avvio); nessun token nella coda. Sopravvive a cambio schermata,
+  refresh, chiusura della scheda e riapertura. Si chiede al browser la persistenza
+  (`navigator.storage.persist`, dove esiste). **Limite iPhone/Safari**: un sito non usato per 7 giorni
+  può perdere i dati locali se l'app non è aggiunta alla schermata Home; IndexedDB in navigazione privata
+  può non essere disponibile (l'app lo segnala).
+- **Stati**: `locale` (dati incompleti), `in_attesa`, `in_sincronizzazione`, `allegati_in_attesa`
+  (foto ancora da trasferire), `conflitto`, `errore`, `inviato` (confermato dal server: resta solo un
+  riepilogo senza contenuto per il conteggio delle ultime 24 ore). Un rapportino risulta inviato solo
+  dopo la conferma del server; un errore di rete non è mai un errore definitivo.
+- **Quando parte**: dopo l'accesso / alla riapertura dell'app, all'evento `online`, al ritorno nell'app
+  (`visibilitychange`) e ogni 60 s mentre l'app è aperta e visibile, solo se c'è qualcosa da inviare.
+  Prima di inviare si verifica davvero il server (non basta `navigator.onLine`): `/auth/v1/health` con
+  8 s di tempo massimo, poi la sessione (`getSession` + `getUser`). Ogni richiesta a Supabase ha un tempo
+  massimo (30 s; 120 s per i file), così una rete "appesa" non blocca la coda. Indicatore in "Da inviare":
+  online / offline / server non raggiungibile / sessione scaduta.
+- **Coda**: un rapportino alla volta, in ordine; blocco per rapportino (Web Locks, anche tra due schede;
+  altrimenti in memoria) e un solo giro di sincronizzazione alla volta → mai due invii contemporanei
+  dello stesso rapportino. Errore su un rapportino: si passa al successivo. Errori temporanei (rete,
+  server 5xx, migrazione mancante): nuovo tentativo dopo 30 s, 1, 2, 4… minuti (massimo 30), poi dopo 8
+  tentativi l'invio automatico si sospende ("Riprova"). Al ritorno della rete gli errori di rete si
+  riprovano subito. Errori di autorizzazione (non più assegnato, non modificabile, già completato) e di
+  dati: stato `errore`, nessun nuovo tentativo automatico. Sessione scaduta: la coda si ferma e riparte
+  dopo l'accesso.
+- **Invio di un rapportino**: 1) testo e ore (`salva_rapportino` con la versione conosciuta; se c'è da
+  completare e ci sono foto, prima in bozza); 2) foto (upload → metadati → fuori dalla coda); 3)
+  completamento, solo con tutte le foto confermate; 4) `inviato`. "Completa" premuto senza rete viene
+  ricordato e fatto all'invio. Se durante l'invio l'operaio modifica il rapportino, le nuove modifiche
+  restano da inviare (non vengono sovrascritte dalla risposta).
+- **Risposte perse e idempotenza**: l'id del rapportino è del telefono e il telefono ricorda l'ultimo
+  contenuto inviato (salvato prima della richiesta). Al tentativo successivo il server risponde
+  `conflitto`: se la sua versione è uguale alla copia del telefono → già sincronizzato; se è uguale
+  all'ultimo invio del telefono (la sua scrittura, di cui si era persa la risposta) → si invia con la
+  versione del server; nessun nuovo rapportino, ore sostituite in blocco (mai duplicate), foto con id
+  fisso (mai duplicate).
+- **Conflitti** (contenuto diverso da entrambe): stato `conflitto`, nulla viene sovrascritto; restano
+  la copia del telefono e quella del server. Aprendo il rapportino: confronto campo per campo (telefono /
+  server) e scelta esplicita "Invia la mia versione" (non disponibile all'operaio se il rapportino è già
+  completato) o "Usa la versione del server" (le modifiche del telefono si perdono, con conferma). La
+  sincronizzazione automatica non risolve mai un conflitto da sola.
+- **"Da inviare"** (Lavoro): indicatore di connessione, conteggi (in attesa, in sincronizzazione, inviati
+  nelle ultime 24 ore, conflitti, non riusciti), elenco degli inviati nelle ultime 24 ore, "Sincronizza ora"; per ogni rapportino cliente, intervento, data, stato,
+  ultimo e prossimo tentativo, errore, foto da inviare; "Apri", "Riprova", "Vedi conflitto", "Elimina"
+  (solo bozze mai inviate, con conferma: un rapportino già sul server non si elimina da qui).
+- **In background**: nessun service worker né Background Sync (non supportato da Safari): ad app chiusa
+  l'invio NON continua, su iPhone non è garantito. Riaprendo l'app si riprende da dove si era rimasti.
+- **Riapertura senza rete**: la sessione non viene più chiusa se il server non risponde (prima l'app
+  tornava al login); si usa il profilo dell'ultimo accesso dello stesso utente (id, nome, ruolo: niente
+  token) solo per l'interfaccia; i dati restano protetti da RLS. Effetto collaterale corretto: anche la
+  sincronizzazione del foglio giornaliero non esce più dall'account quando manca la rete.
+- **Sicurezza**: la coda invia solo i rapportini dell'utente collegato (campo `autore`); cambiando
+  account i rapportini del precedente restano sul telefono, non vengono mostrati né inviati, e partono
+  quando lui accede di nuovo. Tutto passa da RLS, trigger e policy Storage; nessuna service role key.
+
+## Storico (Fase E)
+
+Solo frontend, nessuna modifica SQL. Altro → Consultazione → **Storico** (admin e company; l'operaio
+non ha la voce né la schermata e, anche chiamando le API, RLS gli restituisce solo i propri dati).
+Interventi del periodo (`elencoInterventi`) e rapportini del periodo o collegati a quegli interventi
+(`storicoRapportini`: ore e numero di foto), un'unica lettura per periodo; cliente, operaio, stato e
+ricerca (cliente, indirizzo, descrizione/attività, senza maiuscole e accenti) filtrano in memoria.
+Periodo predefinito: ultimi 30 giorni; risultati dal più recente; "Azzera i filtri". Per ogni intervento:
+stato, avanzamento, ore totali e un rapportino per operaio con le sue ore e le foto; tocco = dettaglio
+dell'intervento o rapportino (foto e PDF dalle schermate esistenti). Rapportini autonomi e rapportini
+di interventi fuori periodo compaiono come voci a sé.
+
+## Rifiniture di sicurezza (Fase F)
+
+- Migrazione `supabase/migrations/20261111090000_rapporti_privilegi.sql` (rollback
+  `supabase/rollback/20261111090000_rapporti_privilegi_rollback.sql`): toglie a `authenticated`
+  TRUNCATE, REFERENCES e TRIGGER sulla tabella storica `rapporti` (TRUNCATE ignora RLS). Restano
+  SELECT/INSERT/UPDATE/DELETE filtrati dalle policy, che non cambiano; i dati non vengono toccati.
+  Verificato in locale: con il ruolo `authenticated` TRUNCATE → "permission denied", 51 giornate intatte.
+- Le chiamate alle Edge Function (accesso, cambio password, gestione utenti) hanno lo stesso tempo
+  massimo delle altre richieste (30 s): su una rete senza risposta compare "Nessuna connessione".
+
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
@@ -34,7 +280,14 @@ salvati solo sul telefono (senza rete) compaiono in Lavoro → "Da inviare".
    `create table backup.rapporti_AAAAMMGG as select * from public.rapporti;`
    (lo schema `backup` non è esposto alle API: anon/authenticated non hanno accesso)
    (la migrazione non tocca `rapporti`, ma è la stessa prudenza del rilascio precedente).
-2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run.
+2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run;
+   poi, nello stesso modo, `supabase/migrations/20261109090000_interventi_piu_operai.sql` → Run
+   e `supabase/migrations/20261110090000_allegati_storage.sql` → Run, infine
+   `supabase/migrations/20261111090000_rapporti_privilegi.sql` → Run. Verifica del bucket:
+   `select id, public, file_size_limit, allowed_mime_types from storage.buckets where id = 'allegati-rapportini';`
+   (deve dare `public = false`, 3145728, i tre tipi) e
+   `select policyname, cmd from pg_policies where schemaname = 'storage' and policyname like 'allegati_rapportini_%';`
+   (tre policy: lettura SELECT, caricamento INSERT, cancellazione DELETE).
 3. Verifica: eseguire la prima query anche PRIMA del passo 2 e annotare il risultato; dopo deve dare
    51 righe e la stessa impronta; la seconda deve dare 5 tabelle nuove con RLS `true`:
    ```sql
@@ -44,7 +297,10 @@ salvati solo sul telefono (senza rete) compaiono in Lavoro → "Da inviare".
 4. Pubblicare il frontend: merge di `interventi-rapportini` su `main`.
 5. Prova con un admin e due operai (vedi README / rapporto).
 
-Rollback: ripristinare `main` al commit precedente, poi SQL Editor → `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
+Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
+`supabase/rollback/20261110090000_allegati_storage_rollback.sql`, poi
+`supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql` e, solo per tornare a prima
+degli interventi, `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
 Il rollback elimina interventi e rapportini scritti con la nuova app: prima esportarli
 (`select * from public.rapportini` ecc. → Export CSV).
 
@@ -488,5 +744,424 @@ drop function if exists public.assegnato_a(uuid);
 drop function if exists public.e_admin();
 drop function if exists public.pianifica();
 drop function if exists public.compila();
+commit;
+```
+
+## SQL completo — migrazione Fase B
+```sql
+-- =====================================================================
+-- Fase B: interventi assegnati a piu' operai (migrazione incrementale; richiede 20261108090000).
+--
+-- 1. Assegnazioni con storico: togliere un operaio non cancella la riga di intervento_operai ma la
+--    segna "rimossa" (rimosso_il / rimosso_da). Riassegnarlo riattiva la stessa riga.
+--    I rapportini, le ore e le foto non dipendono dalle assegnazioni e non vengono mai toccati.
+-- 2. Stato complessivo calcolato dal database (stessi quattro stati di prima, nessuno nuovo):
+--      annullato    deciso da chi pianifica (resta finche' non viene ripristinato)
+--      completato   OGNI operaio assegnato (attivo) ha un proprio rapportino completato;
+--                   senza operai assegnati un intervento non e' mai completato
+--      in_corso     esiste almeno un rapportino (bozza o completato) collegato
+--      pianificato  altrimenti
+--    Il ricalcolo blocca la riga dell'intervento (SELECT ... FOR UPDATE): completamenti e modifiche
+--    alle assegnazioni contemporanei vengono messi in fila e l'ultimo vede i dati dell'altro.
+-- 3. Lo stato non si imposta piu' a mano: un utente puo' solo annullare o ripristinare; il valore
+--    "pianificato/in_corso/completato" lo decide sempre il calcolo.
+--
+-- Non cambia: salva_rapportino, le policy RLS, le tabelle rapporti/profili e le 51 giornate.
+-- Ripetibile: ogni istruzione si puo' rieseguire (if not exists / create or replace / drop if exists).
+-- =====================================================================
+
+-- ---------------------------------------------------------------- assegnazioni con storico
+alter table public.intervento_operai add column if not exists rimosso_il timestamptz;
+alter table public.intervento_operai add column if not exists rimosso_da uuid references public.profili(id);
+create index if not exists intervento_operai_attivi on public.intervento_operai (intervento_id) where rimosso_il is null;
+
+-- solo le assegnazioni attive danno accesso all'intervento (un operaio rimosso non lo vede piu';
+-- i suoi rapportini restano suoi e visibili a lui come autore)
+create or replace function public.assegnato_a(p_intervento uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select public.mio_ruolo() is not null and exists (select 1 from public.intervento_operai
+                 where intervento_id = p_intervento and operaio_id = auth.uid() and rimosso_il is null)
+$$;
+
+-- inserimento: un'assegnazione gia' esistente ma rimossa viene riattivata (nessun doppione, nessun errore);
+-- se e' gia' attiva non succede nulla. Gli aggiornamenti arrivano solo dalle funzioni qui sotto
+-- (per gli utenti non esiste una policy di UPDATE su intervento_operai).
+create or replace function public.controlla_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  if tg_op = 'INSERT' then
+    -- il controllo RLS dell'inserimento non scatterebbe se la riga viene riattivata: si ripete qui
+    if not public.pianifica() then
+      raise exception 'Operazione non consentita' using errcode = '42501';
+    end if;
+    -- si assegnano solo account attivi che lavorano sul campo
+    if not exists (select 1 from public.profili p where p.id = new.operaio_id and p.attivo and p.ruolo in ('worker', 'admin')) then
+      raise exception 'Si possono assegnare solo operai attivi' using errcode = '42501';
+    end if;
+    if exists (select 1 from public.intervento_operai a where a.intervento_id = new.intervento_id and a.operaio_id = new.operaio_id) then
+      update public.intervento_operai set rimosso_il = null, rimosso_da = null, assegnato_da = auth.uid(), assegnato_il = now()
+        where intervento_id = new.intervento_id and operaio_id = new.operaio_id and rimosso_il is not null;
+      return null;
+    end if;
+    new.assegnato_da := auth.uid();
+    new.assegnato_il := now();
+    new.rimosso_il := null;
+    new.rimosso_da := null;
+    return new;
+  end if;
+  -- UPDATE: chiave invariata
+  new.intervento_id := old.intervento_id;
+  new.operaio_id := old.operaio_id;
+  return new;
+end $$;
+
+-- eliminazione da parte di un utente = rimozione logica (lo storico resta). Le cancellazioni a cascata
+-- (intervento eliminato, possibile solo senza rapportini) e quelle del pannello restano vere.
+create or replace function public.rimuovi_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null or pg_trigger_depth() > 1 then return old; end if;
+  update public.intervento_operai set rimosso_il = now(), rimosso_da = auth.uid()
+    where intervento_id = old.intervento_id and operaio_id = old.operaio_id and rimosso_il is null;
+  return null;
+end $$;
+drop trigger if exists intervento_operai_rimozione on public.intervento_operai;
+create trigger intervento_operai_rimozione before delete on public.intervento_operai
+  for each row execute function public.rimuovi_assegnazione();
+
+-- ---------------------------------------------------------------- stato complessivo
+create or replace function public.stato_intervento_calcolato(p_id uuid) returns text
+language sql stable security definer set search_path = '' as $$
+  select case
+    when exists (select 1 from public.intervento_operai a where a.intervento_id = p_id and a.rimosso_il is null)
+     and not exists (
+       select 1 from public.intervento_operai a
+       where a.intervento_id = p_id and a.rimosso_il is null
+         and not exists (select 1 from public.rapportini r
+                         where r.intervento_id = p_id and r.autore_id = a.operaio_id and r.stato = 'completato'))
+      then 'completato'
+    when exists (select 1 from public.rapportini r where r.intervento_id = p_id) then 'in_corso'
+    else 'pianificato' end
+$$;
+
+-- ricalcolo atomico: prima si blocca la riga dell'intervento, poi (istruzione successiva, quindi con
+-- i dati gia' confermati da chi aveva il blocco) si calcola e si scrive lo stato. Idempotente.
+create or replace function public.ricalcola_stato_intervento(p_id uuid) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if p_id is null then return; end if;
+  perform 1 from public.interventi where id = p_id for update;
+  if not found then return; end if;
+  update public.interventi set stato = public.stato_intervento_calcolato(p_id)
+    where id = p_id and stato <> 'annullato' and stato is distinct from public.stato_intervento_calcolato(p_id);
+end $$;
+
+-- trigger comune a rapportini e intervento_operai (entrambe hanno la colonna intervento_id):
+-- si ricalcola l'intervento nuovo e, se cambiato, quello vecchio
+create or replace function public.aggiorna_stato_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  nuovo uuid := case when tg_op = 'DELETE' then null else new.intervento_id end;
+  vecchio uuid := case when tg_op = 'INSERT' then null else old.intervento_id end;
+begin
+  perform public.ricalcola_stato_intervento(nuovo);
+  if vecchio is distinct from nuovo then perform public.ricalcola_stato_intervento(vecchio); end if;
+  return null;
+end $$;
+drop trigger if exists intervento_operai_stato on public.intervento_operai;
+create trigger intervento_operai_stato after insert or update or delete on public.intervento_operai
+  for each row execute function public.aggiorna_stato_intervento();
+
+-- lo stato non si scrive a mano: inserendo si parte da "pianificato" (o "annullato");
+-- aggiornando, qualsiasi valore diverso da "annullato" viene sostituito da quello calcolato
+create or replace function public.controlla_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;          -- service_role / pannello
+  if tg_op = 'INSERT' then
+    new.creato_da := auth.uid();
+    new.creato_il := now();
+    if new.stato <> 'annullato' then new.stato := 'pianificato'; end if;
+  else
+    new.creato_da := old.creato_da;
+    new.creato_il := old.creato_il;
+    if new.stato is distinct from old.stato and new.stato <> 'annullato' then
+      new.stato := public.stato_intervento_calcolato(new.id);
+    end if;
+  end if;
+  new.aggiornato_il := now();
+  return new;
+end $$;
+
+revoke execute on function public.rimuovi_assegnazione(), public.stato_intervento_calcolato(uuid),
+  public.ricalcola_stato_intervento(uuid) from public, anon, authenticated;
+revoke execute on function public.controlla_assegnazione(), public.controlla_intervento(),
+  public.aggiorna_stato_intervento() from public, anon, authenticated;
+
+-- stati gia' presenti allineati alla nuova regola (nessun dato cancellato; eseguito senza utente)
+update public.interventi i set stato = public.stato_intervento_calcolato(i.id)
+  where i.stato <> 'annullato' and i.stato is distinct from public.stato_intervento_calcolato(i.id);
+```
+
+## SQL completo — rollback Fase B
+```sql
+-- ROLLBACK di 20261109090000_interventi_piu_operai.sql (torna esattamente alla Fase A).
+-- ATTENZIONE: le assegnazioni "rimosse" (storico) vengono eliminate, perche' senza la colonna
+-- rimosso_il tornerebbero attive e ridarebbero accesso all'intervento. Prima esportarle:
+--   select * from public.intervento_operai where rimosso_il is not null;   -> Export CSV
+-- Interventi, rapportini, ore e foto NON vengono toccati. Non tocca "rapporti" ne' "profili".
+begin;
+drop trigger if exists intervento_operai_rimozione on public.intervento_operai;
+drop trigger if exists intervento_operai_stato on public.intervento_operai;
+
+-- funzioni della Fase A, testo originale
+create or replace function public.assegnato_a(p_intervento uuid) returns boolean
+language sql stable security definer set search_path = '' as $$
+  select public.mio_ruolo() is not null and exists (select 1 from public.intervento_operai
+                 where intervento_id = p_intervento and operaio_id = auth.uid())
+$$;
+
+create or replace function public.controlla_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;          -- service_role / pannello
+  if tg_op = 'INSERT' then
+    new.creato_da := auth.uid();
+    new.creato_il := now();
+  else
+    new.creato_da := old.creato_da;
+    new.creato_il := old.creato_il;
+  end if;
+  new.aggiornato_il := now();
+  return new;
+end $$;
+
+create or replace function public.controlla_assegnazione() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  new.assegnato_da := auth.uid();
+  new.assegnato_il := now();
+  -- si assegnano solo account attivi che lavorano sul campo
+  if not exists (select 1 from public.profili p where p.id = new.operaio_id and p.attivo and p.ruolo in ('worker', 'admin')) then
+    raise exception 'Si possono assegnare solo operai attivi' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+create or replace function public.aggiorna_stato_intervento() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  id_int uuid := coalesce(new.intervento_id, old.intervento_id);
+begin
+  if id_int is null then return null; end if;
+  update public.interventi i set stato = case
+      when exists (select 1 from public.rapportini r where r.intervento_id = id_int and r.stato = 'completato') then 'completato'
+      when exists (select 1 from public.rapportini r where r.intervento_id = id_int) then 'in_corso'
+      else 'pianificato' end
+  where i.id = id_int and i.stato <> 'annullato';
+  return null;
+end $$;
+
+revoke execute on function public.controlla_intervento(), public.controlla_assegnazione(),
+  public.aggiorna_stato_intervento() from public, anon, authenticated;
+
+drop function if exists public.rimuovi_assegnazione();
+drop function if exists public.ricalcola_stato_intervento(uuid);
+drop function if exists public.stato_intervento_calcolato(uuid);
+
+-- storico delle assegnazioni rimosse (vedi avvertenza sopra), poi le colonne
+delete from public.intervento_operai where rimosso_il is not null;
+drop index if exists public.intervento_operai_attivi;
+alter table public.intervento_operai drop column if exists rimosso_da;
+alter table public.intervento_operai drop column if exists rimosso_il;
+
+-- stati riallineati alla regola della Fase A
+update public.interventi i set stato = case
+    when exists (select 1 from public.rapportini r where r.intervento_id = i.id and r.stato = 'completato') then 'completato'
+    when exists (select 1 from public.rapportini r where r.intervento_id = i.id) then 'in_corso'
+    else 'pianificato' end
+  where i.stato <> 'annullato';
+commit;
+```
+
+## SQL completo — migrazione Fase C
+```sql
+-- =====================================================================
+-- Fase C: foto dei rapportini in Supabase Storage (migrazione incrementale; richiede 20261108090000).
+--
+-- Bucket PRIVATO "allegati-rapportini": nessun URL pubblico. Ogni file sta in
+--   <id rapportino>/<id allegato>.<jpg|png|webp>      (id allegato = UUID casuale generato dal telefono)
+-- e si legge/scrive solo con la sessione dell'utente: le policy Storage usano le stesse funzioni
+-- delle policy RLS della tabella allegati (vede_rapportino / modifica_rapportino).
+--
+-- Nella tabella allegati restano solo i metadati (percorso, nome, tipo, dimensione, misure, impronta,
+-- autore, data). Le nuove foto NON possono piu' essere salvate in base64 (colonna contenuto): le righe
+-- gia' esistenti con contenuto restano leggibili (compatibilita').
+-- Un allegato si registra solo se il file e' davvero nello Storage, con la stessa dimensione:
+-- il database non puo' contenere riferimenti a file non caricati.
+--
+-- Non cambia: salva_rapportino, le policy delle altre tabelle, rapporti/profili e le 51 giornate.
+-- Ripetibile (if not exists / on conflict / create or replace / drop ... if exists).
+-- =====================================================================
+
+-- ---------------------------------------------------------------- bucket privato
+-- 3 MB: come il limite gia' previsto per una foto (contenuto <= 3.000.000 caratteri); l'app comprime
+-- a 1600 px JPEG (di solito 0,3-0,8 MB). Solo immagini.
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('allegati-rapportini', 'allegati-rapportini', false, 3145728, array['image/jpeg', 'image/png', 'image/webp'])
+on conflict (id) do update set public = false, file_size_limit = excluded.file_size_limit,
+  allowed_mime_types = excluded.allowed_mime_types;
+
+-- ---------------------------------------------------------------- metadati
+alter table public.allegati alter column contenuto drop not null;
+alter table public.allegati add column if not exists percorso text;
+alter table public.allegati add column if not exists mime text;
+alter table public.allegati add column if not exists dimensione integer;
+alter table public.allegati add column if not exists impronta text;      -- SHA-256 del file originale
+create unique index if not exists allegati_percorso on public.allegati (percorso) where percorso is not null;
+-- la stessa foto (stessa impronta) una sola volta per rapportino
+create unique index if not exists allegati_impronta on public.allegati (rapportino_id, impronta) where impronta is not null;
+do $$ begin
+  alter table public.allegati add constraint allegati_contenuto_o_percorso check (contenuto is not null or percorso is not null);
+exception when duplicate_object then null; end $$;
+
+-- rapportino a cui appartiene un percorso del bucket (null se il nome non ha la forma prevista)
+create or replace function public.rapportino_del_percorso(p_nome text) returns uuid
+language sql immutable set search_path = '' as $$
+  select case when p_nome ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(jpg|png|webp)$'
+    then split_part(p_nome, '/', 1)::uuid end
+$$;
+revoke execute on function public.rapportino_del_percorso(text) from public, anon;
+grant execute on function public.rapportino_del_percorso(text) to authenticated;
+
+-- controllo dei metadati (autore e data imposti come prima, piu' i controlli sul file)
+create or replace function public.controlla_allegato() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  dim bigint;
+begin
+  if auth.uid() is null then return new; end if;
+  new.caricato_da := auth.uid();
+  new.creato_il := now();
+  if new.contenuto is not null then
+    raise exception 'Le foto si caricano nello Storage, non nel database' using errcode = '23514';
+  end if;
+  if new.percorso is null or public.rapportino_del_percorso(new.percorso) is distinct from new.rapportino_id
+     or split_part(split_part(new.percorso, '/', 2), '.', 1) <> new.id::text then
+    raise exception 'Percorso della foto non valido' using errcode = '23514';
+  end if;
+  if new.mime is null or new.mime not in ('image/jpeg', 'image/png', 'image/webp') then
+    raise exception 'Tipo di file non consentito' using errcode = '23514';
+  end if;
+  select (o.metadata->>'size')::bigint into dim from storage.objects o
+    where o.bucket_id = 'allegati-rapportini' and o.name = new.percorso;
+  if not found then
+    raise exception 'Foto non ancora caricata nello Storage' using errcode = 'P0002';
+  end if;
+  if new.dimensione is null or dim is distinct from new.dimensione::bigint then
+    raise exception 'Foto caricata in modo incompleto' using errcode = '23514';
+  end if;
+  return new;
+end $$;
+revoke execute on function public.controlla_allegato() from public, anon, authenticated;
+
+-- registrazione idempotente dei metadati, DOPO l'upload (SECURITY INVOKER: valgono RLS e trigger).
+-- Stesso id gia' registrato (nuovo tentativo dopo una risposta persa) -> "ok" con la riga esistente.
+-- Stessa foto (impronta) gia' presente nel rapportino con un altro id -> "duplicato": l'app toglie
+-- il file appena caricato. Nessun errore non gestito e nessun doppione.
+create or replace function public.registra_allegato(p_allegato jsonb) returns jsonb
+language plpgsql security invoker set search_path = '' as $$
+declare
+  r public.allegati%rowtype;
+  v_id uuid := (p_allegato->>'id')::uuid;
+  v_rapportino uuid := (p_allegato->>'rapportino_id')::uuid;
+begin
+  insert into public.allegati (id, rapportino_id, tipo, nome, percorso, mime, dimensione, larghezza, altezza, impronta)
+  values (v_id, v_rapportino, 'foto', left(coalesce(p_allegato->>'nome', ''), 200), p_allegato->>'percorso',
+          p_allegato->>'mime', nullif(p_allegato->>'dimensione', '')::integer,
+          nullif(p_allegato->>'larghezza', '')::integer, nullif(p_allegato->>'altezza', '')::integer,
+          nullif(p_allegato->>'impronta', ''))
+  on conflict do nothing
+  returning * into r;
+  if found then return jsonb_build_object('esito', 'ok', 'allegato', to_jsonb(r) - 'contenuto'); end if;
+  select * into r from public.allegati where id = v_id;
+  if found then
+    if r.rapportino_id = v_rapportino and r.percorso = p_allegato->>'percorso' then
+      return jsonb_build_object('esito', 'ok', 'allegato', to_jsonb(r) - 'contenuto');
+    end if;
+    raise exception 'Allegato non registrato' using errcode = '42501';
+  end if;
+  select * into r from public.allegati where rapportino_id = v_rapportino and impronta = nullif(p_allegato->>'impronta', '');
+  if found then return jsonb_build_object('esito', 'duplicato', 'allegato', to_jsonb(r) - 'contenuto'); end if;
+  raise exception 'Allegato non registrato' using errcode = '42501';
+end $$;
+revoke execute on function public.registra_allegato(jsonb) from public, anon;
+grant execute on function public.registra_allegato(jsonb) to authenticated;
+
+-- ---------------------------------------------------------------- policy Storage (solo questo bucket)
+-- lettura: chi vede il rapportino; caricamento e cancellazione: chi puo' modificarlo (autore con
+-- rapportino in bozza, oppure admin). Nessuna policy di UPDATE: un file caricato non si sovrascrive.
+drop policy if exists allegati_rapportini_lettura on storage.objects;
+create policy allegati_rapportini_lettura on storage.objects for select to authenticated
+  using (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+         and public.vede_rapportino(public.rapportino_del_percorso(name)));
+drop policy if exists allegati_rapportini_caricamento on storage.objects;
+create policy allegati_rapportini_caricamento on storage.objects for insert to authenticated
+  with check (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+              and public.modifica_rapportino(public.rapportino_del_percorso(name)));
+drop policy if exists allegati_rapportini_cancellazione on storage.objects;
+create policy allegati_rapportini_cancellazione on storage.objects for delete to authenticated
+  using (bucket_id = 'allegati-rapportini' and public.rapportino_del_percorso(name) is not null
+         and public.modifica_rapportino(public.rapportino_del_percorso(name)));
+```
+
+## SQL completo — rollback Fase C
+```sql
+-- ROLLBACK di 20261110090000_allegati_storage.sql (torna alla Fase B).
+-- Non cancella nessuna foto:
+--  * i metadati delle foto nello Storage vengono COPIATI in backup.allegati_storage e solo poi tolti
+--    da public.allegati (la tabella della Fase B richiede il contenuto base64, che queste righe non hanno);
+--  * i file restano nel bucket "allegati-rapportini" (non cancellabili via SQL; senza le policy li vede
+--    solo il pannello / service role). Riapplicando la migrazione si possono rimettere con:
+--      insert into public.allegati (id, rapportino_id, tipo, nome, larghezza, altezza, caricato_da, creato_il,
+--        percorso, mime, dimensione, impronta)
+--      select id, rapportino_id, tipo, nome, larghezza, altezza, caricato_da, creato_il, percorso, mime, dimensione, impronta
+--      from backup.allegati_storage on conflict do nothing;   -- (eseguito come pannello: il trigger non scatta)
+-- Le foto in base64 (righe con contenuto) non vengono toccate.
+begin;
+drop policy if exists allegati_rapportini_lettura on storage.objects;
+drop policy if exists allegati_rapportini_caricamento on storage.objects;
+drop policy if exists allegati_rapportini_cancellazione on storage.objects;
+drop function if exists public.registra_allegato(jsonb);
+
+create schema if not exists backup;
+create table if not exists backup.allegati_storage as select * from public.allegati where false;
+insert into backup.allegati_storage select a.* from public.allegati a
+  where a.percorso is not null and not exists (select 1 from backup.allegati_storage b where b.id = a.id);
+delete from public.allegati where percorso is not null and contenuto is null;
+
+-- funzione della Fase A, testo originale
+create or replace function public.controlla_allegato() returns trigger
+language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then return new; end if;
+  new.caricato_da := auth.uid();
+  new.creato_il := now();
+  return new;
+end $$;
+revoke execute on function public.controlla_allegato() from public, anon, authenticated;
+
+alter table public.allegati drop constraint if exists allegati_contenuto_o_percorso;
+drop index if exists public.allegati_impronta;
+drop index if exists public.allegati_percorso;
+alter table public.allegati drop column if exists impronta;
+alter table public.allegati drop column if exists dimensione;
+alter table public.allegati drop column if exists mime;
+alter table public.allegati drop column if exists percorso;
+alter table public.allegati alter column contenuto set not null;
+drop function if exists public.rapportino_del_percorso(text);
+-- il bucket resta (privato) con i file: eliminarlo solo dopo averli scaricati, dal pannello Storage
 commit;
 ```
