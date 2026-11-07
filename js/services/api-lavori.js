@@ -19,6 +19,9 @@ function traduci(error){
   if(/completato/i.test(m)) return "Il rapportino è completato: può riaprirlo solo l'amministratore.";
   if(/assegnato/i.test(m)) return "Non sei assegnato a questo intervento.";
   if(/foreign key|violates foreign/i.test(m)) return "Operazione non possibile: ci sono dati collegati (es. rapportini).";
+  if(/non modificabile|duplicate key|23505/i.test(m + error.code)) return "Questo rapportino non è modificabile da te.";
+  // frontend pubblicato prima della migrazione: le tabelle nuove non esistono ancora
+  if(/PGRST205|42P01|PGRST202|does not exist|Could not find the (table|function)/i.test(m + error.code)) return "Interventi e rapportini non sono ancora attivi sul server.";
   if(/permission|policy|42501|row-level/i.test(m + error.code)) return "Operazione non consentita.";
   if(/Failed to fetch|NetworkError|network/i.test(m)) return "Nessuna connessione. Riprova quando c'è rete.";
   return m || "Errore del server.";

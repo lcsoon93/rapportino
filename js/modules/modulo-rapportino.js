@@ -20,13 +20,16 @@ import { icona } from "../utils/dom.js";
 import { PRIORITA, STATO_RAPPORTINO, oraBreve } from "./gestione-interventi.js";
 
 const $ = id=>document.getElementById(id);
-let corrente = null;         // { id, versione, intervento_id, intervento, stato, autore_id, aggiornato_il }
+let corrente = null;         // { id, salvato, versione, intervento_id, intervento, stato, autore_id, aggiornato_il }
 let allegati = [];
 let sporco = false;
 let vistaDiRitorno = "lavoro";
 
 function messaggio(testo, tipo){ $("rap-msg").textContent = testo || ""; $("rap-msg").className = "msg-info" + (tipo ? " " + tipo : ""); }
-const chiaveLocale = ()=>"bozzaRapportino:" + (corrente.id || ("nuovo:" + (corrente.intervento_id || "autonomo")));
+// l'id lo genera il telefono: lo stesso rapportino inviato due volte non diventa un doppione
+const PREFISSO = "bozzaRapportino:";
+const chiaveLocale = ()=>PREFISSO + corrente.id;
+const nuovoId = ()=>crypto.randomUUID();
 const modificabile = ()=>!!corrente && corrente.stato === "bozza" && puo("rapportini.compila") &&
   (corrente.autore_id === (profilo && profilo.id) || puo("rapportini.riapri"));
 
@@ -75,7 +78,7 @@ function aggiornaTotale(){
 function leggiModulo(){
   return {
     rapportino: {
-      id: corrente.id || null, versione: corrente.versione || null, intervento_id: corrente.intervento_id || null,
+      id: corrente.id, versione: corrente.salvato ? corrente.versione : null, intervento_id: corrente.intervento_id || null,
       data: $("rf-data").value, cliente: $("rf-cliente").value.trim(), indirizzo: $("rf-indirizzo").value.trim(),
       tipologia: $("rf-tipologia").value, attivita: $("rf-attivita").value.trim(), note: $("rf-note").value.trim(),
       esito: $("rf-esito").value,
@@ -122,8 +125,8 @@ function aggiornaStatoUI(){
   $("rap-form").querySelectorAll("input, textarea, select").forEach(el=>{ el.disabled = !scrivibile; });
   document.querySelectorAll(".rf-solo-bozza").forEach(el=>el.classList.toggle("nascosto", !scrivibile));
   $("rf-riapri").classList.toggle("nascosto", !(corrente && corrente.stato === "completato" && puo("rapportini.riapri")));
-  $("rf-pdf").classList.toggle("nascosto", !corrente || !corrente.id);
-  const stato = corrente.id ? STATO_RAPPORTINO[corrente.stato] : '<span class="badge neutro">Nuovo</span>';
+  $("rf-pdf").classList.toggle("nascosto", !corrente || !corrente.salvato);
+  const stato = corrente.salvato ? STATO_RAPPORTINO[corrente.stato] : '<span class="badge neutro">Non ancora inviato</span>';
   $("rap-sottotitolo").innerHTML = stato + (corrente.autore_id && profilo && corrente.autore_id !== profilo.id ? ' <span class="badge pervinca">di ' + esc(nomeOperaio(corrente.autore_id)) + '</span>' : '');
   const i = corrente.intervento;
   $("rap-intervento").classList.toggle("nascosto", !i);
@@ -138,14 +141,39 @@ function aggiornaStatoUI(){
 // ---------------------------------------------------------------- bozza sul telefono
 function salvaLocale(){
   if(!corrente || !modificabile()) return;
-  try{ localStorage.setItem(chiaveLocale(), JSON.stringify({ quando: new Date().toISOString(), base: corrente.aggiornato_il || null, ...leggiModulo() })); }catch(e){}
+  try{
+    localStorage.setItem(chiaveLocale(), JSON.stringify({
+      quando: new Date().toISOString(), base: corrente.aggiornato_il || null, salvato: !!corrente.salvato,
+      autore: profilo && profilo.id, intervento_id: corrente.intervento_id || null, ...leggiModulo(),
+    }));
+  }catch(e){}
 }
 function cancellaLocale(chiave){ try{ localStorage.removeItem(chiave || chiaveLocale()); }catch(e){} }
+function leggiLocale(id){
+  try{ return JSON.parse(localStorage.getItem(PREFISSO + id) || "null"); }catch(e){ return null; }
+}
+// rapportini con modifiche rimaste solo sul telefono (dell'utente collegato)
+export function bozzeLocali(){
+  const out = [];
+  try{
+    for(let i = 0; i < localStorage.length; i++){
+      const k = localStorage.key(i);
+      if(!k || !k.startsWith(PREFISSO)) continue;
+      const l = JSON.parse(localStorage.getItem(k) || "null");
+      if(l && profilo && l.autore === profilo.id) out.push({ id: k.slice(PREFISSO.length), quando: l.quando, salvato: l.salvato,
+        cliente: l.rapportino.cliente, data: l.rapportino.data, intervento_id: l.intervento_id });
+    }
+  }catch(e){}
+  return out.sort((a, b)=>b.quando.localeCompare(a.quando));
+}
 function recuperaLocale(){
-  let l = null;
-  try{ l = JSON.parse(localStorage.getItem(chiaveLocale()) || "null"); }catch(e){}
-  // solo se e' piu' recente della versione del server da cui era partita
-  if(!l || (corrente.aggiornato_il && l.base !== corrente.aggiornato_il)) return false;
+  const l = leggiLocale(corrente.id);
+  if(!l) return false;
+  // partita dalla stessa versione del server (o mai inviata): si riprende senza chiedere
+  if(corrente.aggiornato_il && l.base !== corrente.aggiornato_il &&
+     !confirm("Sul telefono ci sono modifiche non inviate fatte su una versione precedente di questo rapportino. Recuperarle?")){
+    return false;
+  }
   riempiModulo(l.rapportino, l.ore);
   sporco = true;
   messaggio("Recuperate le modifiche non ancora salvate sul server. Salva per inviarle.", "att");
@@ -173,8 +201,21 @@ export async function apriRapportino(id){
   messaggio("Caricamento…");
   try{
     const r = await leggiRapportino(id);
-    if(!r){ messaggio("Rapportino non trovato o non autorizzato.", "err"); return; }
-    corrente = { id: r.id, versione: r.versione, intervento_id: r.intervento_id, intervento: r.interventi, stato: r.stato,
+    if(!r){
+      const l = leggiLocale(id);
+      if(l && profilo && l.autore === profilo.id){
+        // mai arrivato al server: si riprende dal telefono
+        corrente = { id, salvato: false, versione: null, intervento_id: l.intervento_id, intervento: null, stato: "bozza", autore_id: profilo.id };
+        if(l.intervento_id) corrente.intervento = await leggiIntervento(l.intervento_id).catch(()=>null);
+        riempiModulo(l.rapportino, l.ore);
+        sporco = true;
+        messaggio("Rapportino non ancora inviato: salva quando c'è rete.", "att");
+        aggiornaStatoUI();
+        return;
+      }
+      messaggio("Rapportino non trovato o non autorizzato.", "err"); return;
+    }
+    corrente = { id: r.id, salvato: true, versione: r.versione, intervento_id: r.intervento_id, intervento: r.interventi, stato: r.stato,
       autore_id: r.autore_id, aggiornato_il: r.aggiornato_il };
     riempiModulo(r, r.rapportino_operai);
     sporco = false;
@@ -192,21 +233,21 @@ export async function rapportinoPerIntervento(interventoId){
     const miei = await elencoRapportini({ intervento: interventoId, autore: profilo.id });
     const bozza = miei.find(r=>r.stato === "bozza") || miei[0];
     if(bozza) return apriRapportino(bozza.id);
+    const locale = bozzeLocali().find(b=>b.intervento_id === interventoId);
+    if(locale) return apriRapportino(locale.id);
     const i = await leggiIntervento(interventoId);
     await prepara();
-    corrente = { id: null, versione: null, intervento_id: interventoId, intervento: i, stato: "bozza", autore_id: profilo.id };
+    corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: interventoId, intervento: i, stato: "bozza", autore_id: profilo.id };
     riempiModulo({ data: i.data > oggiIso() ? i.data : oggiIso(), cliente: i.cliente, indirizzo: i.indirizzo, tipologia: i.tipologia }, null);
     sporco = false;
-    recuperaLocale();
     aggiornaStatoUI();
   }catch(e){ alert(e.message); }
 }
 export async function nuovoRapportinoAutonomo(){
   await prepara();
-  corrente = { id: null, versione: null, intervento_id: null, intervento: null, stato: "bozza", autore_id: profilo.id };
+  corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: null, intervento: null, stato: "bozza", autore_id: profilo.id };
   riempiModulo({ data: oggiIso() }, null);
   sporco = false;
-  recuperaLocale();
   aggiornaStatoUI();
   $("rf-cliente").focus({ preventScroll: true });
 }
@@ -232,11 +273,16 @@ async function salva(completa){
   try{
     const r = await salvaRapportino(rapportino, ore, completa);
     if(r.esito === "conflitto"){
-      messaggio("Il rapportino è stato modificato da un altro dispositivo. Le tue modifiche restano sul telefono: ricarica e controlla.", "att");
+      const srv = r.rapportino;
+      corrente = Object.assign(corrente, { versione: srv.versione, aggiornato_il: srv.aggiornato_il });
+      salvaLocale();
+      messaggio(srv.stato === "completato" && !puo("rapportini.riapri")
+        ? "Nel frattempo il rapportino è stato completato da un altro dispositivo: non è più modificabile. Le tue modifiche restano su questo telefono."
+        : "Nel frattempo questo rapportino è stato salvato da un altro dispositivo. Le tue modifiche sono ancora qui: premi di nuovo Salva per sostituire quella versione con la tua, oppure torna indietro e riaprilo per vedere quella salvata.", "att");
       return false;
     }
     const s = r.rapportino;
-    corrente = Object.assign(corrente, { id: s.id, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
+    corrente = Object.assign(corrente, { id: s.id, salvato: true, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
     cancellaLocale(chiavePrima);
     sporco = false;
     aggiornaStatoUI();
@@ -253,7 +299,7 @@ async function salva(completa){
 export function salvaBozzaRapportino(){ return salva(false); }
 export function completaRapportino(){ return salva(true); }
 export async function riapriRapportinoAperto(){
-  if(!corrente || !corrente.id || !confirm("Riaprire il rapportino? Tornerà in bozza e l'autore potrà modificarlo.")) return;
+  if(!corrente || !corrente.salvato || !confirm("Riaprire il rapportino? Tornerà in bozza e l'autore potrà modificarlo.")) return;
   try{ await riapriRapportino(corrente.id); await apriRapportino(corrente.id); messaggio("Rapportino riaperto."); }catch(e){ messaggio(e.message, "err"); }
 }
 
@@ -262,7 +308,7 @@ export async function aggiungiFotoRapportino(input){
   const files = [...(input.files || [])];
   input.value = "";
   if(!files.length) return;
-  if(!corrente.id && !(await salva(false))) return;
+  if(!corrente.salvato && !(await salva(false))) return;
   for(const f of files){
     try{
       const foto = await comprimiImmagine(f);
@@ -276,7 +322,7 @@ export async function aggiungiFotoRapportino(input){
 
 // PDF: stessa impaginazione delle schede del foglio giornaliero
 export function pdfRapportino(btn){
-  if(!corrente || !corrente.id) return;
+  if(!corrente || !corrente.salvato) return;
   const { rapportino: r, ore } = leggiModulo();
   const dati = {
     tecnici: ore.map(o=>nomeOperaio(o.operaio_id)).join(" / "),

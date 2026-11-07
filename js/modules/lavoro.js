@@ -7,6 +7,7 @@ import { dataIt, dataLunga, isoDi, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
 import { PRIORITA, STATO_INTERVENTO, STATO_RAPPORTINO, oraBreve } from "./gestione-interventi.js";
+import { bozzeLocali } from "./modulo-rapportino.js";
 
 const $ = id=>document.getElementById(id);
 const PESO = { urgente: 0, alta: 1, normale: 2, bassa: 3 };
@@ -60,6 +61,14 @@ export async function disegnaLavoro(){
     return;
   }
   $("lavoro-stato").textContent = "";
+  const locali = bozzeLocali();
+  $("lavoro-locali-box").classList.toggle("nascosto", !locali.length);
+  $("lavoro-locali").innerHTML = '<div class="card cli-elenco">' + locali.map(b=>
+    '<button type="button" class="cli-riga" onclick="apriRapportino(\'' + b.id + '\')">' +
+    '<span class="avatar" aria-hidden="true">' + icona("alert") + '</span>' +
+    '<span class="cli-testi"><span class="cli-nome" style="display:block">' + esc(b.cliente || "(senza cliente)") + '</span>' +
+    '<span class="cli-ind" style="display:block">' + esc(b.data ? dataIt(b.data) : "") + ' · ' + (b.salvato ? "modifiche non inviate" : "mai inviato") + '</span></span>' +
+    icona("chev-r", "chev") + '</button>').join("") + '</div>';
   const mio = id=>rapportini.find(r=>r.intervento_id === id);
   const aperti = interventi.filter(i=>{
     const r = mio(i.id);

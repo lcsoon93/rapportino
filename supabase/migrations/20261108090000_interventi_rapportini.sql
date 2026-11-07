@@ -300,7 +300,7 @@ create policy intervento_operai_eliminazione on public.intervento_operai for del
 -- rapportini: autore (o operaio indicato nelle ore) e chi pianifica vedono; solo operai/admin scrivono
 create policy rapportini_lettura on public.rapportini for select to authenticated
   using ((select public.pianifica()) or ((select public.mio_ruolo()) is not null and (autore_id = (select auth.uid())
-         or exists (select 1 from public.rapportino_operai o where o.rapportino_id = id and o.operaio_id = (select auth.uid())))));
+         or exists (select 1 from public.rapportino_operai o where o.rapportino_id = rapportini.id and o.operaio_id = (select auth.uid())))));
 create policy rapportini_inserimento on public.rapportini for insert to authenticated
   with check ((select public.compila()) and autore_id = (select auth.uid()));
 create policy rapportini_modifica on public.rapportini for update to authenticated
@@ -339,41 +339,45 @@ grant execute on function public.operai_attivi() to authenticated;
 
 -- ---------------------------------------------------------------- salvataggio atomico di un rapportino
 -- Salva testata e ore in una sola transazione (SECURITY INVOKER: valgono RLS e trigger di chi chiama).
--- p_rapportino: { id?, versione?, intervento_id?, data, cliente, indirizzo, tipologia, attivita,
+-- p_rapportino: { id, versione?, intervento_id?, data, cliente, indirizzo, tipologia, attivita,
 --                 materiali, note, esito, firma, firmatario }
 -- p_ore: [ { operaio_id, dalle, alle } ]   p_completa: true per completare (controlli obbligatori)
--- Se il rapportino e' stato salvato da altri dopo la lettura (versione diversa) restituisce "conflitto".
+-- L'id lo genera il telefono: un secondo invio dello stesso rapportino (es. dopo un errore di rete)
+-- aggiorna quello gia' salvato invece di crearne un doppione.
+-- Con "versione": se nel frattempo qualcuno ha salvato restituisce "conflitto" senza sovrascrivere.
+-- Se una parte fallisce (es. ore non valide) non viene salvato nulla.
 create or replace function public.salva_rapportino(p_rapportino jsonb, p_ore jsonb, p_completa boolean default false)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
 declare
   r public.rapportini%rowtype;
-  v_id uuid := nullif(p_rapportino->>'id', '')::uuid;
+  v_id uuid := coalesce(nullif(p_rapportino->>'id', '')::uuid, gen_random_uuid());
   v_versione integer := nullif(p_rapportino->>'versione', '')::integer;
 begin
-  if v_id is null then
-    insert into public.rapportini (intervento_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, firma, firmatario)
-    values (nullif(p_rapportino->>'intervento_id', '')::uuid, (p_rapportino->>'data')::date,
+  update public.rapportini set
+    data = (p_rapportino->>'data')::date,
+    cliente = coalesce(p_rapportino->>'cliente', ''), indirizzo = coalesce(p_rapportino->>'indirizzo', ''),
+    tipologia = coalesce(p_rapportino->>'tipologia', ''), attivita = coalesce(p_rapportino->>'attivita', ''),
+    materiali = coalesce(p_rapportino->'materiali', '[]'::jsonb), note = coalesce(p_rapportino->>'note', ''),
+    esito = coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'),
+    firma = coalesce(p_rapportino->>'firma', ''), firmatario = coalesce(p_rapportino->>'firmatario', '')
+  where id = v_id and (v_versione is null or versione = v_versione)
+  returning * into r;
+  if not found then
+    select * into r from public.rapportini where id = v_id;
+    if found then
+      -- esiste ed e' visibile: o non e' dell'utente, o e' cambiato dopo la lettura
+      if not public.modifica_rapportino(v_id) then
+        raise exception 'Rapportino non modificabile' using errcode = '42501';
+      end if;
+      return jsonb_build_object('esito', 'conflitto', 'rapportino', to_jsonb(r));
+    end if;
+    -- nuovo (se l'id appartiene a un rapportino non visibile l'inserimento fallisce: chiave duplicata)
+    insert into public.rapportini (id, intervento_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, firma, firmatario)
+    values (v_id, nullif(p_rapportino->>'intervento_id', '')::uuid, (p_rapportino->>'data')::date,
             coalesce(p_rapportino->>'cliente', ''), coalesce(p_rapportino->>'indirizzo', ''), coalesce(p_rapportino->>'tipologia', ''),
             coalesce(p_rapportino->>'attivita', ''), coalesce(p_rapportino->'materiali', '[]'::jsonb), coalesce(p_rapportino->>'note', ''),
             coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'), coalesce(p_rapportino->>'firma', ''), coalesce(p_rapportino->>'firmatario', ''))
     returning * into r;
-  else
-    update public.rapportini set
-      data = (p_rapportino->>'data')::date,
-      cliente = coalesce(p_rapportino->>'cliente', ''), indirizzo = coalesce(p_rapportino->>'indirizzo', ''),
-      tipologia = coalesce(p_rapportino->>'tipologia', ''), attivita = coalesce(p_rapportino->>'attivita', ''),
-      materiali = coalesce(p_rapportino->'materiali', '[]'::jsonb), note = coalesce(p_rapportino->>'note', ''),
-      esito = coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'),
-      firma = coalesce(p_rapportino->>'firma', ''), firmatario = coalesce(p_rapportino->>'firmatario', '')
-    where id = v_id and (v_versione is null or versione = v_versione)
-    returning * into r;
-    if not found then
-      select * into r from public.rapportini where id = v_id;
-      if found then
-        return jsonb_build_object('esito', 'conflitto', 'rapportino', to_jsonb(r));
-      end if;
-      raise exception 'Rapportino non trovato o non modificabile' using errcode = '42501';
-    end if;
   end if;
   delete from public.rapportino_operai where rapportino_id = r.id;
   insert into public.rapportino_operai (rapportino_id, operaio_id, dalle, alle)
