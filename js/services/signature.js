@@ -18,11 +18,17 @@ export function aggiornaAnteprimaFirma(clienteDiv, dataURL){
     bottoneCancella.classList.add("nascosto");
   }
 }
+// la firma puo' stare nel foglio giornaliero (si salva la giornata) o in un altro modulo, es. il
+// rapportino: in quel caso si avvisa solo con l'evento "firma-cambiata" e salva chi la contiene
+function avvisaCambio(scheda){
+  if(scheda && scheda.closest("#vista-giorno")) segnalaModifica();
+  else emetti("firma-cambiata", scheda);
+}
 export function pulisciFirma(btn){
   const clienteDiv = btn.closest(".cliente");
   clienteDiv.querySelector(".c-firma-dato").value = "";
   aggiornaAnteprimaFirma(clienteDiv, "");
-  segnalaModifica();
+  avvisaCambio(clienteDiv);
 }
 // adatta il canvas alla superficie disponibile (nitido su schermi ad alta densita').
 // Con conserva=true (rotazione del telefono) ridisegna la firma gia' fatta, centrata e senza deformarla.
@@ -167,7 +173,7 @@ export function chiudiFirmaOverlay(conferma){
     const dataURL = ritagliaFirma(canvas);
     clienteFirmaCorrente.querySelector(".c-firma-dato").value = dataURL;
     aggiornaAnteprimaFirma(clienteFirmaCorrente, dataURL);
-    segnalaModifica();
+    avvisaCambio(clienteFirmaCorrente);
   }
   document.getElementById("firma-overlay").classList.add("nascosto");
   clienteFirmaCorrente = null;

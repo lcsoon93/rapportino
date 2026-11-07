@@ -4,11 +4,11 @@ import { emetti } from "./eventi.js";
 import { puo, vistaIniziale, vocinav } from "./permessi.js";
 
 // home = cruscotto (admin); giorno = rapportino (editor); sett/mese = calendario; cerca = clienti;
-// altro = strumenti; lavoro = dashboard operaio; company = pianificazione; rapporti = rapportini
-// compilati (company); utenti = gestione utenti (admin)
-export const VISTE = ["home","giorno","sett","mese","cerca","altro","lavoro","company","rapporti","utenti"];
+// altro = strumenti; lavoro = dashboard operaio; interventi = pianificazione (admin, company);
+// rapportino = modulo del rapportino; rapporti = consultazione; utenti = gestione utenti (admin)
+export const VISTE = ["home","giorno","sett","mese","cerca","altro","lavoro","interventi","rapportino","rapporti","utenti"];
 export const VOCE_NAV = {home:"home", giorno:"home", sett:"cal", mese:"cal", cerca:"clienti", altro:"altro",
-  lavoro:"lavoro", company:"company", rapporti:"rapporti", utenti:"altro"};
+  lavoro:"lavoro", interventi:"interventi", rapportino:"rapporti", rapporti:"rapporti", utenti:"altro"};
 export let vistaCorrente = "home";
 export let ultimaVistaCal = "mese";
 export const disegnatori = {};          // vista -> funzione che la ridisegna quando viene mostrata

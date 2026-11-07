@@ -344,9 +344,9 @@
           <div class="gruppo-tit">Amministrazione</div>
           <div class="card">
             <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Operai: crea, disattiva, reimposta password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('company')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Pianificazione e assegnazioni</span><span class="v-sub">Schede cliente e operai per giornata</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('rapporti')"><span class="v-ic pervinca"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportini compilati</span><span class="v-sub">Vista per mese con PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te come operaio</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('interventi')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Interventi</span><span class="v-sub">Crea, assegna agli operai, stato</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('rapporti')"><span class="v-ic pervinca"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportini</span><span class="v-sub">Rapportini degli operai e giornate, con PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te e tuoi rapportini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
         <div class="gruppo" data-permesso="rapportino.compila">
@@ -398,7 +398,7 @@
   </section>
 
 
-  <!-- ================= DASHBOARD OPERAIO ================= -->
+  <!-- ================= LAVORO (operaio; admin: "Il mio lavoro") ================= -->
   <section id="vista-lavoro" class="nascosto">
     <div class="saluto">
       <h1 id="lavoro-saluto">Il mio lavoro</h1>
@@ -407,83 +407,138 @@
     <div class="card riepilogo">
       <div class="stat-griglia">
         <div class="stat brand"><span class="stat-val" id="st-l-dafare">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Da fare</span></div>
-        <div class="stat att"><span class="stat-val" id="st-l-incorso">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>In lavorazione</span></div>
-        <div class="stat ok"><span class="stat-val" id="st-l-completati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Completati</span></div>
-        <div class="stat pervinca"><span class="stat-val" id="st-l-giornate">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-cal"/></svg>Giornate assegnate</span></div>
+        <div class="stat att"><span class="stat-val" id="st-l-bozze">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-pen"/></svg>Bozze</span></div>
+        <div class="stat ok"><span class="stat-val" id="st-l-completati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Completati (mese)</span></div>
+        <div class="stat pervinca"><span class="stat-val" id="st-l-ore">0 ore</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Ore (mese)</span></div>
       </div>
     </div>
     <div class="home-cta">
-      <button type="button" class="btn btn-primario btn-xl" onclick="nuovoRapportino()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo intervento</button>
+      <button type="button" class="btn btn-primario btn-xl" onclick="nuovoRapportinoAutonomo()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo rapportino</button>
     </div>
+    <div class="msg-info" id="lavoro-stato" role="status" aria-live="polite"></div>
     <div class="sezione-head"><h2>Interventi assegnati</h2></div>
-    <div id="lavoro-assegnati"></div>
-    <div class="sezione-head"><h2>In lavorazione</h2></div>
-    <div id="lavoro-incorso"></div>
-    <div class="sezione-head"><h2>Completati</h2></div>
+    <div id="lavoro-interventi"></div>
+    <div class="sezione-head"><h2>Bozze</h2></div>
+    <div id="lavoro-bozze"></div>
+    <div class="sezione-head"><h2>Completati di recente</h2></div>
     <div id="lavoro-completati"></div>
-    <div class="sezione-head"><h2>Storico</h2></div>
-    <div id="lavoro-storico"></div>
   </section>
 
-  <!-- ================= PIANIFICAZIONE (company e admin) ================= -->
-  <section id="vista-company" class="nascosto">
-    <div class="vista-head"><div class="vh-testi"><h1>Pianificazione</h1><div class="vh-sub">Prepara le giornate, crea le schede cliente e assegna gli operai</div></div></div>
-    <div class="giorno-sel" role="group" aria-label="Giornata da pianificare">
-      <button type="button" class="gs-freccia" onclick="spostaPianificazione(-1)" aria-label="Giorno precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
-      <div class="gs-data">
-        <svg class="i i-sm" style="color:var(--brand)"><use href="#i-cal"/></svg>
-        <span id="pian-etichetta"></span>
-        <input type="date" id="pian-data" aria-label="Scegli la giornata" onchange="caricaPianificazione()">
+  <!-- ================= INTERVENTI (admin e company) ================= -->
+  <section id="vista-interventi" class="nascosto">
+    <div class="vista-head">
+      <div class="vh-testi"><h1>Interventi</h1><div class="vh-sub">Crea, assegna agli operai e segui lo stato</div></div>
+    </div>
+    <button type="button" class="btn btn-primario btn-xl" id="int-nuovo" onclick="apriModuloIntervento()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo intervento</button>
+
+    <form class="modulo nascosto" id="int-form" novalidate style="margin-top:14px">
+      <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span><span id="int-form-titolo">Nuovo intervento</span></div>
+      <div class="due">
+        <div><label for="int-data">Data</label><input type="date" id="int-data" required></div>
+        <div><label for="int-ora">Ora (facoltativa)</label><input type="time" id="int-ora"></div>
       </div>
-      <button type="button" class="gs-freccia" onclick="spostaPianificazione(1)" aria-label="Giorno successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
-    </div>
-    <div class="msg-info" id="pian-stato" role="status" aria-live="polite"></div>
-
-    <div class="modulo">
-      <div class="titolo"><span class="t-icona pervinca"><svg class="i"><use href="#i-users"/></svg></span>Operai assegnati</div>
-      <div id="pian-operai"><div class="nota" style="padding:0">Caricamento…</div></div>
-    </div>
-
-    <div class="modulo">
-      <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span>Schede cliente<span class="t-num" id="pian-num">0</span></div>
-      <div id="pian-schede"></div>
-    </div>
-
-    <form class="modulo" id="pian-form" novalidate>
-      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-plus"/></svg></span><span id="pian-form-titolo">Nuova scheda cliente</span></div>
-      <label for="pian-nome">Cliente / luogo</label>
-      <input type="text" id="pian-nome" autocomplete="off" required>
-      <div class="campo"><label for="pian-indirizzo">Indirizzo</label>
-      <input type="text" id="pian-indirizzo" autocomplete="off"></div>
+      <div class="campo"><label for="int-cliente">Cliente</label><input type="text" id="int-cliente" autocomplete="off" required></div>
+      <div class="campo"><label for="int-indirizzo">Indirizzo</label><input type="text" id="int-indirizzo" autocomplete="off"></div>
+      <div class="campo"><label for="int-descrizione">Descrizione</label><textarea id="int-descrizione" placeholder="Cosa c'è da fare"></textarea></div>
       <div class="due campo">
-        <div><label for="pian-ora">Ora prevista</label><input type="time" id="pian-ora"></div>
-        <div><label for="pian-tipologia">Tipologia</label>
-          <select id="pian-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
+        <div><label for="int-priorita">Priorità</label>
+          <select id="int-priorita"><option value="bassa">Bassa</option><option value="normale" selected>Normale</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
+        <div><label for="int-tipologia">Tipologia</label>
+          <select id="int-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
       </div>
-      <div class="campo"><label for="pian-richiesta">Cosa fare (per l'operaio)</label>
-      <textarea id="pian-richiesta" placeholder="Descrizione dell'intervento richiesto"></textarea></div>
-      <label class="check" style="margin-top:6px"><input type="checkbox" id="pian-urgente"><span>Intervento urgente</span></label>
-      <div class="msg-errore" id="pian-errore" role="alert"></div>
-      <div class="due" style="margin-top:8px">
-        <div><button type="submit" class="btn btn-secondario btn-blocco" id="pian-aggiungi"><svg class="i"><use href="#i-plus"/></svg><span>Aggiungi scheda</span></button></div>
-        <div><button type="button" class="btn btn-secondario btn-blocco nascosto" id="pian-annulla-modifica">Annulla modifica</button></div>
+      <div class="campo"><label>Operai assegnati</label><div id="int-operai" class="card" style="padding:4px 14px"></div></div>
+      <div class="msg-errore" id="int-errore" role="alert"></div>
+      <div class="due" style="margin-top:12px">
+        <div><button type="button" class="btn btn-secondario btn-blocco" onclick="chiudiModuloIntervento()">Annulla</button></div>
+        <div><button type="submit" class="btn btn-primario btn-blocco" id="int-salva"><svg class="i"><use href="#i-check"/></svg><span>Salva</span></button></div>
       </div>
     </form>
 
-    <button type="button" class="btn btn-primario btn-xl" id="pian-invia" onclick="inviaPianificazione()"><svg class="i i-lg"><use href="#i-send"/></svg><span>Salva e invia agli operai</span></button>
-    <p class="nota" style="padding:12px 2px">Gli operai assegnati vedono la giornata nella loro app alla prossima sincronizzazione. Le schede già compilate dagli operai non si possono modificare da qui.</p>
+    <div class="periodo" style="margin-top:16px">
+      <button type="button" class="freccia" onclick="spostaPeriodoInterventi(-1)" aria-label="Settimana precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <input type="date" id="int-dal" onchange="disegnaInterventi()" aria-label="Dal giorno">
+      <button type="button" class="freccia" onclick="spostaPeriodoInterventi(1)" aria-label="Settimana successiva"><svg class="i"><use href="#i-chev-r"/></svg></button>
+    </div>
+    <label class="check" style="margin:-4px 2px 8px"><input type="checkbox" id="int-chiusi" onchange="disegnaInterventi()"><span>Mostra anche completati e annullati</span></label>
+    <div class="msg-info" id="int-stato" role="status" aria-live="polite"></div>
+    <div id="int-elenco"></div>
   </section>
 
+  <!-- ================= RAPPORTINO (modulo) ================= -->
+  <section id="vista-rapportino" class="nascosto">
+    <div class="vista-head">
+      <button type="button" class="indietro" onclick="chiudiRapportino()" aria-label="Indietro"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Rapportino</h1><div class="vh-sub" id="rap-sottotitolo"></div></div>
+    </div>
+    <div class="msg-info" id="rap-msg" role="status" aria-live="polite"></div>
+    <div class="card cli-scheda nascosto" id="rap-intervento"></div>
+
+    <form id="rap-form" novalidate>
+      <div class="modulo">
+        <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span>Cliente e intervento</div>
+        <div class="due">
+          <div><label for="rf-data">Data</label><input type="date" id="rf-data" required></div>
+          <div><label for="rf-esito">Esito</label><select id="rf-esito"><option>Completato</option><option>Da ultimare</option></select></div>
+        </div>
+        <div class="campo"><label for="rf-cliente">Cliente / luogo</label><input type="text" id="rf-cliente" autocomplete="off" required></div>
+        <div class="campo"><label for="rf-indirizzo">Indirizzo</label><input type="text" id="rf-indirizzo" autocomplete="off"></div>
+        <div class="campo"><label for="rf-tipologia">Tipologia</label>
+          <select id="rf-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
+        <div class="campo"><label for="rf-attivita">Attività svolte</label><textarea id="rf-attivita" placeholder="Cosa avete fatto" rows="4"></textarea></div>
+        <div class="campo"><label>Materiale utilizzato</label><div id="rf-materiali"></div>
+          <button type="button" class="mat-add" onclick="aggiungiMaterialeRapportino()"><svg class="i"><use href="#i-plus"/></svg>Riga materiale</button></div>
+        <div class="campo"><label for="rf-note">Note</label><textarea id="rf-note" rows="2"></textarea></div>
+      </div>
+
+      <div class="modulo">
+        <div class="titolo"><span class="t-icona pervinca"><svg class="i"><use href="#i-clock"/></svg></span>Ore lavorate<span class="t-num" id="rf-totale-ore">0 ore</span></div>
+        <div id="rf-ore"></div>
+        <button type="button" class="aggiungi" onclick="aggiungiOreRapportino()"><svg class="i"><use href="#i-plus"/></svg>Aggiungi operaio</button>
+      </div>
+
+      <div class="modulo">
+        <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-camera"/></svg></span>Foto</div>
+        <div class="foto-galleria" id="rf-foto"></div>
+        <input type="file" id="rf-foto-file" accept="image/*" multiple style="display:none" onchange="aggiungiFotoRapportino(this)">
+        <input type="file" id="rf-foto-camera" accept="image/*" capture="environment" style="display:none" onchange="aggiungiFotoRapportino(this)">
+        <div class="foto-bottoni rf-solo-bozza">
+          <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-file').click()"><svg class="i"><use href="#i-image"/></svg>Carica foto</button>
+          <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-camera').click()"><svg class="i"><use href="#i-camera"/></svg>Scatta foto</button>
+        </div>
+      </div>
+
+      <div class="modulo">
+        <div class="titolo"><span class="t-icona att"><svg class="i"><use href="#i-pen"/></svg></span>Firma del cliente</div>
+        <div class="cliente" id="rf-firma-box" style="border:none;background:none;padding:0;margin:0">
+          <div class="firma-anteprima" onclick="if(!this.closest('form').classList.contains('sola-lettura')) apriFirmaOverlay(this)">
+            <img class="firma-img nascosto" alt="Firma cliente">
+            <span class="firma-placeholder"><svg class="i"><use href="#i-pen"/></svg>Tocca per far firmare</span>
+          </div>
+          <button type="button" class="mat-add firma-clear-btn nascosto rf-solo-bozza" onclick="if(confirm('Cancellare la firma del cliente?')) pulisciFirma(this)"><svg class="i"><use href="#i-trash"/></svg>Cancella firma</button>
+          <input type="hidden" class="c-firma-dato" value="">
+        </div>
+        <div class="campo"><label for="rf-firmatario">Nome firmatario (stampatello)</label><input type="text" id="rf-firmatario" autocomplete="off"></div>
+      </div>
+    </form>
+  </section>
   <!-- ================= RAPPORTINI COMPILATI (company e admin) ================= -->
   <section id="vista-rapporti" class="nascosto">
-    <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Giornate e schede compilate dagli operai, con PDF</div></div></div>
+    <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Rapportini degli operai e giornate, con PDF</div></div></div>
     <div class="periodo">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
       <input type="month" id="rap-mese" onchange="disegnaRapporti()" aria-label="Mese">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(1)" aria-label="Mese successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
     </div>
     <div class="msg-info" id="rap-stato" role="status" aria-live="polite"></div>
-    <div id="rap-elenco"></div>
+    <div class="due" style="margin-bottom:12px">
+      <div><label for="rap-filtro-stato">Stato</label><select id="rap-filtro-stato" onchange="disegnaRapporti()"><option value="">Tutti</option><option value="bozza">Bozze</option><option value="completato">Completati</option></select></div>
+      <div data-permesso="rapportini.consulta"><label for="rap-filtro-operaio">Operaio</label><select id="rap-filtro-operaio" onchange="disegnaRapporti()"><option value="">Tutti</option></select></div>
+    </div>
+    <div id="rap-nuovi"></div>
+    <div data-permesso="giornate.consulta">
+      <div class="sezione-head"><h2>Giornate (foglio giornaliero)</h2></div>
+      <div id="rap-elenco"></div>
+    </div>
   </section>
 
   <!-- ================= GESTIONE UTENTI (admin) ================= -->
@@ -543,6 +598,16 @@
       <span>PDF mese</span>
     </button>
     <button type="button" class="secondario" onclick="inviaTestoMese()"><svg class="i"><use href="#i-mail"/></svg>Testo</button>
+  </div>
+</div>
+
+<!-- barra rapportino -->
+<div class="barra nascosto" id="barra-rapportino">
+  <div class="dentro">
+    <button type="button" class="secondario rf-solo-bozza" id="rf-salva" onclick="salvaBozzaRapportino()"><svg class="i"><use href="#i-check"/></svg><span>Salva bozza</span></button>
+    <button type="button" class="invia rf-solo-bozza" id="rf-completa" onclick="completaRapportino()"><svg class="i"><use href="#i-send"/></svg><span>Completa</span></button>
+    <button type="button" class="secondario" id="rf-pdf" onclick="pdfRapportino(this)"><svg class="i"><use href="#i-file"/></svg><span>PDF</span></button>
+    <button type="button" class="secondario nascosto" id="rf-riapri" data-permesso="rapportini.riapri" onclick="riapriRapportinoAperto()"><span>Riapri</span></button>
   </div>
 </div>
 

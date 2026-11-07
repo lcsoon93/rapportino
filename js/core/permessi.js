@@ -8,27 +8,28 @@ import { profilo } from "./sessione.js";
 const PERMESSI = {
   admin: [
     "vista.home", "vista.giorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
-    "vista.utenti", "vista.company", "vista.rapporti", "vista.lavoro",
-    "rapportino.compila", "rapportino.elimina", "pianificazione", "utenti.gestisci",
+    "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino",
+    "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
+    "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
     "backup.esporta", "backup.importa", "report", "pdf",
   ],
   company: [
-    "vista.company", "vista.rapporti", "vista.altro",
-    "pianificazione", "pdf.consulta",
+    "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
+    "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
   ],
   worker: [
-    "vista.lavoro", "vista.giorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
-    "rapportino.compila", "backup.esporta", "report", "pdf",
+    "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
+    "rapportini.compila",
   ],
 };
 
 // navigazione in basso per ruolo: [id, etichetta, icona, vista]
 const NAV = {
-  admin:   [["home", "Home", "home", "home"], ["cal", "Calendario", "cal", "cal"], ["clienti", "Clienti", "users", "cerca"], ["altro", "Altro", "grid", "altro"]],
-  company: [["company", "Pianifica", "cal", "company"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  worker:  [["lavoro", "Lavoro", "home", "lavoro"], ["cal", "Calendario", "cal", "cal"], ["clienti", "Clienti", "users", "cerca"], ["altro", "Altro", "grid", "altro"]],
+  admin:   [["home", "Home", "home", "home"], ["interventi", "Interventi", "file", "interventi"], ["cal", "Calendario", "cal", "cal"], ["clienti", "Clienti", "users", "cerca"], ["altro", "Altro", "grid", "altro"]],
+  company: [["interventi", "Interventi", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  worker:  [["lavoro", "Lavoro", "home", "lavoro"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
 };
-const VISTA_INIZIALE = { admin: "home", company: "company", worker: "lavoro" };
+const VISTA_INIZIALE = { admin: "home", company: "interventi", worker: "lavoro" };
 
 export function ruolo(){ return profilo ? profilo.ruolo : null; }
 export function puo(permesso){

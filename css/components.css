@@ -620,3 +620,14 @@ select{
 .giorno-rap .gr-clienti{margin-top:8px;display:grid;gap:6px}
 .giorno-rap .gr-cliente{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:14.5px}
 .giorno-rap .gr-cliente b{font-weight:600}
+
+/* ================= INTERVENTI E RAPPORTINI ================= */
+.intervento.annullato{opacity:.65}
+.int-rapportini{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;margin-top:10px;padding-top:8px;border-top:1px dashed var(--bordo)}
+.int-rapportini .link-btn{min-height:36px;padding:4px 2px}
+.int-azioni .btn[aria-label]{flex:0 0 48px}
+#rap-form.sola-lettura input:disabled,#rap-form.sola-lettura textarea:disabled,#rap-form.sola-lettura select:disabled{
+  background:var(--sfondo);color:var(--testo);opacity:1;-webkit-text-fill-color:var(--testo)}
+#rap-form .op-riga .testata select{flex:1;min-width:0;font-weight:600}
+#barra-rapportino .dentro{flex-wrap:wrap}
+#barra-rapportino .secondario{padding:0 12px}

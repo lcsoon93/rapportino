@@ -8,13 +8,15 @@ import { euro } from "../../utils/formatters.js";
 import { datiGiornata } from "../../modules/rapportini.js";
 import { aggiungiPiePagina, intestazionePDF, misureFirmaPDF } from "./comune.js";
 
-export function generaPDFPerCliente(){
+// dati/iso facoltativi: senza argomenti usa il foglio giornaliero aperto (come sempre);
+// con argomenti stampa una giornata "virtuale", es. un rapportino
+export function generaPDFPerCliente(dati, iso){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const W = 210, H = 297, META = H / 2;         // meta' pagina = altezza di una "scheda" A5
   const ML = 14, MR = 14, CW = W - ML - MR;
   const MARGINE_EST = 14, MARGINE_INT = 7;        // margine dal bordo pagina / dalla linea di taglio
-  const d = datiGiornata();
+  const d = dati || datiGiornata();
 
   let unita = -1;         // indice progressivo di meta-pagina: 0=alto pag.1, 1=basso pag.1, 2=alto pag.2, ...
   let yLimiteCorrente = 0;
@@ -85,7 +87,7 @@ export function generaPDFPerCliente(){
     let y = intestazioneSlot(yBase, 1, 1);
     doc.setFont("helvetica","normal");
     doc.setFontSize(10.5);
-    doc.text("Data: " + dataIt(), ML, y);
+    doc.text("Data: " + dataIt(iso), ML, y);
     y += 7;
     doc.text("Nessun lavoro cliente registrato per questo giorno.", ML, y);
     return doc;
@@ -115,7 +117,7 @@ export function generaPDFPerCliente(){
     doc.setFont("helvetica","normal");
     doc.setFontSize(9.5);
     const infoRighe = doc.splitTextToSize(
-      "Data: " + dataIt() + (d.tecnici ? "   ·   Tecnici: " + d.tecnici : ""), CW
+      "Data: " + dataIt(iso) + (d.tecnici ? "   ·   Tecnici: " + d.tecnici : ""), CW
     );
     doc.text(infoRighe, ML, y);
     y += infoRighe.length * 4.5 + 1;

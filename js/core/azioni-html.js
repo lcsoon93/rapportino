@@ -18,8 +18,8 @@ import { annullaFirmaOverlay, apriFirmaOverlay, chiudiFirmaOverlay, pulisciFirma
 import { sincronizza } from "../services/sync.js";
 import { oraAdesso } from "../utils/dom.js";
 import { apriCambioPassword, esciDallApp } from "../modules/accesso.js";
-import { apriSchedaLavoro } from "../modules/lavoro.js";
-import { caricaPianificazione, inviaPianificazione, modificaSchedaPian, rimuoviSchedaPian, spostaPianificazione, spuntaOperaio } from "../modules/pianificazione.js";
+import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi } from "../modules/gestione-interventi.js";
+import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
 import { azioneUtente, generaPasswordIniziale } from "../modules/utenti.js";
 
@@ -40,8 +40,9 @@ Object.assign(window, {
   sincronizza,
   oraAdesso,
   apriCambioPassword, esciDallApp,
-  apriSchedaLavoro,
-  caricaPianificazione, inviaPianificazione, modificaSchedaPian, rimuoviSchedaPian, spostaPianificazione, spuntaOperaio,
+  annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi,
+  aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
+  nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, salvaBozzaRapportino,
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
   azioneUtente, generaPasswordIniziale
 });

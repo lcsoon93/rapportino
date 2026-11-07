@@ -1,5 +1,5 @@
-// Rapportini compilati (ruolo company e admin): elenco per mese, stato delle schede e PDF.
-// Solo lettura: i dati arrivano dalla sincronizzazione (cio' che le policy permettono di leggere).
+// Rapportini: elenco per mese dei rapportini degli operai (tabella "rapportini": l'operaio vede i
+// propri, admin e company tutti) e, sotto, le giornate del foglio giornaliero (storico, admin/company).
 import { leggiDB, leggiMappa } from "../core/storage.js";
 import { registraVista, vistaCorrente } from "../core/navigation.js";
 import { su } from "../core/eventi.js";
@@ -10,6 +10,9 @@ import { sincronizza } from "../services/sync.js";
 import { dataLunga, giorniMese, oggiIso } from "../utils/dates.js";
 import { esc } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
+import { puo } from "../core/permessi.js";
+import { elencoRapportini, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
+import { voceRapportino } from "./lavoro.js";
 
 const $ = id=>document.getElementById(id);
 const BADGE = {
@@ -20,6 +23,26 @@ const BADGE = {
 
 export function disegnaRapporti(){
   if(!$("rap-mese").value) $("rap-mese").value = oggiIso().slice(0, 7);
+  disegnaRapportiniOperai();
+  if(puo("giornate.consulta")) disegnaGiornate();
+}
+async function disegnaRapportiniOperai(){
+  const mese = $("rap-mese").value, giorni = giorniMese(mese);
+  $("rap-nuovi").innerHTML = '<div class="card nota">Caricamento…</div>';
+  try{
+    const operai = await operaiAttivi().catch(()=>[]);
+    const filtro = $("rap-filtro-operaio");
+    if(filtro.options.length <= 1) operai.forEach(o=>filtro.insertAdjacentHTML("beforeend", '<option value="' + o.id + '">' + esc(o.nome || o.username) + '</option>'));
+    const elenco = await elencoRapportini({ dal: giorni[0], al: giorni[giorni.length - 1],
+      stato: $("rap-filtro-stato").value || null, autore: puo("rapportini.consulta") ? ($("rap-filtro-operaio").value || null) : null });
+    $("rap-nuovi").innerHTML = elenco.length
+      ? '<div class="card cli-elenco">' + elenco.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>'
+      : '<div class="card nota">Nessun rapportino in questo mese.</div>';
+  }catch(e){
+    $("rap-nuovi").innerHTML = '<div class="card nota">' + esc(e.message) + '</div>';
+  }
+}
+function disegnaGiornate(){
   const db = leggiDB(), ass = leggiMappa("assegnazioni");
   const giorni = giorniMese($("rap-mese").value).filter(g=>db[g]).reverse();
   $("rap-elenco").innerHTML = giorni.length ? giorni.map(g=>{
@@ -35,7 +58,7 @@ export function disegnaRapporti(){
       '<div class="gr-clienti">' + (clienti.length ? clienti.map(c=>
         '<div class="gr-cliente"><b>' + esc(c.nome || "(senza nome)") + '</b>' + BADGE[statoScheda(c)] + '</div>').join("") : '<span class="nota" style="padding:0">Nessuna scheda</span>') + '</div>' +
     '</article>';
-  }).join("") : '<div class="card nota">Nessun rapportino in questo mese.</div>';
+  }).join("") : '<div class="card nota">Nessuna giornata in questo mese.</div>';
 }
 export function spostaMeseRapporti(delta){
   const [a, m] = ($("rap-mese").value || oggiIso().slice(0, 7)).split("-").map(Number);
@@ -50,5 +73,5 @@ export function pdfRapporto(btn, giorno){
   inviaPDF(btn);
 }
 
-registraVista("rapporti", ()=>{ disegnaRapporti(); sincronizza(true); });
-su("sincronizzato", ()=>{ if(vistaCorrente === "rapporti") disegnaRapporti(); });
+registraVista("rapporti", ()=>{ disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
+su("sincronizzato", ()=>{ if(vistaCorrente === "rapporti" && puo("giornate.consulta")) disegnaGiornate(); });

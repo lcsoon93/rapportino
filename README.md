@@ -43,15 +43,17 @@ js/
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
     accesso.js             schermate di login e cambio password
-    lavoro.js              dashboard dell'operaio (interventi assegnati, in lavorazione, completati, storico)
-    pianificazione.js      company/admin: schede cliente, assegnazione operai, invio (con controllo concorrenza)
-    consultazione.js       company/admin: rapportini compilati per mese e PDF
+    lavoro.js              dashboard dell'operaio: interventi assegnati, bozze, completati, ore del mese
+    gestione-interventi.js admin/company: crea e modifica interventi, assegna operai, stato e rapportini collegati
+    modulo-rapportino.js   modulo del rapportino (bozza/completa, ore, materiale, foto, firma, PDF; bozza sul telefono senza rete)
+    consultazione.js       rapportini degli operai per mese (filtri) e giornate del foglio giornaliero
     utenti.js              admin: crea operai, disattiva/riattiva, reimposta password
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
     immagini.js            compressione foto, foto a schermo intero
     sync.js                sincronizzazione Supabase con la sessione dell'utente
+    api-lavori.js          accesso a interventi, rapportini, ore e allegati (tabelle nuove)
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON
@@ -97,6 +99,13 @@ supabase/                  backend (Supabase Free)
 - **Account disattivati**: non entrano, e le sessioni già aperte non leggono né scrivono più nulla.
 - **Interfaccia**: `js/core/permessi.js` nasconde ciò che il ruolo non può usare; la protezione vera
   resta il database.
+
+## Interventi e rapportini
+
+Tabelle `interventi`, `intervento_operai`, `rapportini`, `rapportino_operai`, `allegati` (vedi
+`docs/interventi-rapportini.md`): l'admin (e la company) crea interventi e li assegna; l'operaio vede solo
+i propri, compila rapportini collegati o autonomi, salva bozze e li completa. Il foglio giornaliero
+(`rapporti`) resta com'era per l'admin, con il suo PDF.
 
 ## Dipendenze tra moduli
 
