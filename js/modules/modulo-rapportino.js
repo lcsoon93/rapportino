@@ -258,6 +258,17 @@ export function chiudiRapportino(){
 }
 
 // ---------------------------------------------------------------- salvataggio
+// il rapportino sul server e' uguale a quello che si sta inviando? (testata e ore)
+function stessoContenuto(mio, oreMie, srv, oreSrv){
+  if(!srv) return false;
+  const campi = ["data", "cliente", "indirizzo", "tipologia", "attivita", "note", "esito", "firma", "firmatario"];
+  if(campi.some(c=>String(mio[c] ?? "") !== String(srv[c] ?? ""))) return false;
+  if((mio.intervento_id || null) !== (srv.intervento_id || null)) return false;
+  if(JSON.stringify(mio.materiali || []) !== JSON.stringify(srv.materiali || [])) return false;
+  const norma = l=>JSON.stringify((l || []).map(o=>[o.operaio_id, String(o.dalle || "").slice(0, 5), String(o.alle || "").slice(0, 5)])
+    .sort((a, b)=>a[0].localeCompare(b[0])));
+  return norma(oreMie) === norma(oreSrv);
+}
 async function salva(completa){
   const { rapportino, ore } = leggiModulo();
   if(!rapportino.data || !rapportino.cliente){ messaggio("Data e cliente sono obbligatori.", "err"); return false; }
@@ -271,10 +282,16 @@ async function salva(completa){
   const pulsanti = [$("rf-salva"), $("rf-completa")];
   pulsanti.forEach(b=>{ b.disabled = true; b.classList.add("in-corso"); });
   try{
-    const r = await salvaRapportino(rapportino, ore, completa);
+    let r = await salvaRapportino(rapportino, ore, completa);
+    // conflitto con un contenuto identico al nostro (es. secondo invio dopo una risposta persa):
+    // non c'e' nulla da perdere, si reinvia indicando la versione del server
+    if(r.esito === "conflitto" && stessoContenuto(rapportino, ore, r.rapportino, r.ore)){
+      if((r.rapportino.stato === "completato") === !!completa) r = { esito: "ok", rapportino: r.rapportino };   // gia' fatto
+      else if(r.rapportino.stato === "bozza") r = await salvaRapportino(Object.assign({}, rapportino, { versione: r.rapportino.versione }), ore, completa);
+    }
     if(r.esito === "conflitto"){
       const srv = r.rapportino;
-      corrente = Object.assign(corrente, { versione: srv.versione, aggiornato_il: srv.aggiornato_il });
+      corrente = Object.assign(corrente, { salvato: true, versione: srv.versione, aggiornato_il: srv.aggiornato_il });   // esiste sul server
       salvaLocale();
       messaggio(srv.stato === "completato" && !puo("rapportini.riapri")
         ? "Nel frattempo il rapportino è stato completato da un altro dispositivo: non è più modificabile. Le tue modifiche restano su questo telefono."

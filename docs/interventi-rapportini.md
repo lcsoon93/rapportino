@@ -18,20 +18,27 @@ completare richiede attività e ore; un rapportino completato non si modifica (s
 si assegnano solo account attivi `worker`/`admin`; account disattivati: nessun accesso, anche con sessione aperta;
 lo stato dell'intervento segue i rapportini (bozza → in_corso, completato → completato).
 Salvataggio atomico con `salva_rapportino` (testata + ore in una transazione, controllo di versione).
-L'id del rapportino lo genera il telefono: un secondo invio dello stesso rapportino aggiorna quello
-esistente invece di creare un doppione; con versione superata la funzione risponde "conflitto" e
-l'app tiene le modifiche nel modulo (si sostituisce solo premendo di nuovo Salva). I rapportini
+L'id del rapportino lo genera il telefono. `salva_rapportino` crea un rapportino solo se quell'id non
+esiste ancora sul server; un rapportino esistente si modifica solo indicando la versione letta: se la
+versione manca o è diversa risponde "conflitto" (con la versione e le ore del server) senza sovrascrivere.
+Due creazioni contemporanee con lo stesso id: una crea, l'altra riceve "conflitto" (nessun errore).
+Se il contenuto in conflitto è identico a quello inviato (secondo invio dopo una risposta persa) l'app
+reinvia con la versione del server o lo considera già salvato; altrimenti tiene le modifiche nel modulo
+e si sostituisce solo premendo di nuovo Salva. I rapportini
 salvati solo sul telefono (senza rete) compaiono in Lavoro → "Da inviare".
 
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
+   `create schema if not exists backup;`
    `create table backup.rapporti_AAAAMMGG as select * from public.rapporti;`
+   (lo schema `backup` non è esposto alle API: anon/authenticated non hanno accesso)
    (la migrazione non tocca `rapporti`, ma è la stessa prudenza del rilascio precedente).
 2. SQL Editor → incollare `supabase/migrations/20261108090000_interventi_rapportini.sql` → Run.
-3. Verifica (deve dare 51 righe e la stessa impronta di prima; 5 tabelle nuove con RLS):
+3. Verifica: eseguire la prima query anche PRIMA del passo 2 e annotare il risultato; dopo deve dare
+   51 righe e la stessa impronta; la seconda deve dare 5 tabelle nuove con RLS `true`:
    ```sql
-   select count(*), md5(string_agg(data||'|'||dati::text||'|'||aggiornato::text,'#' order by data)) from public.rapporti;
+   select count(*), md5(string_agg(data::text||'|'||dati::text||'|'||coalesce(aggiornato::text,''),'#' order by data)) from public.rapporti;
    select relname, relrowsecurity from pg_class where relname in ('interventi','intervento_operai','rapportini','rapportino_operai','allegati');
    ```
 4. Pubblicare il frontend: merge di `interventi-rapportini` su `main`.
@@ -387,42 +394,60 @@ grant execute on function public.operai_attivi() to authenticated;
 -- p_rapportino: { id, versione?, intervento_id?, data, cliente, indirizzo, tipologia, attivita,
 --                 materiali, note, esito, firma, firmatario }
 -- p_ore: [ { operaio_id, dalle, alle } ]   p_completa: true per completare (controlli obbligatori)
--- L'id lo genera il telefono: un secondo invio dello stesso rapportino (es. dopo un errore di rete)
--- aggiorna quello gia' salvato invece di crearne un doppione.
--- Con "versione": se nel frattempo qualcuno ha salvato restituisce "conflitto" senza sovrascrivere.
--- Se una parte fallisce (es. ore non valide) non viene salvato nulla.
+-- Regole:
+--  * l'id lo genera il telefono; si CREA un rapportino solo se quell'id non esiste ancora sul server;
+--  * un rapportino esistente si MODIFICA solo indicando la versione letta, e solo se e' ancora quella;
+--    se la versione manca o e' diversa la funzione risponde "conflitto" (con la versione del server
+--    e le sue ore) e non sovrascrive nulla. Cosi' un secondo invio dello stesso rapportino (es. dopo
+--    un errore di rete) non crea doppioni e non sovrascrive alla cieca: decide l'app;
+--  * due creazioni contemporanee con lo stesso id: una crea, l'altra riceve "conflitto" (nessun errore);
+--  * id di un rapportino altrui che l'utente non puo' modificare: errore "Rapportino non modificabile";
+--  * se una parte fallisce (es. ore non valide) non viene salvato nulla.
 create or replace function public.salva_rapportino(p_rapportino jsonb, p_ore jsonb, p_completa boolean default false)
 returns jsonb language plpgsql security invoker set search_path = '' as $$
 declare
   r public.rapportini%rowtype;
   v_id uuid := coalesce(nullif(p_rapportino->>'id', '')::uuid, gen_random_uuid());
   v_versione integer := nullif(p_rapportino->>'versione', '')::integer;
+  v_fatto boolean := false;
 begin
-  update public.rapportini set
-    data = (p_rapportino->>'data')::date,
-    cliente = coalesce(p_rapportino->>'cliente', ''), indirizzo = coalesce(p_rapportino->>'indirizzo', ''),
-    tipologia = coalesce(p_rapportino->>'tipologia', ''), attivita = coalesce(p_rapportino->>'attivita', ''),
-    materiali = coalesce(p_rapportino->'materiali', '[]'::jsonb), note = coalesce(p_rapportino->>'note', ''),
-    esito = coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'),
-    firma = coalesce(p_rapportino->>'firma', ''), firmatario = coalesce(p_rapportino->>'firmatario', '')
-  where id = v_id and (v_versione is null or versione = v_versione)
-  returning * into r;
-  if not found then
-    select * into r from public.rapportini where id = v_id;
-    if found then
-      -- esiste ed e' visibile: o non e' dell'utente, o e' cambiato dopo la lettura
-      if not public.modifica_rapportino(v_id) then
-        raise exception 'Rapportino non modificabile' using errcode = '42501';
-      end if;
-      return jsonb_build_object('esito', 'conflitto', 'rapportino', to_jsonb(r));
-    end if;
-    -- nuovo (se l'id appartiene a un rapportino non visibile l'inserimento fallisce: chiave duplicata)
-    insert into public.rapportini (id, intervento_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, firma, firmatario)
-    values (v_id, nullif(p_rapportino->>'intervento_id', '')::uuid, (p_rapportino->>'data')::date,
-            coalesce(p_rapportino->>'cliente', ''), coalesce(p_rapportino->>'indirizzo', ''), coalesce(p_rapportino->>'tipologia', ''),
-            coalesce(p_rapportino->>'attivita', ''), coalesce(p_rapportino->'materiali', '[]'::jsonb), coalesce(p_rapportino->>'note', ''),
-            coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'), coalesce(p_rapportino->>'firma', ''), coalesce(p_rapportino->>'firmatario', ''))
+  if v_versione is not null then
+    -- modifica: riesce solo se la versione e' ancora quella letta (atomico anche con salvataggi contemporanei)
+    update public.rapportini set
+      data = (p_rapportino->>'data')::date,
+      cliente = coalesce(p_rapportino->>'cliente', ''), indirizzo = coalesce(p_rapportino->>'indirizzo', ''),
+      tipologia = coalesce(p_rapportino->>'tipologia', ''), attivita = coalesce(p_rapportino->>'attivita', ''),
+      materiali = coalesce(p_rapportino->'materiali', '[]'::jsonb), note = coalesce(p_rapportino->>'note', ''),
+      esito = coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'),
+      firma = coalesce(p_rapportino->>'firma', ''), firmatario = coalesce(p_rapportino->>'firmatario', '')
+    where id = v_id and versione = v_versione
     returning * into r;
+    v_fatto := found;
+  end if;
+  if not v_fatto then
+    -- creazione: solo se l'id non esiste (ON CONFLICT: niente errore se un altro invio l'ha appena creato)
+    if not exists (select 1 from public.rapportini where id = v_id) then
+      insert into public.rapportini (id, intervento_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, firma, firmatario)
+      values (v_id, nullif(p_rapportino->>'intervento_id', '')::uuid, (p_rapportino->>'data')::date,
+              coalesce(p_rapportino->>'cliente', ''), coalesce(p_rapportino->>'indirizzo', ''), coalesce(p_rapportino->>'tipologia', ''),
+              coalesce(p_rapportino->>'attivita', ''), coalesce(p_rapportino->'materiali', '[]'::jsonb), coalesce(p_rapportino->>'note', ''),
+              coalesce(nullif(p_rapportino->>'esito', ''), 'Completato'), coalesce(p_rapportino->>'firma', ''), coalesce(p_rapportino->>'firmatario', ''))
+      on conflict (id) do nothing
+      returning * into r;
+      v_fatto := found;
+    end if;
+  end if;
+  if not v_fatto then
+    -- l'id esiste gia': versione mancante o superata, oppure rapportino non dell'utente.
+    -- All'autore si risponde "conflitto" anche se nel frattempo e' stato completato (cosi' l'app vede
+    -- che il suo "Completa" era gia' arrivato); agli altri senza diritto di modifica: errore.
+    select * into r from public.rapportini where id = v_id;
+    if not found or not (public.modifica_rapportino(v_id) or r.autore_id = (select auth.uid())) then
+      raise exception 'Rapportino non modificabile' using errcode = '42501';
+    end if;
+    return jsonb_build_object('esito', 'conflitto', 'rapportino', to_jsonb(r),
+      'ore', coalesce((select jsonb_agg(jsonb_build_object('operaio_id', o.operaio_id, 'dalle', o.dalle, 'alle', o.alle) order by o.operaio_id)
+                       from public.rapportino_operai o where o.rapportino_id = v_id), '[]'::jsonb));
   end if;
   delete from public.rapportino_operai where rapportino_id = r.id;
   insert into public.rapportino_operai (rapportino_id, operaio_id, dalle, alle)

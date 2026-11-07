@@ -95,7 +95,7 @@ export async function elencoRapportini({ dal, al, stato, autore, intervento } = 
 export async function leggiRapportino(id){
   return controlla(await client.from("rapportini").select(CAMPI_RAPPORTINO).eq("id", id).maybeSingle());
 }
-// salvataggio atomico (testata + ore); risultato { esito: "ok" | "conflitto", rapportino }
+// salvataggio atomico (testata + ore); risultato { esito: "ok" | "conflitto", rapportino, ore? (solo in conflitto) }
 export async function salvaRapportino(rapportino, ore, completa){
   return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa }));
 }
