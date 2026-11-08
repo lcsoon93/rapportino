@@ -1,5 +1,14 @@
 # Rapportino — verifica pre-produzione (login, ruoli, permessi)
 
+> **Documento storico** (rilascio del ramo `utenti-ruoli`, 7/11/2026), conservato come riferimento.
+> Non descrive lo stato attuale: da allora sono state aggiunte le migrazioni 20261108–20261113, la Edge
+> Function `pin`, il doppio ruolo admin + operaio, il PIN di accesso e il recupero dell'accesso con
+> password temporanea di 72 ore; le giornate in produzione sono 52 (non 51). La sequenza di rilascio
+> del §10 non va più seguita. Stato e procedura aggiornati: `README.md` ("Accesso, ruoli e sicurezza",
+> "Supabase: messa in produzione") e `docs/interventi-rapportini.md`.
+> Nota di sicurezza ancora valida: i codici iniziali di Luca e comphas (6 cifre) restano le loro password
+> finché non le cambiano; è consigliata una password di almeno 10 caratteri (Altro → Cambia password).
+
 Data: 7 novembre 2026 · Ramo: `utenti-ruoli` · **Produzione non modificata** (solo letture di schema e statistiche).
 
 ## Raccomandazione: PRONTO CON RISCHI (aggiornata dopo la correzione della concorrenza)

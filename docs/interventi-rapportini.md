@@ -374,7 +374,14 @@ mensili sono invariati.
   l'**orario di ogni tecnico** (prima mancava).
 - In entrambi i formati indirizzo, tipologia e "Fatturare a" vanno a capo solo tra un dato e l'altro.
 
-## Procedura di applicazione (da fare solo con la tua autorizzazione)
+## Procedura di applicazione
+
+**Stato (08/11/2026): procedura completata.** Le migrazioni 20261108–20261111 sono in produzione dal
+7/11/2026 (sera) e il frontend delle Fasi A–F è su `main` (PR #1); la Fase G (migrazioni 20261112 e
+20261113, Edge Functions) è in produzione dal 7–8/11/2026 (PR #2); la Fase H è solo frontend (PR #3).
+I passi restano come riferimento per un nuovo progetto o per una ricostruzione: in quel caso eseguirli
+solo con autorizzazione. Le migrazioni applicate dal SQL Editor non compaiono nello storico della CLI:
+vedi il README ("Storico delle migrazioni") prima di usare `supabase db push`.
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
    `create schema if not exists backup;`
@@ -390,35 +397,38 @@ mensili sono invariati.
    `select policyname, cmd from pg_policies where schemaname = 'storage' and policyname like 'allegati_rapportini_%';`
    (tre policy: lettura SELECT, caricamento INSERT, cancellazione DELETE).
 3. Verifica: eseguire la prima query anche PRIMA del passo 2 e annotare il risultato; dopo deve dare
-   51 righe e la stessa impronta; la seconda deve dare 5 tabelle nuove con RLS `true`:
+   lo stesso numero di righe e la stessa impronta (51 giornate al rilascio del 7/11/2026, 52 l'8/11);
+   la seconda deve dare 5 tabelle nuove con RLS `true`:
    ```sql
    select count(*), md5(string_agg(data::text||'|'||dati::text||'|'||coalesce(aggiornato::text,''),'#' order by data)) from public.rapporti;
    select relname, relrowsecurity from pg_class where relname in ('interventi','intervento_operai','rapportini','rapportino_operai','allegati');
    ```
-4. Pubblicare il frontend: merge di `interventi-rapportini` su `main`.
+4. Pubblicare il frontend: merge di `interventi-rapportini` su `main` (fatto: PR #1).
 5. Prova con un admin e due operai (vedi README / rapporto).
 
-Fase G (ramo `fase-g-utenti-pin`; le migrazioni 20261108–20261111 sono già in produzione dal 7/11/2026):
+Fase G (ramo `fase-g-utenti-pin`, unito con la PR #2; tutti i passi sono stati eseguiti il 7–8/11/2026):
 1. Backup dei profili: `create table backup.profili_AAAAMMGG as select * from public.profili;`
 2. SQL Editor → `supabase/migrations/20261112090000_utenti_pin_ruoli.sql` → Run. Verifica:
    `select username, ruolo, ruoli from public.profili order by username;` (Luca `{admin,worker}`,
    gli altri il solo ruolo principale) e `select count(*) from public.pin_accesso;` (0).
-   [applicata in produzione l'8/11/2026]
+   [applicata in produzione la sera del 7/11/2026]
    Poi `supabase/migrations/20261113090000_recupero_accesso.sql` → Run (colonne del recupero
    dell'accesso). Verifica: `select count(*) from information_schema.columns where table_name = 'profili'
-   and column_name like 'password_%';` (3).
+   and column_name like 'password_%';` (3). [applicata in produzione il 7/11/2026]
 3. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza` e la nuova `pin`
    (`supabase functions deploy accesso cambia-password utenti inizializza pin`). Prima della migrazione le funzioni
    nuove non vanno pubblicate: leggono le colonne `cognome`, `ruoli` e `password_temporanea_scade`.
-4. Pubblicare il frontend (merge su `main`).
+   [pubblicate il 7/11/2026: `accesso` e `inizializza` con verify_jwt disattivato, le altre attivo]
+4. Pubblicare il frontend (merge su `main`). [fatto: PR #2]
 5. Facoltativo: completare il cognome degli account esistenti da Gestione utenti → Modifica
    (oggi nome e cognome sono insieme nel campo Nome; l'app li mostra correttamente lo stesso).
 Rollback Fase G: ripristinare frontend e Edge Functions precedenti, eliminare la funzione `pin`, poi
 `supabase/rollback/20261113090000_recupero_accesso_rollback.sql` e
 `supabase/rollback/20261112090000_utenti_pin_ruoli_rollback.sql` (perde cognomi e PIN, non i dati).
 
-Rollback: ripristinare `main` al commit precedente, poi SQL Editor →
-`supabase/rollback/20261110090000_allegati_storage_rollback.sql`, poi
+Rollback Fasi A–F (dopo l'eventuale rollback della Fase G): ripristinare `main` al commit precedente,
+poi SQL Editor → `supabase/rollback/20261111090000_rapporti_privilegi_rollback.sql` (rimette i
+privilegi di prima su `rapporti`), poi `supabase/rollback/20261110090000_allegati_storage_rollback.sql`, poi
 `supabase/rollback/20261109090000_interventi_piu_operai_rollback.sql` e, solo per tornare a prima
 degli interventi, `supabase/rollback/20261108090000_interventi_rapportini_rollback.sql`.
 Il rollback elimina interventi e rapportini scritti con la nuova app: prima esportarli
