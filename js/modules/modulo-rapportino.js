@@ -575,8 +575,10 @@ export async function pdfRapportino(btn){
     operai: ore.map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: o.dalle, alle: o.alle })),
     spese: [],
     mostraOrario: true,                    // le ore di ogni tecnico del rapportino compaiono nel PDF
+    // riferimento leggibile del rapportino: data + prime 4 cifre del suo identificativo (nessun numero progressivo nei dati)
+    riferimento: "RAP-" + String(r.data || "").replace(/-/g, "") + "-" + String(corrente.id || "").replace(/-/g, "").slice(0, 4).toUpperCase(),
     clienti: [{ id: corrente.id, nome: r.cliente, indirizzo: r.indirizzo, fasce: [], fatturare: "", importo: 0, tipologia: r.tipologia,
-      stato: r.esito, firmatario: r.firmatario, dettagli: r.attivita + (r.note ? "\n\nNote: " + r.note : ""), materiali: r.materiali,
+      stato: r.esito, firmatario: r.firmatario, dettagli: r.attivita, note: r.note || "", materiali: r.materiali,
       foto, firma: r.firma, urgente: false }],
   };
   if(mancanti) messaggio("PDF creato senza " + (mancanti === 1 ? "1 foto non disponibile" : mancanti + " foto non disponibili") + " (rete o autorizzazione).", "att");

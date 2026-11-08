@@ -374,6 +374,28 @@ mensili sono invariati.
   l'**orario di ogni tecnico** (prima mancava).
 - In entrambi i formati indirizzo, tipologia e "Fatturare a" vanno a capo solo tra un dato e l'altro.
 
+## Stile dei PDF (Fase H2)
+
+Solo `js/services/pdf/` (più due campi passati da `pdfRapportino`): dati e funzionamento invariati.
+- Stile corporate: bianco, blu scuro (`COLORI.blu`) per titoli e filetti, grigi chiari per separatori
+  e riquadri; carattere Helvetica (incluso in jsPDF, nessun font esterno).
+- Elementi comuni in `pdf/comune.js`: intestazione (logo contenuto, titolo, "N. … · Data …"),
+  intestazione compatta delle pagine successive, filigrana, titoli di sezione, etichette di stato
+  (URGENZA, DA ULTIMARE), piede con riferimento e "Pagina x di N". Anche i report settimanale e mensile
+  usano la nuova intestazione e il nuovo piede (il resto dei report è invariato).
+- Titoli: "RAPPORTINO DI INTERVENTO" (PDF del rapportino e schede per cliente), "RAPPORTO DI LAVORO
+  GIORNALIERO" (foglio unico con tutti i lavori della giornata).
+- Riferimento: il rapportino non ha un numero progressivo nei dati, quindi il PDF usa
+  `RAP-AAAAMMGG-XXXX` (data + prime 4 cifre del suo identificativo); la giornata usa `RG-AAAAMMGG`
+  (schede per cliente: `RG-AAAAMMGG-n`).
+- Ordine: intestazione; riquadro con data, riferimento, tecnici e orari; cliente e sede; attività
+  svolte; materiali (tabella descrizione / q.tà, intestazione ripetuta se continua); fotografie con un
+  filo sottile; note (nel PDF del rapportino sono una sezione a sé) e firma del cliente.
+- Filigrana: logo al 4% di opacità (trasparenza di jsPDF) dalla seconda pagina, disegnato prima dei
+  contenuti; nelle schede A5 una per mezza pagina. Se la trasparenza non è disponibile non si disegna.
+- Riepiloghi (da fatturare, spese): l'ultima riga resta con il totale; il riepilogo non resta con il
+  solo titolo.
+
 ## Procedura di applicazione
 
 **Stato (08/11/2026): procedura completata.** Le migrazioni 20261108–20261111 sono in produzione dal
