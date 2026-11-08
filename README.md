@@ -7,8 +7,10 @@ Funziona nel browser (pensata per iPhone/Safari) ed è pubblicata con GitHub Pag
 Nessun framework e nessun sistema di build: HTML, CSS e JavaScript a **moduli ES** nativi.
 Librerie: **jsPDF 2.5.1** (da cdnjs) e **supabase-js 2.45.4** (copia locale in `js/vendor/`), più il font Inter.
 
-L'app richiede l'accesso con **username e password** (nessuna registrazione pubblica, nessuna email).
-Ruoli: `admin` (Luca), `company` (comphas), `worker` (operai creati dall'amministratore).
+L'app richiede l'accesso con **username e password** oppure **username e PIN di 6 cifre** (nessuna
+registrazione pubblica, nessuna email).
+Ruoli: `admin` (Luca, che lavora anche come operaio: ruoli `admin` + `worker`), `company` (comphas),
+`worker` (operai creati dall'amministratore).
 
 ## Struttura
 
@@ -43,12 +45,13 @@ js/
     clienti.js             anagrafica dai rapporti, ricerca, storico, suggerimenti nome/indirizzo
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
-    accesso.js             schermate di login e cambio password
+    accesso.js             schermate di login (password o PIN), cambio password e PIN di accesso
     lavoro.js              Home dell'operaio: i miei interventi (oggi, prossimi, da completare), da inviare, bozze, completati
     gestione-interventi.js admin/company: crea e modifica interventi, assegna operai, stato e rapportini collegati
     modulo-rapportino.js   modulo del rapportino (bozza/completa, ore, materiale, foto, firma, PDF; bozza sul telefono senza rete)
     consultazione.js       rapportini degli operai per mese (filtri) e giornate del foglio giornaliero
-    utenti.js              admin: crea operai, disattiva/riattiva, reimposta password
+    utenti.js              admin: elenco con nome e cognome, ruoli, stato e PIN; crea operai; modifica nome/cognome
+                           (e ruolo di operaio degli admin); rimuove PIN; disattiva/riattiva; reimposta password
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
@@ -62,18 +65,19 @@ js/
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON
     condivisione.js        invio PDF (condivisione Mail/Gmail) e testo (mailto)
-    pdf/comune.js          intestazione, piè di pagina, misure firma
-    pdf/giornata.js        PDF della giornata (per cliente A5 o foglio unico)
+    pdf/comune.js          intestazione, piè di pagina (con data e numerazione), misure firma, righe di dati con separatori
+    pdf/giornata.js        PDF della giornata (schede per cliente A5 o foglio unico) e del rapportino (schede, con orario dei tecnici)
     pdf/report.js          PDF settimana e mese
   utils/                   funzioni piccole e senza stato
     dates.js               date italiane, giorni di settimana/mese, ora corrente
     formatters.js          ore, euro, saldo, HTML sicuro, evidenziazione
     dom.js                 icone SVG, pulsante "Ora"
-```
-
 supabase/                  backend (Supabase Free)
-  migrations/              schema: profili, ruoli, policy RLS, trigger di controllo
-  functions/               Edge Functions: accesso, cambia-password, utenti, inizializza
+  migrations/              schema in ordine di applicazione: profili e ruoli, interventi e rapportini,
+                           piu' operai, foto nello Storage, privilegi di rapporti, PIN e doppio ruolo,
+                           recupero dell'accesso
+  rollback/                annullamento di ogni migrazione (da eseguire in ordine inverso)
+  functions/               Edge Functions: accesso, cambia-password, utenti, inizializza, pin
   config.toml              niente registrazione pubblica; verify_jwt per funzione
 ```
 
@@ -83,11 +87,27 @@ supabase/                  backend (Supabase Free)
   username e fa verificare la password a **Supabase Auth**; il browser riceve la sessione standard.
   L'email interna (casuale, dominio riservato `.invalid`) non arriva mai al browser. Dopo 5 errori lo
   username è bloccato 15 minuti. Username inesistente e password sbagliata danno lo stesso messaggio.
+- **PIN di 6 cifre** (facoltativo): si attiva da Altro → PIN di accesso con la password attuale (Edge
+  Function `pin`); il login lo propone per l'ultimo utente che l'ha attivato su quel telefono, che ricorda
+  solo lo username. Il PIN non è la password di Supabase Auth: la tabella `pin_accesso` (nessun accesso
+  dal browser) contiene solo l'impronta PBKDF2-SHA256; se il PIN è giusto `accesso` crea la sessione
+  standard sul server. 5 errori → blocco 15 minuti; 10 errori consecutivi → PIN eliminato (si rientra
+  con la password); al massimo 30 tentativi ogni 15 minuti dalla stessa rete; PIN deboli rifiutati.
 - **Password**: nessuna password è nel codice o nel database applicativo. Primo accesso e reset
   obbligano a sceglierne una personale (≥ 10 caratteri, lettere e numeri, senza lo username).
   Cambiare password chiude tutte le sessioni (comportamento di Supabase): il telefono ne riceve una nuova.
+- **Password temporanea e recupero dell'accesso**: la password data dall'admin (nuovo operaio o
+  "Reimposta password") vale **72 ore** (`profili.password_temporanea_scade`); poi l'accesso viene
+  rifiutato e serve un nuovo reset. Il reset elimina il PIN, toglie i blocchi, chiude le sessioni del
+  vecchio telefono e registra data e autore (`password_reimpostata_il` / `_da`, visibili solo all'admin
+  nell'elenco utenti). Procedura completa e procedura di emergenza (unico amministratore) in
+  `docs/interventi-rapportini.md`.
 - **Ruoli**: tabella `profili` (scrivibile solo dalle Edge Functions con la service_role key, che
-  resta sul server). La funzione `utenti` crea **solo** operai e solo se chiamata dall'admin.
+  resta sul server). `ruolo` è il ruolo principale (menu e permessi amministrativi); `ruoli` l'elenco
+  completo: combinazioni ammesse `{admin}`, `{admin,worker}`, `{company}`, `{worker}`. Con `worker` si
+  compare tra gli operai, si viene assegnati agli interventi e si compilano i propri rapportini.
+  La funzione `utenti` crea **solo** operai e solo se chiamata dall'admin; il ruolo di operaio si può
+  dare o togliere solo agli amministratori. L'app mostra sempre nome e cognome, mai identificativi.
 - **RLS** su `rapporti` (nessun accesso anonimo):
 
   | | admin | company | worker |
@@ -180,17 +200,36 @@ esporta/importa backup. Nei test non usare il server vero: blocca `supabase.co`.
 
 ## Supabase: messa in produzione
 
-1. Applicare `supabase/migrations/20261107120000_utenti_ruoli.sql` (il file `…schema_iniziale.sql`
-   descrive solo lo schema già esistente).
-2. Pubblicare le Edge Functions `accesso`, `cambia-password`, `utenti`, `inizializza`
-   (`accesso` e `inizializza` con verify_jwt disattivato).
-3. Pannello Supabase → Authentication → disattivare "Allow new users to sign up".
-4. Pannello Supabase → Edge Functions → Secrets: `CODICE_INIZIALE_LUCA` e `CODICE_INIZIALE_COMPHAS`
+Stato al 08/11/2026: tutte le migrazioni fino a `20261113090000` sono applicate in produzione e le
+cinque Edge Functions pubblicate. La procedura serve per un progetto nuovo o per ricostruirlo.
+
+1. Backup (`create schema if not exists backup;` + copia di `rapporti` e `profili`).
+2. Migrazioni, **in quest'ordine** (SQL Editor; il file `…schema_iniziale.sql` descrive solo lo schema
+   già esistente):
+   `20261107120000_utenti_ruoli` → `20261108090000_interventi_rapportini` →
+   `20261109090000_interventi_piu_operai` → `20261110090000_allegati_storage` →
+   `20261111090000_rapporti_privilegi` → `20261112090000_utenti_pin_ruoli` →
+   `20261113090000_recupero_accesso`.
+3. Edge Functions **dopo** le migrazioni (leggono colonne e funzioni create da queste):
+   `accesso`, `cambia-password`, `utenti`, `inizializza`, `pin`
+   (`accesso` e `inizializza` con verify_jwt disattivato, le altre attivo: vedi `supabase/config.toml`).
+4. Pannello Supabase → Authentication → disattivare "Allow new users to sign up".
+5. Pannello Supabase → Edge Functions → Secrets: `CODICE_INIZIALE_LUCA` e `CODICE_INIZIALE_COMPHAS`
    con i codici scelti dal proprietario; poi chiamare una volta `inizializza`
-   (crea Luca/admin e comphas/company solo se non esiste ancora un admin). Per scelta del proprietario
-   questi codici sono le password definitive dei due account (si cambiano da Altro → Cambia password);
-   gli operai devono invece cambiare la password al primo accesso. Dopo l'uso si possono cancellare i segreti.
-5. Pubblicare il frontend (push su `main`).
+   (crea Luca/admin+operaio e comphas/company solo se non esiste ancora un admin). Per scelta del
+   proprietario questi codici sono le password dei due account (si cambiano da Altro → Cambia password;
+   consigliata una password di almeno 10 caratteri); gli operai devono invece cambiare la password
+   al primo accesso. Dopo l'uso si possono cancellare i segreti.
+6. Pubblicare il frontend (merge su `main`).
+
+Rollback: in ordine inverso con i file di `supabase/rollback/` (dettagli e avvertenze in
+`docs/interventi-rapportini.md`).
+
+**Storico delle migrazioni**: in produzione le migrazioni sono state applicate dal SQL Editor, quindi
+la tabella `supabase_migrations.schema_migrations` non le elenca. Prima di usare la CLI
+(`supabase db push`) vanno segnate come già applicate, altrimenti la CLI proverebbe a rieseguirle:
+`supabase migration repair --status applied 20261107120000 20261108090000 20261109090000 20261110090000 20261111090000 20261112090000 20261113090000`
+(scrive in produzione: da fare solo con autorizzazione).
 
 Test locali: stack Supabase con `supabase start` e le stesse migrazioni; le prove usano solo
 credenziali di prova e non contattano il progetto di produzione.
