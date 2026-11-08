@@ -396,6 +396,20 @@ Solo `js/services/pdf/` (più due campi passati da `pdfRapportino`): dati e funz
 - Riepiloghi (da fatturare, spese): l'ultima riga resta con il totale; il riepilogo non resta con il
   solo titolo.
 
+## Layout dei PDF: singolo, multi-cliente, giornata
+
+`js/services/pdf/giornata.js` ha un solo motore di impaginazione (`impaginatore`) per i contenuti di un
+cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); cambia solo la cornice:
+- **Rapportino singolo** (un cliente: PDF del rapportino dall'app, PDF "per cliente" di una giornata con
+  un solo cliente): layout normale su pagina A4 intera, titolo "RAPPORTINO DI INTERVENTO".
+- **Stampa multi-cliente** (PDF "per cliente" di una giornata con più clienti): due rapportini per foglio
+  A4 verticale, ciascuno in una fascia A5 orizzontale (metà del foglio, 210 × 148,5 mm), con testo diritto
+  dopo il taglio e linea tratteggiata centrale "TAGLIA QUI". Ogni fascia ha logo, intestazione (N., data,
+  "Cliente i di n"), dati della giornata, piede con riferimento e pagina; ogni cliente parte da una fascia
+  nuova e non sconfina nell'altra. Se non entra continua nella fascia successiva con "Nome (segue)" (testo
+  non ridotto: minimo 8,5 pt). Riferimento per cliente `RG-AAAAMMGG-n`.
+- **Foglio unico** della giornata: invariato (A4, lavori numerati, riepiloghi).
+
 ## Procedura di applicazione
 
 **Stato (08/11/2026): procedura completata.** Le migrazioni 20261108–20261111 sono in produzione dal
