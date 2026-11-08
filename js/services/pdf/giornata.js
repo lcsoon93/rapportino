@@ -6,7 +6,7 @@ import { rigaOrarioCliente, testoMateriale } from "../../modules/report.js";
 import { contoOreOperaio } from "../../core/preferenze.js";
 import { euro } from "../../utils/formatters.js";
 import { datiGiornata } from "../../modules/rapportini.js";
-import { aggiungiPiePagina, intestazionePDF, misureFirmaPDF } from "./comune.js";
+import { aggiungiPiePagina, intestazionePDF, misureFirmaPDF, righeConSeparatori } from "./comune.js";
 
 // dati/iso facoltativi: senza argomenti usa il foglio giornaliero aperto (come sempre);
 // con argomenti stampa una giornata "virtuale", es. un rapportino
@@ -183,7 +183,7 @@ export function generaPDFPerCliente(dati, iso){
       doc.setFont("helvetica","italic");
       doc.setFontSize(8.5);
       doc.setTextColor(90,96,104);
-      const righeMeta = doc.splitTextToSize(meta.join("   ·   "), CW - 2);
+      const righeMeta = righeConSeparatori(doc, meta, "   ·   ", CW - 2);
       scriviRighe(righeMeta, ML + 2, 4.2);
       doc.setTextColor(0,0,0);
       y += 2.5;
@@ -234,23 +234,27 @@ export function generaPDFPerCliente(dati, iso){
       riserva = riserva || 0;
       const perRiga = 2, gapFoto = 4;
       const boxW = (CW - 2 - gapFoto * (perRiga - 1)) / perRiga;
-      let boxH = 48;
-      // se le immagini stanno su una sola riga ma non c'e' spazio per l'altezza piena,
-      // le rimpicciolisco per tenerle nella stessa scheda (fino a un minimo ancora leggibile)
-      const spazioLibero = yLimiteCorrente - y - 7 - riserva;  // 7 = titolo + respiro
-      if(immagini.length <= perRiga && spazioLibero < boxH && spazioLibero >= ALTEZZA_MIN_IMG){
-        boxH = Math.floor(spazioLibero * 10) / 10;
-      }
+      const BOX_H = 48;
+      const righeTot = Math.ceil(immagini.length / perRiga);
+      // ogni riga che non entra per poco nella scheda viene rimpicciolita (proporzioni invariate, fino a
+      // un minimo ancora leggibile) invece di passare alla mezza pagina successiva lasciando spazio vuoto
+      const altezzaRiga = ultima=>{
+        const libero = yLimiteCorrente - y - 2 - (ultima ? riserva : 0);
+        return libero < BOX_H && libero >= ALTEZZA_MIN_IMG ? Math.floor(libero * 10) / 10 : BOX_H;
+      };
       doc.setFont("helvetica","bold");
       doc.setFontSize(9);
-      const righeTot = Math.ceil(immagini.length / perRiga);
-      serveNuovoSlot(boxH + 7 + (righeTot === 1 ? riserva : 0));
+      // il titolo resta con la prima riga (anche rimpicciolita)
+      serveNuovoSlot(ALTEZZA_MIN_IMG + 7 + (righeTot === 1 ? riserva : 0));
       doc.text(titolo, ML + 2, y);
       y += 4.3;
-      let colonna = 0;
+      let colonna = 0, boxH = BOX_H;
       immagini.forEach((f, k)=>{
         const ultimaRiga = Math.floor(k / perRiga) === righeTot - 1;
-        if(colonna === 0) serveNuovoSlot(boxH + 2 + (ultimaRiga ? riserva : 0));
+        if(colonna === 0){
+          boxH = altezzaRiga(ultimaRiga);
+          serveNuovoSlot(boxH + 2 + (ultimaRiga ? riserva : 0));
+        }
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
           const scala = Math.min(boxW / f.w, boxH / f.h);
@@ -359,6 +363,7 @@ export function generaPDFFoglioUnico(dati, iso){
   const d = dati || datiGiornata();
   const data = dataIt(iso);
   let lavoroCorrente = null;                // { numero, nome } finche' si scrive un lavoro
+  let cimaPagina = -1;                      // quota del primo contenuto della pagina corrente
   const ALTEZZA_FIRMA = 31;
   let y = intestazionePDF(doc, "RAPPORTO DI LAVORO GIORNALIERO");
 
@@ -396,14 +401,17 @@ export function generaPDFFoglioUnico(dati, iso){
     doc.setFont(font.fontName, font.fontStyle);
     doc.setFontSize(dim);
     doc.setTextColor(colore);
+    cimaPagina = y;
   }
   // garantisce "spazio" mm prima di LIMITE, altrimenti pagina nuova
   function spazio(h){ if(y + h > LIMITE){ nuovaPagina(); return true; } return false; }
   // testo a capo e spezzato riga per riga tra le pagine
+  // (testo: stringa, oppure righe gia' spezzate); una riga vuota capitata in cima a una pagina si salta
   function paragrafo(testo, x, larg, dim, interlinea, peso, colore){
     stile(dim, peso, colore);
-    doc.splitTextToSize(String(testo), larg).forEach(r=>{
+    (Array.isArray(testo) ? testo : doc.splitTextToSize(String(testo), larg)).forEach(r=>{
       if(spazio(interlinea)) stile(dim, peso, colore);
+      if(!String(r).trim() && y === cimaPagina) return;
       doc.text(r, x, y);
       y += interlinea;
     });
@@ -419,11 +427,6 @@ export function generaPDFFoglioUnico(dati, iso){
       doc.text(r, x + 4, y);
       y += interlinea;
     });
-  }
-  // altezza di un testo a capo (per decidere cosa tenere insieme)
-  function altezza(testo, larg, dim, interlinea){
-    doc.setFontSize(dim);
-    return doc.splitTextToSize(String(testo), larg).length * interlinea;
   }
   // griglia di immagini con proporzioni reali: una sola immagine piu' grande, altrimenti due per riga;
   // ogni riga e' alta quanto la sua immagine piu' alta. firma: "sotto" = tiene lo spazio della firma
@@ -537,8 +540,10 @@ export function generaPDFFoglioUnico(dati, iso){
     const largEtichette = etichette ? doc.getTextWidth(etichette) + 4 : 0;
     stile(11.5, "bold");
     const nomeRighe = doc.splitTextToSize(c.nome + rigaOrarioCliente(c), CWR - largEtichette);
-    const meta = [c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : ""].filter(Boolean).join("   ·   ");
-    const altMeta = meta ? altezza(meta, CWR, 9.5, 4.4) + 1.5 : 0;
+    const meta = [c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : ""].filter(Boolean);
+    stile(9.5, "italic");
+    const righeMeta = righeConSeparatori(doc, meta, "   ·   ", CWR);
+    const altMeta = righeMeta.length ? righeMeta.length * 4.4 + 1.5 : 0;
     // il titolo resta con il suo inizio: righe del nome, dati del cliente e almeno ~3 righe di contenuto
     spazio(nomeRighe.length * 5.2 + altMeta + 16);
     if(c.urgente){
@@ -556,7 +561,7 @@ export function generaPDFFoglioUnico(dati, iso){
     }
     y += nomeRighe.length * 5.2 + 0.8;
     lavoroCorrente = { numero, nome: c.nome };
-    if(meta){ paragrafo(meta, RIENTRO, CWR, 9.5, 4.4, "italic", [90,96,104]); y += 1.5; }
+    if(righeMeta.length){ paragrafo(righeMeta, RIENTRO, CWR, 9.5, 4.4, "italic", [90,96,104]); y += 1.5; }
     if(c.dettagli){ y += 1; paragrafo(c.dettagli, RIENTRO, CWR, 10.5, 5); y += 2; }
     if(c.materiali && c.materiali.length){
       spazio(5 + Math.min(2, c.materiali.length) * 4.8);          // titolo con almeno due voci

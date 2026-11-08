@@ -37,6 +37,23 @@ export function aggiungiPiePagina(doc, centro){
     doc.setTextColor(0,0,0);
   }
 }
+// righe di dati separati da " · " (indirizzo, tipologia, "Fatturare a"...): si va a capo solo tra un dato
+// e l'altro, cosi' una riga non comincia mai con il separatore; un dato troppo lungo va a capo da solo.
+// Usa il carattere gia' impostato su doc.
+export function righeConSeparatori(doc, parti, separatore, larghezza){
+  const righe = [];
+  let corrente = "";
+  parti.filter(Boolean).forEach(p=>{
+    const prova = corrente ? corrente + separatore + p : p;
+    if(doc.getTextWidth(prova) <= larghezza){ corrente = prova; return; }
+    if(corrente) righe.push(corrente);
+    const pezzi = doc.splitTextToSize(p, larghezza);
+    corrente = pezzi.pop();
+    righe.push(...pezzi);
+  });
+  if(corrente) righe.push(corrente);
+  return righe;
+}
 // misure della firma nel PDF: proporzioni reali, dentro maxW x maxH (mm)
 export function misureFirmaPDF(doc, src, maxW, maxH){
   let w = maxW, h = maxH;
