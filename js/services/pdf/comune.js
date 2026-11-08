@@ -18,13 +18,20 @@ export function intestazionePDF(doc, titolo){
   doc.setTextColor(0,0,0);
   return 43;
 }
-export function aggiungiPiePagina(doc){
+// centro (facoltativo): testo al centro del piede, es. "Rapporto del 08/11/2026", con una riga sottile sopra
+export function aggiungiPiePagina(doc, centro){
   const totale = doc.getNumberOfPages();
   for(let i = 1; i <= totale; i++){
     doc.setPage(i);
     doc.setFont("helvetica","normal");
     doc.setFontSize(8.5);
     doc.setTextColor(130,135,140);
+    if(centro){
+      doc.setDrawColor(220,223,227);
+      doc.setLineWidth(0.25);
+      doc.line(18, 284, 210 - 18, 284);
+      doc.text(centro, 105, 289, {align:"center"});
+    }
     doc.text("COMP.HAS assistance SRL", 18, 289);
     doc.text("Pagina " + i + " di " + totale, 210 - 18, 289, {align:"right"});
     doc.setTextColor(0,0,0);
