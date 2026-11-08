@@ -369,8 +369,10 @@ mensili sono invariati.
     foto con un numero dispari di foto, altrimenti sotto); nessuna sezione foto o firma se vuota.
 - **Schede per cliente** (`generaPDFPerCliente`, usata anche per il PDF del rapportino): testi e
   materiali lunghi continuano nella mezza pagina successiva invece di superare la linea di taglio; il
-  richiamo "(segue)" va a capo; il PDF del rapportino riporta l'**orario di ogni tecnico** (prima
-  mancava).
+  richiamo "(segue)" va a capo; una riga di foto che non entra per poco viene rimpicciolita (fino a
+  32 mm di altezza) invece di passare alla mezza pagina dopo; il PDF del rapportino riporta
+  l'**orario di ogni tecnico** (prima mancava).
+- In entrambi i formati indirizzo, tipologia e "Fatturare a" vanno a capo solo tra un dato e l'altro.
 
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 
