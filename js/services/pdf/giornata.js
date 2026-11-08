@@ -3,11 +3,10 @@
 // "cornice" in cui scrive:
 //   - pagina A4 intera:  rapportino singolo (generaPDFPerCliente con un cliente) e foglio unico della
 //                        giornata (generaPDFFoglioUnico, tutti i lavori numerati);
-//   - fascia A5:         stampa multi-cliente, due rapportini per foglio A4 verticale (ogni meta' del
-//                        foglio e' un A5 orizzontale, 210 x 148,5 mm, testo diritto dopo il taglio),
-//                        linea tratteggiata centrale "TAGLIA QUI"; ogni cliente parte da una fascia
-//                        nuova e non sconfina mai in quella dell'altro.
-// Se un contenuto non entra nell'area continua nella successiva (pagina o fascia) con il richiamo
+//   - colonna A5:        stampa multi-cliente su A4 orizzontale, due rapportini A5 verticali affiancati
+//                        (148,5 x 210 mm), linea tratteggiata verticale "TAGLIA QUI"; ogni cliente parte
+//                        da una colonna nuova e non sconfina mai nell'altra.
+// Se un contenuto non entra nell'area continua nella successiva (pagina o colonna) con il richiamo
 // del cliente "(segue)". Testi e tabelle si spezzano riga per riga; un titolo non resta mai da solo
 // in fondo; foto con proporzioni reali (ridotte se non entrano per poco); firma con l'ultima foto.
 import { dataIt } from "../../utils/dates.js";
@@ -23,28 +22,34 @@ import {
 
 const TITOLO_RAPPORTINO = "RAPPORTINO DI INTERVENTO";
 const TITOLO_GIORNATA = "RAPPORTO DI LAVORO GIORNALIERO";
-const W = 210, H = 297, META = H / 2;
+const W = 210;
 const statiCliente = c=>[c.urgente ? "URGENZA" : "", c.stato === "Da ultimare" ? "DA ULTIMARE" : ""].filter(Boolean);
 const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : ""].filter(Boolean);
 const oreOperaio = op=>contoOreOperaio(op, "").trim().replace(/^\(|\)$/g, "");
 const nuovoDoc = ()=>{ const { jsPDF } = window.jspdf; return new jsPDF({unit:"mm", format:"a4"}); };
 
-// misure e corpi del testo per i due formati (nella fascia il testo resta leggibile: minimo 8,5 pt)
+// misure e corpi del testo per i due formati (nella colonna il testo resta leggibile: minimo 8,5 pt)
 const STILI = {
   pagina: { testo: 10.5, inter: 5, sotto: 7.8, nome: 12, sede: 9.5, interSede: 4.5, tab: 10, interTab: 4.8, tabTit: 7.2,
             fotoMaxH: 70, fotoSolaW: 120, fotoSolaH: 90, fotoMin: 40, fotoSolaMin: 50, gap: 5,
             firmaH: 33, firmaW: 80, firmaImgH: 19, rientro: 11 },
-  fascia: { testo: 9.5, inter: 4.5, sotto: 7.2, nome: 11.5, sede: 8.5, interSede: 4.1, tab: 9, interTab: 4.3, tabTit: 6.8,
-            fotoMaxH: 50, fotoSolaW: 92, fotoSolaH: 56, fotoMin: 32, fotoSolaMin: 32, gap: 4,
-            firmaH: 24, firmaW: 70, firmaImgH: 12.5, rientro: 0 },
+  // colonna A5 verticale della stampa multi-cliente (larghezza utile ~128 mm)
+  colonna: { testo: 9.5, inter: 4.5, sotto: 7.2, nome: 11.5, sede: 8.5, interSede: 4.1, tab: 9, interTab: 4.3, tabTit: 6.8,
+            fotoMaxH: 56, fotoSolaW: 96, fotoSolaH: 72, fotoMin: 34, fotoSolaMin: 40, gap: 4,
+            firmaH: 26, firmaW: 70, firmaImgH: 14, rientro: 0 },
 };
 
 // =====================================================================================================
 // Motore di impaginazione. cornice = { x0, x1, limite: ()=>mm, nuovaArea: ()=>y } (la cornice disegna
 // intestazioni, filigrana e piede della nuova area). Restituisce le funzioni di scrittura.
 function impaginatore(doc, s, cornice, yIniziale){
-  const X0 = cornice.x0, X1 = cornice.x1, CW = X1 - X0;
+  // x dell'area corrente: si rileggono a ogni area nuova (nelle colonne affiancate cambiano); le funzioni
+  // di scrittura spostano cio' che resta da scrivere della differenza (dx) tra l'area di partenza e quella attuale
+  let X0, X1, CW;
+  const leggiCornice = ()=>{ X0 = cornice.x0; X1 = cornice.x1; CW = X1 - X0; };
+  leggiCornice();
   const im = { y: yIniziale, segue: "" };     // segue: richiamo del cliente nelle aree successive
+  im.leggiCornice = ()=>leggiCornice();
   let cima = -1;                               // quota del primo contenuto dell'area corrente
   let riprendi = null;                         // ridisegna l'intestazione di una tabella in un'area nuova
 
@@ -52,6 +57,7 @@ function impaginatore(doc, s, cornice, yIniziale){
   function nuova(){
     const font = doc.getFont(), dim = doc.getFontSize(), colore = doc.getTextColor();
     im.y = cornice.nuovaArea();
+    leggiCornice();
     if(im.segue){
       stileTesto(doc, s === STILI.pagina ? 8.5 : 8.2, "italic", COLORI.grigio);
       doc.text(doc.splitTextToSize(im.segue + "  (segue)", CW)[0], X0, im.y);
@@ -67,24 +73,29 @@ function impaginatore(doc, s, cornice, yIniziale){
   im.spazio = h=>{ if(im.y + h > cornice.limite()){ nuova(); return true; } return false; };
   // testo (o righe gia' spezzate) scritto riga per riga; una riga vuota in cima a un'area si salta
   im.paragrafo = (testo, x, larg, dim, inter, peso, colore)=>{
+    const base = X0;
     stileTesto(doc, dim, peso, colore);
     (Array.isArray(testo) ? testo : doc.splitTextToSize(String(testo), larg)).forEach(r=>{
       if(im.spazio(inter)) stileTesto(doc, dim, peso, colore);
       if(!String(r).trim() && im.y === cima) return;
-      doc.text(r, x, im.y);
+      doc.text(r, x + X0 - base, im.y);
       im.y += inter;
     });
   };
   // sottotitolo tenuto con almeno "dopo" mm del suo contenuto
   im.sezione = (testo, x, dopo)=>{
+    const base = X0;
     im.spazio(5.5 + (dopo || 10));
-    sottotitolo(doc, testo, x, im.y, s.sotto);
+    sottotitolo(doc, testo, x + X0 - base, im.y, s.sotto);
     im.y += s === STILI.pagina ? 5 : 4.4;
   };
   // tabella a due colonne (descrizione | valore a destra) senza bordi pesanti: intestazione su fondo
   // grigio chiaro ripetuta se la tabella continua; riservaFinale tiene l'ultima riga con cio' che segue
-  im.tabella = (x, larg, titoli, righe, riservaFinale)=>{
+  im.tabella = (x0, larg, titoli, righe, riservaFinale)=>{
+    const base = X0;
+    let x = x0;
     const intestazione = ()=>{
+      x = x0 + X0 - base;
       coloreRiempimento(doc, COLORI.sfondo);
       doc.rect(x, im.y - 3.6, larg, 5.3, "F");
       stileTesto(doc, s.tabTit, "bold", COLORI.grigio);
@@ -102,6 +113,7 @@ function impaginatore(doc, s, cornice, yIniziale){
       if(r.length <= 4) im.spazio(r.length * s.interTab + 1 + fine);
       r.forEach((t, k)=>{
         if(im.spazio(s.interTab)) stileTesto(doc, s.tab);
+        x = x0 + X0 - base;
         doc.text(t, x + 2, im.y);
         if(k === 0 && valore) doc.text(String(valore), x + larg - 2, im.y, {align:"right"});
         im.y += s.interTab;
@@ -116,7 +128,9 @@ function impaginatore(doc, s, cornice, yIniziale){
   // due per riga, riga alta quanto l'immagine piu' alta. firma: "sotto" = tiene lo spazio della firma con
   // l'ultima riga; "accanto" = la firma va nella casella libera accanto all'ultima immagine (se la riga e'
   // troppo bassa va sotto, sempre nella stessa area). Restituisce la casella libera.
-  im.griglia = (titolo, immagini, x0, larg, firma)=>{
+  im.griglia = (titolo, immagini, xPartenza, larg, firma)=>{
+    const base = X0;
+    let x0 = xPartenza;
     const sola = immagini.length === 1, gap = s.gap;
     const colW = sola ? Math.min(larg, s.fotoSolaW) : (larg - gap) / 2, maxH = sola ? s.fotoSolaH : s.fotoMaxH;
     const misure = immagini.map(f=>{
@@ -142,6 +156,7 @@ function impaginatore(doc, s, cornice, yIniziale){
         rowH = libero;
       }
       const nuovaArea = im.spazio(titoloH + rowH + riserva);
+      x0 = xPartenza + X0 - base;
       if(r === 0 || nuovaArea){
         sottotitolo(doc, r === 0 ? titolo : titolo + " (segue)", x0, im.y, s.sotto);
         im.y += 2.5;
@@ -176,7 +191,7 @@ function impaginatore(doc, s, cornice, yIniziale){
   };
 
   // riquadro dei dati: data, riferimento, tecnici e orario di ciascun tecnico
-  // (pagina: griglia con tabella degli orari; fascia: due righe compatte)
+  // (pagina: griglia con tabella degli orari; colonna: due righe compatte)
   im.datiGenerali = ({ data, riferimento, tecnici, operai, escludi, orari })=>{
     const y0 = im.y;
     if(s === STILI.pagina){
@@ -251,15 +266,16 @@ function impaginatore(doc, s, cornice, yIniziale){
   // tutto cio' che riguarda un cliente: nome (con numero facoltativo) e stati, sede, attivita' svolte,
   // materiali, importo, spese (con scontrini), fotografie, note, firma
   im.cliente = (c, { numero, spese } = {})=>{
-    const R = X0 + s.rientro, CWR = X1 - R;
+    // posizioni relative all'area corrente (si rileggono dopo ogni possibile cambio di area/colonna)
+    const R = ()=>X0 + s.rientro, CWR = ()=>X1 - R();
     const stati = statiCliente(c);
     stileTesto(doc, 7.2, "bold");
     const largStati = stati.reduce((t, st)=>t + doc.getTextWidth(st) + 5.5, 0);
     stileTesto(doc, s.nome, "bold");
-    const nomeX = numero ? R : X0, nomeL = X1 - nomeX - largStati - 2;
+    const nomeRel = numero ? s.rientro : 0, nomeL = X1 - X0 - nomeRel - largStati - 2;
     const nomeRighe = doc.splitTextToSize(c.nome + rigaOrarioCliente(c), Math.max(nomeL, 40));
     stileTesto(doc, s.sede);
-    const righeSede = righeConSeparatori(doc, datiSede(c), "   ·   ", X1 - nomeX);
+    const righeSede = righeConSeparatori(doc, datiSede(c), "   ·   ", X1 - X0 - nomeRel);
     const interNome = s.nome * 0.45;
     // il nome resta con la sede e almeno ~3 righe di contenuto
     im.spazio(nomeRighe.length * interNome + righeSede.length * s.interSede + 18);
@@ -270,59 +286,59 @@ function impaginatore(doc, s, cornice, yIniziale){
       doc.text(String(numero), X0 + 3.75, im.y, {align:"center"});
     }
     stileTesto(doc, s.nome, "bold");
-    doc.text(nomeRighe, nomeX, im.y);
+    doc.text(nomeRighe, X0 + nomeRel, im.y);
     if(stati.length) etichetteStato(doc, stati, X1, im.y - 0.6);
     im.y += nomeRighe.length * interNome + 0.6;
     im.segue = (numero ? numero + ")  " : "") + c.nome;
-    if(righeSede.length) im.paragrafo(righeSede, nomeX, X1 - nomeX, s.sede, s.interSede, "normal", COLORI.grigio);
+    if(righeSede.length) im.paragrafo(righeSede, X0 + nomeRel, X1 - X0 - nomeRel, s.sede, s.interSede, "normal", COLORI.grigio);
     im.y += 3;
 
     if(c.dettagli){
-      im.sezione("Attività svolte", R);
-      im.paragrafo(c.dettagli, R, CWR, s.testo, s.inter);
+      im.sezione("Attività svolte", R());
+      im.paragrafo(c.dettagli, R(), CWR(), s.testo, s.inter);
       im.y += 2.5;
     }
     if(c.materiali && c.materiali.length){
-      im.sezione("Materiali utilizzati", R, 16);
-      im.tabella(R, CWR, ["Descrizione", "Q.tà"], c.materiali.map(m=>[m.a || "", m.q || ""]));
+      im.sezione("Materiali utilizzati", R(), 16);
+      im.tabella(R(), CWR(), ["Descrizione", "Q.tà"], c.materiali.map(m=>[m.a || "", m.q || ""]));
       im.y += 2.5;
     }
     if(c.importo){
       im.spazio(7.5);
       stileTesto(doc, s.sotto, "bold", COLORI.grigio);
-      doc.text("IMPORTO DA FATTURARE", R, im.y, {charSpace: 0.2});
+      doc.text("IMPORTO DA FATTURARE", R(), im.y, {charSpace: 0.2});
       stileTesto(doc, s.testo, "bold");
       doc.text(euro(c.importo), X1, im.y, {align:"right"});
       im.y += 7.5;
     }
     if(spese && spese.length){
-      im.sezione("Spese", R, 12);
-      im.tabella(R, CWR, ["Descrizione", "Importo"], spese.map(sp=>[sp.d, euro(sp.i)]), spese.length > 1 ? 6 : 0);
+      im.sezione("Spese", R(), 12);
+      im.tabella(R(), CWR(), ["Descrizione", "Importo"], spese.map(sp=>[sp.d, euro(sp.i)]), spese.length > 1 ? 6 : 0);
       if(spese.length > 1){
         stileTesto(doc, s.tab, "bold");
-        doc.text("Totale spese", R + 2, im.y + 0.8);
+        doc.text("Totale spese", R() + 2, im.y + 0.8);
         doc.text(euro(totaleSpese(spese)), X1 - 2, im.y + 0.8, {align:"right"});
         im.y += 6;
       }
       im.y += 2;
       const scontrini = spese.filter(sp=>sp.allegato && sp.allegato.src).map(sp=>sp.allegato);
-      if(scontrini.length) im.griglia(scontrini.length > 1 ? "Allegati spese" : "Allegato spesa", scontrini, R, CWR, null);
+      if(scontrini.length) im.griglia(scontrini.length > 1 ? "Allegati spese" : "Allegato spesa", scontrini, R(), CWR(), null);
     }
     let libera = null;
     if(c.foto && c.foto.length){
       // con un numero dispari di foto (piu' di una) la firma va accanto all'ultima, se non ci sono note
       const accanto = !!(c.firma && !c.note && c.foto.length > 1 && c.foto.length % 2 === 1);
-      libera = im.griglia("Fotografie", c.foto, R, CWR, c.firma && !c.note ? (accanto ? "accanto" : "sotto") : null);
+      libera = im.griglia("Fotografie", c.foto, R(), CWR(), c.firma && !c.note ? (accanto ? "accanto" : "sotto") : null);
       if(libera) im.firma(c, libera.x, libera.y + libera.h - s.firmaH, libera.w);
     }
     if(c.note){
-      im.sezione("Note", R);
-      im.paragrafo(c.note, R, CWR, s.testo, s.inter);
+      im.sezione("Note", R());
+      im.paragrafo(c.note, R(), CWR(), s.testo, s.inter);
       im.y += 2.5;
     }
     if(c.firma && !libera){
       im.spazio(s.firmaH);
-      im.firma(c, R, im.y, CWR);
+      im.firma(c, R(), im.y, CWR());
       im.y += s.firmaH;
     }
     im.segue = "";
@@ -358,70 +374,73 @@ function rapportinoSingolo(d, iso){
 }
 
 // =====================================================================================================
-// Stampa multi-cliente: due rapportini per foglio A4 verticale, ciascuno in una fascia A5 orizzontale
-// (meta' superiore e inferiore), separati dalla linea tratteggiata "TAGLIA QUI". Ogni cliente parte da
-// una fascia nuova; se non basta continua nella fascia successiva con il richiamo del cliente.
+// Stampa multi-cliente: foglio A4 orizzontale (297 x 210 mm) con due rapportini A5 verticali affiancati
+// (148,5 x 210 mm): cliente 1 a sinistra, cliente 2 a destra, poi altri fogli. Rispetto al foglio tenuto in
+// verticale ogni rapportino e' ruotato di 90 gradi: dopo il taglio verticale (linea tratteggiata "TAGLIA
+// QUI") ciascuna meta' e' un A5 verticale che si legge normalmente. Ogni cliente parte da una colonna
+// nuova e non sconfina nell'altra; se non basta continua nella colonna successiva con il richiamo del
+// cliente. Un cliente rimasto da solo occupa una sola meta' (nessuna linea di taglio, nessun duplicato).
 function multiCliente(d, iso){
-  const doc = nuovoDoc();
-  const ML = 14, MR = 14;
-  const MARGINE_EST = 12, MARGINE_INT = 7;         // dal bordo del foglio / dalla linea di taglio
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:"mm", format:"a4", orientation:"landscape"});
+  const LW = 297, LH = 210, MEZZO = LW / 2;
+  const MARGINE_EST = 12, MARGINE_INT = 8, ALTO = 10, BASSO = 15;   // dal bordo del foglio / dalla linea di taglio
   const data = dataIt(iso);
   const base = riferimentoGiornata(data);
-  const piedi = [];                                // { pagina, y }: numerazione scritta alla fine
-  let fascia = -1, limite = 0, cliente = null;     // fascia: 0 = alto pag.1, 1 = basso pag.1, 2 = alto pag.2…
+  const piedi = [];                                // { pagina, x0, x1, y }: numerazione scritta alla fine
+  let colonna = -1, cliente = null;                // colonna: 0 = sinistra pag.1, 1 = destra pag.1, 2 = sinistra pag.2…
+  const cornice = { x0: MARGINE_EST, x1: MEZZO - MARGINE_INT, limite: ()=>LH - BASSO, nuovaArea: ()=>nuovaColonna() };
 
+  // linea di taglio verticale al centro, con la scritta lungo la linea (non invade le colonne)
   function lineaTaglio(){
     coloreLinea(doc, [170,176,182]); doc.setLineWidth(0.3);
     if(doc.setLineDashPattern) doc.setLineDashPattern([2.2, 1.6], 0);
-    doc.line(5, META, W - 5, META);
+    doc.line(MEZZO, 5, MEZZO, LH - 5);
     if(doc.setLineDashPattern) doc.setLineDashPattern([], 0);
     stileTesto(doc, 7, "bold", [140,147,154]);
-    // la scritta interrompe la linea; larghezza calcolata con la spaziatura tra le lettere
     const t = "TAGLIA QUI", spaziatura = 0.4;
     const larg = doc.getTextWidth(t) + spaziatura * (t.length - 1);
     coloreRiempimento(doc, [255,255,255]);
-    doc.rect(W / 2 - larg / 2 - 3, META - 2.2, larg + 6, 4.4, "F");
-    doc.text(t, W / 2 - larg / 2, META + 1.1, {charSpace: spaziatura});
+    doc.rect(MEZZO - 2.2, LH / 2 - larg / 2 - 3, 4.4, larg + 6, "F");
+    doc.text(t, MEZZO + 1.1, LH / 2 + larg / 2, {angle: 90, charSpace: spaziatura});
   }
-  // nuova fascia: intestazione compatta (logo, titolo, N. e data, "Cliente i di n"), piede e,
-  // dalla seconda pagina, filigrana. Restituisce la quota da cui scrivere.
-  function nuovaFascia(){
-    fascia++;
-    let yTop;
-    if(fascia % 2 === 0){
-      if(fascia > 0) doc.addPage("a4", "portrait");
-      yTop = MARGINE_EST; limite = META - MARGINE_INT;
-    } else {
-      lineaTaglio();
-      yTop = META + MARGINE_INT; limite = H - MARGINE_EST - 2;
-    }
-    if(fascia >= 2) filigranaPDF(doc, W / 2, (yTop + limite) / 2 + 4, 90);
+  // nuova colonna: intestazione compatta (logo, titolo, N. e data, "Cliente i di n"), piede e, dalla
+  // seconda pagina, filigrana. Restituisce la quota da cui scrivere.
+  function nuovaColonna(){
+    colonna++;
+    const destra = colonna % 2 === 1;
+    if(!destra && colonna > 0) doc.addPage("a4", "landscape");
+    if(destra) lineaTaglio();
+    cornice.x0 = destra ? MEZZO + MARGINE_INT : MARGINE_EST;
+    cornice.x1 = destra ? LW - MARGINE_EST : MEZZO - MARGINE_INT;
+    if(colonna >= 2) filigranaPDF(doc, (cornice.x0 + cornice.x1) / 2, LH / 2 + 6, 95);
     const yl = intestazioneCompatta(doc, TITOLO_RAPPORTINO,
-      { riferimento: cliente.rif, data, extra: "Cliente " + cliente.n + " di " + d.clienti.length }, ML, W - MR, yTop);
-    const yp = limite + 4;                         // piede: sopra la linea di taglio e il bordo del foglio
+      { riferimento: cliente.rif, data, extra: "Cliente " + cliente.n + " di " + d.clienti.length }, cornice.x0, cornice.x1, ALTO);
+    const yp = LH - BASSO + 6;
     stileTesto(doc, 7, "normal", COLORI.grigio);
-    doc.text("COMP.HAS assistance SRL", ML, yp);
-    doc.text("Rapportino N. " + cliente.rif + " del " + data, W / 2, yp, {align:"center"});
-    piedi.push({ pagina: doc.getNumberOfPages(), y: yp });
+    doc.text("COMP.HAS assistance SRL", cornice.x0, yp);
+    doc.text("Rapportino N. " + cliente.rif + " del " + data, (cornice.x0 + cornice.x1) / 2, yp, {align:"center"});
+    piedi.push({ pagina: doc.getNumberOfPages(), x1: cornice.x1, y: yp });
     return yl + 6;
   }
-  const im = impaginatore(doc, STILI.fascia, { x0: ML, x1: W - MR, limite: ()=>limite, nuovaArea: nuovaFascia }, 0);
+  const im = impaginatore(doc, STILI.colonna, cornice, 0);
 
   d.clienti.forEach((c, i)=>{
     cliente = { n: i + 1, rif: base + "-" + (i + 1) };
     im.segue = "";
-    im.y = nuovaFascia();
-    // i dati generali in ogni fascia: dopo il taglio ogni rapportino e' completo
+    im.y = nuovaColonna();
+    im.leggiCornice();
+    // i dati generali in ogni colonna: dopo il taglio ogni rapportino e' completo
     const haOrario = d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle;
     im.datiGenerali({ data, riferimento: cliente.rif, tecnici: d.tecnici, operai: d.operai, orari: haOrario });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
-  // numerazione delle pagine nel piede di ogni fascia
+  // numerazione delle pagine nel piede di ogni colonna
   const n = doc.getNumberOfPages();
   piedi.forEach(p=>{
     doc.setPage(p.pagina);
     stileTesto(doc, 7, "normal", COLORI.grigio);
-    doc.text("Pagina " + p.pagina + " di " + n, W - MR, p.y, {align:"right"});
+    doc.text("Pagina " + p.pagina + " di " + n, p.x1, p.y, {align:"right"});
   });
   return doc;
 }

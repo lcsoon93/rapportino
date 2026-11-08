@@ -399,15 +399,20 @@ Solo `js/services/pdf/` (più due campi passati da `pdfRapportino`): dati e funz
 ## Layout dei PDF: singolo, multi-cliente, giornata
 
 `js/services/pdf/giornata.js` ha un solo motore di impaginazione (`impaginatore`) per i contenuti di un
-cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); cambia solo la cornice:
+cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); cambia solo la cornice
+(pagina A4 o colonna A5; il motore segue l'area corrente anche quando passa da una colonna all'altra):
 - **Rapportino singolo** (un cliente: PDF del rapportino dall'app, PDF "per cliente" di una giornata con
   un solo cliente): layout normale su pagina A4 intera, titolo "RAPPORTINO DI INTERVENTO".
-- **Stampa multi-cliente** (PDF "per cliente" di una giornata con più clienti): due rapportini per foglio
-  A4 verticale, ciascuno in una fascia A5 orizzontale (metà del foglio, 210 × 148,5 mm), con testo diritto
-  dopo il taglio e linea tratteggiata centrale "TAGLIA QUI". Ogni fascia ha logo, intestazione (N., data,
-  "Cliente i di n"), dati della giornata, piede con riferimento e pagina; ogni cliente parte da una fascia
-  nuova e non sconfina nell'altra. Se non entra continua nella fascia successiva con "Nome (segue)" (testo
-  non ridotto: minimo 8,5 pt). Riferimento per cliente `RG-AAAAMMGG-n`.
+- **Stampa multi-cliente** (PDF "per cliente" di una giornata con più clienti): pagina **A4 orizzontale**
+  (297 × 210 mm) con due rapportini **A5 verticali** affiancati (148,5 × 210 mm): cliente 1 a sinistra,
+  cliente 2 a destra, poi altri fogli. Rispetto al foglio tenuto in verticale ogni rapportino è ruotato di
+  90°: stampando, la stampante ruota la pagina sul foglio e dopo il taglio verticale (linea tratteggiata
+  al centro, "TAGLIA QUI" scritto lungo la linea) ogni metà è un A5 verticale che si legge normalmente.
+  Margini: 12 mm dal bordo del foglio, 8 mm dalla linea di taglio. Ogni colonna ha logo, intestazione
+  (N., data, "Cliente i di n"), dati della giornata, piede con riferimento e pagina; ogni cliente parte da
+  una colonna nuova e non sconfina nell'altra; un cliente rimasto da solo occupa una sola metà. Se non
+  entra continua nella colonna successiva con "Nome (segue)" (testo non ridotto: minimo 8,5 pt).
+  Riferimento per cliente `RG-AAAAMMGG-n`.
 - **Foglio unico** della giornata: invariato (A4, lavori numerati, riepiloghi).
 
 ## Procedura di applicazione
