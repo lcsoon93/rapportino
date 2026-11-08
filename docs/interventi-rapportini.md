@@ -154,7 +154,7 @@ Migrazione `supabase/migrations/20261110090000_allegati_storage.sql`
   volta) e si mostrano da memoria: **nessun URL** (né pubblico né firmato) viene creato o salvato, quindi
   niente URL scaduti; gli elenchi non scaricano foto. Foto mancante / non autorizzata / offline: riquadro
   con il motivo (tocco = riprova). Tocco su una foto: schermo intero; altro tocco: ingrandimento.
-- **PDF** (`generaPDFPerCliente`, invariato): riceve le foto già scaricate (server), quelle in base64 e
+- **PDF** (`generaPDFPerCliente`; impaginazione rivista nella Fase H): riceve le foto già scaricate (server), quelle in base64 e
   quelle ancora sul telefono; le foto non disponibili vengono saltate e segnalate ("PDF creato senza N
   foto non disponibili"); nessun URL nel PDF.
 - **Cancellazione**: si tolgono prima i metadati, poi il file (il rapportino non punta mai a un file
@@ -342,6 +342,37 @@ UUID, giornate, interventi e rapportini restano identici.
   elenco con cognome, ruoli e PIN), `inizializza` (ruoli). L'app funziona anche se il database non
   ha ancora la migrazione (profilo letto senza cognome/ruoli), ma le Edge Functions nuove la
   richiedono: **prima la migrazione, poi le funzioni, poi il frontend**.
+
+## Impaginazione dei PDF (Fase H)
+
+Solo frontend (`js/services/pdf/giornata.js`, `js/services/pdf/comune.js`, una riga in
+`js/modules/modulo-rapportino.js`): nessun dato, schema o permesso cambia; i report settimanali e
+mensili sono invariati.
+
+- **Foglio unico** ("RAPPORTO DI LAVORO GIORNALIERO", `generaPDFFoglioUnico(dati?, iso?)`):
+  - dalla seconda pagina intestazione compatta (logo, titolo, data "segue"); piede su ogni pagina con
+    riga sottile, "COMP.HAS assistance SRL", "Rapporto del gg/mm/aaaa" e "Pagina x di N";
+  - data e tecnici in testa, seguiti dalla tabella **Orario** di ogni tecnico (dalle, alle, ore; con la
+    nota se la giornata è esclusa dal monte ore). Prima l'orario stava in fondo e poteva finire da solo
+    su un'ultima pagina;
+  - lavori numerati; nome del cliente, indirizzo, tipologia e "Fatturare a" vanno a capo (prima
+    potevano uscire dal margine o sovrapporsi a "DA ULTIMARE"); "URGENZA" e "DA ULTIMARE" a destra;
+  - descrizioni, materiali e spese si spezzano riga per riga tra le pagine: niente testo oltre il fondo
+    pagina e niente pagine lasciate a metà per spostare un blocco intero. Il titolo di un lavoro resta
+    con l'inizio del suo contenuto; se il lavoro continua, la pagina dopo lo ricorda
+    ("3) Cliente (segue)"); "Materiale:" resta con almeno due voci; separatore tra i lavori;
+  - foto con proporzioni reali e mai tagliate: una sola foto più grande, altrimenti due per riga, con
+    l'altezza della riga pari alla foto più alta (prima riquadri fissi da 68 mm con spazio vuoto); una
+    riga che non entra per poco viene ridotta in proporzione (non sotto il 60% e un minimo leggibile)
+    invece di passare alla pagina dopo; "Foto (segue):" se le foto continuano;
+  - firma del cliente sempre sulla pagina dell'ultima riga di foto del suo lavoro (accanto all'ultima
+    foto con un numero dispari di foto, altrimenti sotto); nessuna sezione foto o firma se vuota.
+- **Schede per cliente** (`generaPDFPerCliente`, usata anche per il PDF del rapportino): testi e
+  materiali lunghi continuano nella mezza pagina successiva invece di superare la linea di taglio; il
+  richiamo "(segue)" va a capo; una riga di foto che non entra per poco viene rimpicciolita (fino a
+  32 mm di altezza) invece di passare alla mezza pagina dopo; il PDF del rapportino riporta
+  l'**orario di ogni tecnico** (prima mancava).
+- In entrambi i formati indirizzo, tipologia e "Fatturare a" vanno a capo solo tra un dato e l'altro.
 
 ## Procedura di applicazione (da fare solo con la tua autorizzazione)
 

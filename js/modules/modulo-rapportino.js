@@ -574,6 +574,7 @@ export async function pdfRapportino(btn){
     tecnici: ore.map(o=>nomeOperaio(o.operaio_id)).join(" / "),
     operai: ore.map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: o.dalle, alle: o.alle })),
     spese: [],
+    mostraOrario: true,                    // le ore di ogni tecnico del rapportino compaiono nel PDF
     clienti: [{ id: corrente.id, nome: r.cliente, indirizzo: r.indirizzo, fasce: [], fatturare: "", importo: 0, tipologia: r.tipologia,
       stato: r.esito, firmatario: r.firmatario, dettagli: r.attivita + (r.note ? "\n\nNote: " + r.note : ""), materiali: r.materiali,
       foto, firma: r.firma, urgente: false }],

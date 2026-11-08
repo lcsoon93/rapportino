@@ -6,7 +6,7 @@ import { rigaOrarioCliente, testoMateriale } from "../../modules/report.js";
 import { contoOreOperaio } from "../../core/preferenze.js";
 import { euro } from "../../utils/formatters.js";
 import { datiGiornata } from "../../modules/rapportini.js";
-import { aggiungiPiePagina, intestazionePDF, misureFirmaPDF } from "./comune.js";
+import { aggiungiPiePagina, intestazionePDF, misureFirmaPDF, righeConSeparatori } from "./comune.js";
 
 // dati/iso facoltativi: senza argomenti usa il foglio giornaliero aperto (come sempre);
 // con argomenti stampa una giornata "virtuale", es. un rapportino
@@ -104,14 +104,25 @@ export function generaPDFPerCliente(dati, iso){
 
     function serveNuovoSlot(spazio){
       if(y + spazio > yLimiteCorrente){
+        const font = doc.getFont(), dim = doc.getFontSize(), colore = doc.getTextColor();
         yBase = vaiAUnitaSuccessiva();
         y = intestazioneSlot(yBase, indiceCliente + 1, d.clienti.length);
         // la scheda continua su un'altra meta' pagina: ripeto di quale cliente si tratta
         doc.setFont("helvetica","bold");
         doc.setFontSize(9.5);
-        doc.text(c.nome + "  (segue)", ML, y);
+        doc.text(doc.splitTextToSize(c.nome + "  (segue)", CW)[0], ML, y);
         y += 6;
+        // il testo riprende con lo stesso stile di prima
+        doc.setFont(font.fontName, font.fontStyle);
+        doc.setFontSize(dim);
+        doc.setTextColor(colore);
       }
+    }
+    // righe di testo stampate una alla volta: un testo lungo continua nella meta' pagina successiva
+    // invece di uscire dalla scheda (oltre la linea di taglio o il fondo del foglio)
+    function scriviRighe(righe, x, interlinea, minimoInsieme){
+      serveNuovoSlot(Math.min(righe.length, minimoInsieme || 3) * interlinea);
+      righe.forEach(r=>{ serveNuovoSlot(interlinea); doc.text(r, x, y); y += interlinea; });
     }
 
     doc.setFont("helvetica","normal");
@@ -122,8 +133,9 @@ export function generaPDFPerCliente(dati, iso){
     doc.text(infoRighe, ML, y);
     y += infoRighe.length * 4.5 + 1;
 
-    // l'orario degli operai compare solo se per questo cliente e' indicata almeno una fascia oraria
-    const haOrarioCliente = (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle;
+    // l'orario degli operai compare se per questo cliente e' indicata almeno una fascia oraria, oppure
+    // sempre per il PDF di un rapportino (mostraOrario: le ore di ogni tecnico sono del rapportino)
+    const haOrarioCliente = d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle;
     if(orarioTesto && haOrarioCliente){
       doc.setFontSize(8.5);
       doc.setTextColor(90,96,104);
@@ -171,35 +183,31 @@ export function generaPDFPerCliente(dati, iso){
       doc.setFont("helvetica","italic");
       doc.setFontSize(8.5);
       doc.setTextColor(90,96,104);
-      const righeMeta = doc.splitTextToSize(meta.join("   ·   "), CW - 2);
-      serveNuovoSlot(righeMeta.length * 4.2 + 3);
-      doc.text(righeMeta, ML + 2, y);
+      const righeMeta = righeConSeparatori(doc, meta, "   ·   ", CW - 2);
+      scriviRighe(righeMeta, ML + 2, 4.2);
       doc.setTextColor(0,0,0);
-      y += righeMeta.length * 4.2 + 2.5;
+      y += 2.5;
     }
 
     if(c.dettagli){
       doc.setFont("helvetica","normal");
       doc.setFontSize(9.5);
       const righe = doc.splitTextToSize(c.dettagli, CW - 2);
-      serveNuovoSlot(righe.length * 4.6 + 3);
-      doc.text(righe, ML + 2, y);
-      y += righe.length * 4.6 + 3;
+      scriviRighe(righe, ML + 2, 4.6);
+      y += 3;
     }
 
     if(c.materiali && c.materiali.length){
       doc.setFont("helvetica","bold");
       doc.setFontSize(9);
-      serveNuovoSlot(6 + c.materiali.length * 4.3);
+      serveNuovoSlot(6 + Math.min(2, c.materiali.length) * 4.3);   // titolo con almeno due voci
       doc.text("Materiale:", ML + 2, y);
       y += 4.3;
       doc.setFont("helvetica","normal");
       doc.setFontSize(9);
       c.materiali.forEach(m=>{
         const righeM = doc.splitTextToSize("- " + testoMateriale(m), CW - 8);
-        serveNuovoSlot(righeM.length * 4.3 + 1);
-        doc.text(righeM, ML + 6, y);
-        y += righeM.length * 4.3;
+        scriviRighe(righeM, ML + 6, 4.3, 4);
       });
       y += 1.5;
     }
@@ -226,23 +234,27 @@ export function generaPDFPerCliente(dati, iso){
       riserva = riserva || 0;
       const perRiga = 2, gapFoto = 4;
       const boxW = (CW - 2 - gapFoto * (perRiga - 1)) / perRiga;
-      let boxH = 48;
-      // se le immagini stanno su una sola riga ma non c'e' spazio per l'altezza piena,
-      // le rimpicciolisco per tenerle nella stessa scheda (fino a un minimo ancora leggibile)
-      const spazioLibero = yLimiteCorrente - y - 7 - riserva;  // 7 = titolo + respiro
-      if(immagini.length <= perRiga && spazioLibero < boxH && spazioLibero >= ALTEZZA_MIN_IMG){
-        boxH = Math.floor(spazioLibero * 10) / 10;
-      }
+      const BOX_H = 48;
+      const righeTot = Math.ceil(immagini.length / perRiga);
+      // ogni riga che non entra per poco nella scheda viene rimpicciolita (proporzioni invariate, fino a
+      // un minimo ancora leggibile) invece di passare alla mezza pagina successiva lasciando spazio vuoto
+      const altezzaRiga = ultima=>{
+        const libero = yLimiteCorrente - y - 2 - (ultima ? riserva : 0);
+        return libero < BOX_H && libero >= ALTEZZA_MIN_IMG ? Math.floor(libero * 10) / 10 : BOX_H;
+      };
       doc.setFont("helvetica","bold");
       doc.setFontSize(9);
-      const righeTot = Math.ceil(immagini.length / perRiga);
-      serveNuovoSlot(boxH + 7 + (righeTot === 1 ? riserva : 0));
+      // il titolo resta con la prima riga (anche rimpicciolita)
+      serveNuovoSlot(ALTEZZA_MIN_IMG + 7 + (righeTot === 1 ? riserva : 0));
       doc.text(titolo, ML + 2, y);
       y += 4.3;
-      let colonna = 0;
+      let colonna = 0, boxH = BOX_H;
       immagini.forEach((f, k)=>{
         const ultimaRiga = Math.floor(k / perRiga) === righeTot - 1;
-        if(colonna === 0) serveNuovoSlot(boxH + 2 + (ultimaRiga ? riserva : 0));
+        if(colonna === 0){
+          boxH = altezzaRiga(ultimaRiga);
+          serveNuovoSlot(boxH + 2 + (ultimaRiga ? riserva : 0));
+        }
         let dw = boxW, dh = boxH;
         if(f.w && f.h){
           const scala = Math.min(boxW / f.w, boxH / f.h);
@@ -334,250 +346,297 @@ export function generaPDFPerCliente(dati, iso){
 
   return doc;
 }
-export function generaPDFFoglioUnico(){
+// PDF a foglio unico ("RAPPORTO DI LAVORO GIORNALIERO"): tutti i lavori della giornata numerati, con
+// intestazione e piede (data, numerazione) su ogni pagina.
+// dati/iso facoltativi: senza argomenti usa il foglio giornaliero aperto.
+// Impaginazione: i testi vanno a capo e si spezzano riga per riga tra le pagine (niente testo fuori
+// pagina, niente pagine lasciate vuote per spostare un blocco intero); l'intestazione di un lavoro non
+// resta mai da sola in fondo alla pagina e, se il lavoro continua, la pagina dopo lo ricorda ("segue");
+// le foto mantengono le proporzioni e l'altezza della riga e' quella della foto piu' alta; la firma
+// resta sulla pagina dell'ultima riga di foto del suo lavoro.
+export function generaPDFFoglioUnico(dati, iso){
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
-  const d = datiGiornata();
+  const LIMITE = 276;                       // fondo dell'area dei contenuti (il piede sta sotto)
+  const RIENTRO = ML + 8, CWR = CW - 8;     // contenuto di un lavoro, rientrato sotto il numero
+  const d = dati || datiGiornata();
+  const data = dataIt(iso);
+  let lavoroCorrente = null;                // { numero, nome } finche' si scrive un lavoro
+  let cimaPagina = -1;                      // quota del primo contenuto della pagina corrente
+  const ALTEZZA_FIRMA = 31;
   let y = intestazionePDF(doc, "RAPPORTO DI LAVORO GIORNALIERO");
 
-  function serveNuovaPagina(spazio){
-    if (y + spazio > 275){ doc.addPage(); y = 22; }
+  function stile(dim, peso, colore){
+    doc.setFont("helvetica", peso || "normal");
+    doc.setFontSize(dim);
+    const c = colore || [0,0,0];
+    doc.setTextColor(c[0], c[1], c[2]);
+  }
+  // intestazione compatta delle pagine successive alla prima
+  function intestazioneSeguito(){
+    const largLogo = 26, altLogo = 26 / LOGO_RAPPORTO;
+    try{ doc.addImage(LOGO_B64, "JPEG", ML, 9, largLogo, altLogo); }catch(e){}
+    stile(10, "bold", [28,31,35]);
+    doc.text("RAPPORTO DI LAVORO GIORNALIERO", W - MR, 14, {align:"right"});
+    stile(8.5, "normal", [110,116,122]);
+    doc.text("Data: " + data + "  (segue)", W - MR, 18.5, {align:"right"});
+    const yl = Math.max(9 + altLogo, 20) + 2;
+    doc.setDrawColor(47,161,137); doc.setLineWidth(0.7); doc.line(ML, yl, W - MR, yl);
+    doc.setDrawColor(140,151,196); doc.setLineWidth(0.3); doc.line(ML, yl + 1, W - MR, yl + 1);
+    stile(10);
+    return yl + 8;
+  }
+  // pagina nuova: intestazione compatta, richiamo del lavoro in corso, stesso stile del testo di prima
+  function nuovaPagina(){
+    const font = doc.getFont(), dim = doc.getFontSize(), colore = doc.getTextColor();
+    doc.addPage();
+    y = intestazioneSeguito();
+    if(lavoroCorrente){
+      stile(9, "italic", [110,116,122]);
+      const r = doc.splitTextToSize(lavoroCorrente.numero + ")  " + lavoroCorrente.nome + "  (segue)", CW);
+      doc.text(r[0], ML, y);
+      y += 6;
+    }
+    doc.setFont(font.fontName, font.fontStyle);
+    doc.setFontSize(dim);
+    doc.setTextColor(colore);
+    cimaPagina = y;
+  }
+  // garantisce "spazio" mm prima di LIMITE, altrimenti pagina nuova
+  function spazio(h){ if(y + h > LIMITE){ nuovaPagina(); return true; } return false; }
+  // testo a capo e spezzato riga per riga tra le pagine
+  // (testo: stringa, oppure righe gia' spezzate); una riga vuota capitata in cima a una pagina si salta
+  function paragrafo(testo, x, larg, dim, interlinea, peso, colore){
+    stile(dim, peso, colore);
+    (Array.isArray(testo) ? testo : doc.splitTextToSize(String(testo), larg)).forEach(r=>{
+      if(spazio(interlinea)) stile(dim, peso, colore);
+      if(!String(r).trim() && y === cimaPagina) return;
+      doc.text(r, x, y);
+      y += interlinea;
+    });
+  }
+  // elenco puntato (materiali, spese): rientro sospeso, una voce non si spezza tra due pagine se corta
+  function voce(testo, x, larg, dim, interlinea, aDestra){
+    stile(dim);
+    const righe = doc.splitTextToSize(String(testo), larg - 5);
+    if(righe.length <= 4) spazio(righe.length * interlinea);
+    righe.forEach((r, k)=>{
+      if(spazio(interlinea)) stile(dim);
+      if(k === 0){ doc.text("–", x, y); if(aDestra) doc.text(aDestra, W - MR, y, {align:"right"}); }
+      doc.text(r, x + 4, y);
+      y += interlinea;
+    });
+  }
+  // griglia di immagini con proporzioni reali: una sola immagine piu' grande, altrimenti due per riga;
+  // ogni riga e' alta quanto la sua immagine piu' alta. firma: "sotto" = tiene lo spazio della firma
+  // sulla pagina dell'ultima riga; "accanto" = la firma va nella casella libera accanto all'ultima
+  // immagine (se la riga e' troppo bassa va sotto, sempre sulla stessa pagina). Restituisce la casella.
+  function griglia(titolo, immagini, x0, larg, firma){
+    const sola = immagini.length === 1;
+    const gap = 5, colW = sola ? Math.min(larg, 120) : (larg - gap) / 2, maxH = sola ? 90 : 70;
+    const misure = immagini.map(f=>{
+      if(!(f.w && f.h)) return { w: colW, h: maxH };
+      const s = Math.min(colW / f.w, maxH / f.h);
+      return { w: f.w * s, h: f.h * s };
+    });
+    const righe = [];
+    for(let k = 0; k < immagini.length; k += sola ? 1 : 2) righe.push([k, sola ? k : Math.min(k + 1, immagini.length - 1)]);
+    let libera = null;
+    righe.forEach(([a, b], r)=>{
+      let rowH = Math.max(misure[a].h, misure[b].h);
+      const ultima = r === righe.length - 1;
+      const casella = ultima && firma === "accanto" && a === b && rowH >= ALTEZZA_FIRMA - 2;
+      const riserva = ultima && firma && !casella ? ALTEZZA_FIRMA + gap : 0;   // firma sotto, dopo lo spazio tra righe
+      const titoloH = r === 0 ? 5.5 : 0;
+      // se la riga non entra per poco, la si riduce in proporzione (non sotto il 60% e un minimo
+      // leggibile) invece di lasciare spazio vuoto e passare alla pagina dopo
+      const libero = LIMITE - y - titoloH - riserva;
+      const minimo = Math.max(rowH * 0.6, sola ? 50 : 40, casella ? ALTEZZA_FIRMA : 0);
+      if(rowH > libero && libero >= minimo){
+        const f = libero / rowH;
+        for(let k = a; k <= b; k++){ misure[k] = { w: misure[k].w * f, h: misure[k].h * f }; }
+        rowH = libero;
+      }
+      const nuova = spazio(titoloH + rowH + riserva);
+      if(r === 0 || nuova){
+        stile(10, "bold");
+        doc.text(r === 0 ? titolo : titolo.replace(":", " (segue):"), x0, y);
+        y += 2.5;
+      }
+      for(let k = a; k <= b; k++){
+        const cx = x0 + (k - a) * (colW + gap);
+        const m = misure[k];
+        try{ doc.addImage(immagini[k].src, "JPEG", sola ? cx : cx + (colW - m.w) / 2, y, m.w, m.h); }catch(e){}
+      }
+      if(casella) libera = { x: x0 + colW + gap, y, w: colW, h: rowH };
+      y += rowH + gap;
+    });
+    return libera;
+  }
+  // firma: etichetta, firma appoggiata sulla linea, firmatario sotto
+  function firma(c, x, yTop, larg){
+    const lineaY = yTop + 24;
+    const m = misureFirmaPDF(doc, c.firma, Math.min(larg - 32, 75), 21);
+    stile(10, "bold");
+    doc.text("Firma cliente:", x, lineaY - 1);
+    try{ doc.addImage(c.firma, "PNG", x + 32, lineaY - m.h - 0.5, m.w, m.h); }catch(e){}
+    doc.setDrawColor(180,184,189); doc.setLineWidth(0.2);
+    doc.line(x + 32, lineaY, x + 32 + Math.min(larg - 32, 75), lineaY);
+    if(c.firmatario){
+      stile(8.5);
+      doc.text("Firmatario: " + c.firmatario.toUpperCase(), x + 32, lineaY + 4.2);
+    }
+    stile(10);
   }
 
-  doc.setFontSize(11);
-  doc.text("Data: " + dataIt(), ML, y);
-  doc.text("Tecnici: " + d.tecnici, ML + 60, y);
-  y += 11;
+  // ---------------------------------------------------------------- data, tecnici, orario
+  stile(11, "bold");
+  doc.text("Data:", ML, y);
+  stile(11);
+  doc.text(data, ML + 12, y);
+  if(d.tecnici){
+    stile(11, "bold");
+    doc.text("Tecnici:", ML + 45, y);
+    stile(11);
+    const t = doc.splitTextToSize(d.tecnici, CW - 45 - 18);
+    t.forEach((r, k)=>doc.text(r, ML + 63, y + k * 5));
+    y += (t.length - 1) * 5;
+  }
+  y += 7;
+  if(d.operai.length){
+    stile(10, "bold");
+    doc.text("Orario" + (d.escludi ? "  (giornata esclusa dal monte ore)" : ""), ML, y);
+    y += 5;
+    d.operai.forEach(op=>{
+      stile(10);
+      const nome = doc.splitTextToSize(op.nome, 68);
+      spazio(nome.length * 4.6);
+      doc.text(nome, ML + 2, y);
+      doc.text((op.dalle || "—") + "  –  " + (op.alle || "—"), ML + 74, y);
+      const ore = contoOreOperaio(op, "").trim();
+      if(ore) doc.text(ore.replace(/^\(|\)$/g, ""), ML + 110, y);
+      y += nome.length * 4.6;
+    });
+    y += 2;
+  }
+  doc.setDrawColor(220,223,227); doc.setLineWidth(0.3);
+  doc.line(ML, y, W - MR, y);
+  y += 8;
 
-  doc.setFontSize(12);
+  // ---------------------------------------------------------------- lavori eseguiti
+  stile(12, "bold");
   doc.text("LAVORI ESEGUITI", ML, y);
   y += 8;
   if(d.clienti.length === 0){
-    doc.setFont("helvetica","normal"); doc.setFontSize(11);
+    stile(11);
     doc.text("-", ML, y); y += 8;
   }
-  d.clienti.forEach((c,i)=>{
-    serveNuovaPagina(25);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(11.5);
-    let xNome = ML;
+  d.clienti.forEach((c, i)=>{
+    const numero = i + 1;
+    // titolo del lavoro: numero, nome (a capo), etichette a destra
+    const etichette = [c.urgente ? "URGENZA" : "", c.stato === "Da ultimare" ? "DA ULTIMARE" : ""].filter(Boolean).join("  ·  ");
+    stile(8.5, "bold");
+    const largEtichette = etichette ? doc.getTextWidth(etichette) + 4 : 0;
+    stile(11.5, "bold");
+    const nomeRighe = doc.splitTextToSize(c.nome + rigaOrarioCliente(c), CWR - largEtichette);
+    const meta = [c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : ""].filter(Boolean);
+    stile(9.5, "italic");
+    const righeMeta = righeConSeparatori(doc, meta, "   ·   ", CWR);
+    const altMeta = righeMeta.length ? righeMeta.length * 4.4 + 1.5 : 0;
+    // il titolo resta con il suo inizio: righe del nome, dati del cliente e almeno ~3 righe di contenuto
+    spazio(nomeRighe.length * 5.2 + altMeta + 16);
     if(c.urgente){
       doc.setFillColor(253,240,239);
-      doc.rect(ML - 2, y - 5, CW + 4, 8.5, "F");
+      doc.rect(ML - 2, y - 5, CW + 4, nomeRighe.length * 5.2 + 2.6, "F");
       doc.setFillColor(179,65,58);
-      doc.rect(ML - 2, y - 5, 2.5, 8.5, "F");
-      doc.setTextColor(179,65,58);
-      doc.setFontSize(9);
-      doc.text("URGENZA", ML + 2, y);
-      xNome = ML + 22;
-      doc.setTextColor(0,0,0);
-      doc.setFontSize(11.5);
+      doc.rect(ML - 2, y - 5, 1.6, nomeRighe.length * 5.2 + 2.6, "F");
     }
-    doc.text((i+1) + ")  " + c.nome + rigaOrarioCliente(c), xNome, y);
-    if(c.stato === "Da ultimare"){
-      doc.setTextColor(179,65,58);
-      doc.setFontSize(9.5);
-      doc.text("DA ULTIMARE", W - MR, y, {align:"right"});
-      doc.setTextColor(0,0,0);
+    stile(11.5, "bold");
+    doc.text(numero + ")", ML, y);
+    doc.text(nomeRighe, RIENTRO, y);
+    if(etichette){
+      stile(8.5, "bold", [179,65,58]);
+      doc.text(etichette, W - MR, y, {align:"right"});
     }
-    y += 6;
-    const meta = [];
-    if(c.indirizzo) meta.push(c.indirizzo);
-    if(c.tipologia) meta.push("Tipologia: " + c.tipologia);
-    if(c.fatturare) meta.push("Fatturare a: " + c.fatturare);
-    if(meta.length){
-      doc.setFont("helvetica","italic");
-      doc.setFontSize(9.5);
-      doc.setTextColor(90,96,104);
-      const righeMeta = doc.splitTextToSize(meta.join("   ·   "), CW - 8);
-      serveNuovaPagina(righeMeta.length * 4.5 + 3);
-      doc.text(righeMeta, ML + 8, y);
-      doc.setTextColor(0,0,0);
-      y += righeMeta.length * 4.5 + 2;
-    }
-    if(c.dettagli){
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(11);
-      const righe = doc.splitTextToSize(c.dettagli, CW - 8);
-      serveNuovaPagina(righe.length * 5.5 + 4);
-      doc.text(righe, ML + 8, y);
-      y += righe.length * 5.5 + 3;
-    }
+    y += nomeRighe.length * 5.2 + 0.8;
+    lavoroCorrente = { numero, nome: c.nome };
+    if(righeMeta.length){ paragrafo(righeMeta, RIENTRO, CWR, 9.5, 4.4, "italic", [90,96,104]); y += 1.5; }
+    if(c.dettagli){ y += 1; paragrafo(c.dettagli, RIENTRO, CWR, 10.5, 5); y += 2; }
     if(c.materiali && c.materiali.length){
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      serveNuovaPagina(8 + c.materiali.length * 5);
-      doc.text("Materiale:", ML + 8, y);
+      spazio(5 + Math.min(2, c.materiali.length) * 4.8);          // titolo con almeno due voci
+      stile(10, "bold");
+      doc.text("Materiale:", RIENTRO, y);
       y += 5;
-      doc.setFont("helvetica","normal");
-      doc.setFontSize(10.5);
-      c.materiali.forEach(m=>{
-        const righeM = doc.splitTextToSize("- " + testoMateriale(m), CW - 16);
-        serveNuovaPagina(righeM.length * 5 + 2);
-        doc.text(righeM, ML + 12, y);
-        y += righeM.length * 5;
-      });
+      c.materiali.forEach(m=>voce(testoMateriale(m), RIENTRO + 2, CWR - 2, 10, 4.8));
       y += 2;
     }
     if(c.importo){
-      serveNuovaPagina(10);
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(10.5);
-      doc.text("Da fatturare:", ML + 8, y);
-      doc.text(euro(c.importo), ML + 40, y);
-      doc.setFont("helvetica","normal");
+      spazio(7);
+      stile(10.5, "bold");
+      doc.text("Da fatturare:", RIENTRO, y);
+      doc.text(euro(c.importo), RIENTRO + 32, y);
       y += 7;
     }
+    let libera = null;
     if(c.foto && c.foto.length){
-      const perRiga = 2, gapFoto = 5;
-      const boxW = (CW - 8 - gapFoto * (perRiga - 1)) / perRiga; // larghezza massima disponibile per foto
-      const boxH = 68; // altezza massima riservata per riga di foto
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      serveNuovaPagina(boxH + 8);
-      doc.text("Foto:", ML + 8, y);
-      y += 5;
-      let colonna = 0;
-      const righeTot = Math.ceil(c.foto.length / perRiga);
-      const riservaFirma = c.firma ? 34 : 0;   // la firma resta sulla pagina dell'ultima riga di foto
-      c.foto.forEach((f, k)=>{
-        if(colonna === 0) serveNuovaPagina(boxH + 4 + (Math.floor(k / perRiga) === righeTot - 1 ? riservaFirma : 0));
-        // calcola dimensioni "contain": la foto intera visibile, senza distorsioni, dentro il riquadro
-        let dw = boxW, dh = boxH;
-        if(f.w && f.h){
-          const scala = Math.min(boxW / f.w, boxH / f.h);
-          dw = f.w * scala;
-          dh = f.h * scala;
-        }
-        const xBase = ML + 8 + colonna * (boxW + gapFoto);
-        const x = xBase + (boxW - dw) / 2;      // centrata orizzontalmente nel riquadro
-        const yFoto = y + (boxH - dh) / 2;       // centrata verticalmente nel riquadro
-        try{ doc.addImage(f.src, "JPEG", x, yFoto, dw, dh); }catch(e){}
-        colonna++;
-        if(colonna >= perRiga){ colonna = 0; y += boxH + gapFoto; }
-      });
-      if(colonna !== 0) y += boxH + gapFoto;
-      y += 2;
+      // con un numero dispari di foto (piu' di una) la firma va nella casella libera accanto all'ultima
+      const accanto = !!(c.firma && c.foto.length > 1 && c.foto.length % 2 === 1);
+      libera = griglia("Foto:", c.foto, RIENTRO, CWR, c.firma ? (accanto ? "accanto" : "sotto") : null);
+      if(libera) firma(c, libera.x, libera.y + libera.h - ALTEZZA_FIRMA, libera.w);
     }
-    if(c.firma){
-      serveNuovaPagina(34);
-      const xF = ML + 40, lineaY = y + 24;
-      const m = misureFirmaPDF(doc, c.firma, 75, 24);
-      doc.setFont("helvetica","bold");
-      doc.setFontSize(10);
-      doc.text("Firma cliente:", ML + 8, lineaY - 1);
-      try{ doc.addImage(c.firma, "PNG", xF, lineaY - m.h - 0.5, m.w, m.h); }catch(e){}
-      doc.setDrawColor(180,184,189);
-      doc.setLineWidth(0.2);
-      doc.line(xF, lineaY, xF + 75, lineaY);
-      if(c.firmatario){
-        doc.setFont("helvetica","normal");
-        doc.setFontSize(9);
-        doc.text("Firmatario: " + c.firmatario.toUpperCase(), xF, lineaY + 4.5);
-        y = lineaY + 9;
-      } else {
-        y = lineaY + 5;
-      }
+    if(c.firma && !libera){
+      spazio(ALTEZZA_FIRMA);
+      firma(c, RIENTRO, y, CWR);
+      y += ALTEZZA_FIRMA;
     }
-    y += 3;
+    lavoroCorrente = null;
+    // separatore tra un lavoro e il successivo
+    if(i < d.clienti.length - 1 && y + 4 < LIMITE){
+      y += 1;
+      doc.setDrawColor(226,229,232); doc.setLineWidth(0.25);
+      doc.line(ML, y, W - MR, y);
+      y += 7;
+    } else y += 4;
   });
-  y += 4;
 
-  serveNuovaPagina(20);
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(12);
-  doc.text("ORARIO" + (d.escludi ? "  (esclusa dal monte ore)" : ""), ML, y);
-  y += 7;
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(11);
-  if(d.operai.length === 0){
-    doc.text("-", ML, y);
-    y += 6;
-  } else {
-    d.operai.forEach(op=>{
-      serveNuovaPagina(6);
-      doc.text(op.nome + ":  " + (op.dalle || "—") + " - " + (op.alle || "—") +
-                contoOreOperaio(op, "   "), ML, y);
-      y += 6;
-    });
-  }
-  y += 5;
-
+  // ---------------------------------------------------------------- da fatturare
   const totImporti = totaleImporti(d.clienti);
   if(totImporti){
-    serveNuovaPagina(18);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(12);
+    const conImporto = d.clienti.filter(c=>c.importo);
+    spazio(Math.min(12 + conImporto.length * 5.5 + 7, 40));
+    stile(12, "bold");
     doc.text("DA FATTURARE", ML, y);
     y += 7;
-    doc.setFontSize(11);
-    d.clienti.forEach(c=>{
-      if(!c.importo) return;
-      doc.setFont("helvetica","normal");
-      const nomeRighe = doc.splitTextToSize("- " + c.nome, CW - 30);
-      serveNuovaPagina(nomeRighe.length * 5.5 + 2);
-      doc.text(nomeRighe, ML + 2, y);
-      doc.text(euro(c.importo), W - MR, y, {align:"right"});
-      y += nomeRighe.length * 5.5;
-    });
-    doc.setFont("helvetica","bold");
-    doc.text("Totale", ML + 2, y + 1);
+    conImporto.forEach(c=>voce(c.nome, ML + 2, CW - 32, 10.5, 5.2, euro(c.importo)));
+    spazio(7);
+    stile(10.5, "bold");
+    doc.text("Totale", ML + 6, y + 1);
     doc.text(euro(totImporti), W - MR, y + 1, {align:"right"});
-    doc.setFont("helvetica","normal");
     y += 11;
   }
 
+  // ---------------------------------------------------------------- spese
   if(d.spese.length){
-    serveNuovaPagina(16 + d.spese.length * 6);
-    doc.setFont("helvetica","bold");
-    doc.setFontSize(12);
+    spazio(Math.min(12 + d.spese.length * 5.2 + 7, 40));
+    stile(12, "bold");
     doc.text("SPESE / EXTRA", ML, y);
     y += 7;
-    doc.setFont("helvetica","normal");
-    doc.setFontSize(10.5);
     d.spese.forEach(s=>{
       // se la spesa e' collegata a un cliente lo indico tra parentesi
       const cli = s.clienteId ? d.clienti.find(c=>c.id === s.clienteId) : null;
-      const righeS = doc.splitTextToSize("- " + s.d + (cli ? "  (" + cli.nome + ")" : ""), CW - 30);
-      serveNuovaPagina(righeS.length * 5.5);
-      doc.text(righeS, ML + 2, y);
-      doc.text(euro(s.i), W - MR, y, {align:"right"});
-      y += righeS.length * 5.5;
+      voce(s.d + (cli ? "  (" + cli.nome + ")" : ""), ML + 2, CW - 32, 10.5, 5.2, euro(s.i));
     });
-    doc.setFont("helvetica","bold");
-    doc.text("Totale spese", ML + 2, y + 1);
+    spazio(7);
+    stile(10.5, "bold");
+    doc.text("Totale spese", ML + 6, y + 1);
     doc.text(euro(totaleSpese(d.spese)), W - MR, y + 1, {align:"right"});
-    y += 10;
-
-    // scontrini allegati alle spese
+    y += 9;
     const scontrini = d.spese.filter(s=>s.allegato && s.allegato.src).map(s=>s.allegato);
-    if(scontrini.length){
-      const perRiga = 2, gapFoto = 5;
-      const boxW = (CW - gapFoto * (perRiga - 1)) / perRiga, boxH = 68;
-      doc.setFontSize(10);
-      serveNuovaPagina(boxH + 8);
-      doc.text(scontrini.length > 1 ? "Allegati spese:" : "Allegato spesa:", ML, y);
-      y += 5;
-      let colonna = 0;
-      scontrini.forEach(f=>{
-        if(colonna === 0) serveNuovaPagina(boxH + 4);
-        let dw = boxW, dh = boxH;
-        if(f.w && f.h){
-          const scala = Math.min(boxW / f.w, boxH / f.h);
-          dw = f.w * scala;
-          dh = f.h * scala;
-        }
-        const xBase = ML + colonna * (boxW + gapFoto);
-        try{ doc.addImage(f.src, "JPEG", xBase + (boxW - dw) / 2, y + (boxH - dh) / 2, dw, dh); }catch(e){}
-        colonna++;
-        if(colonna >= perRiga){ colonna = 0; y += boxH + gapFoto; }
-      });
-      if(colonna !== 0) y += boxH + gapFoto;
-    }
+    if(scontrini.length) griglia(scontrini.length > 1 ? "Allegati spese:" : "Allegato spesa:", scontrini, ML, CW, 0);
   }
 
-  aggiungiPiePagina(doc);
+  aggiungiPiePagina(doc, "Rapporto del " + data);
   return doc;
 }
 // sceglie il formato del PDF giornaliero in base alla casella nella sezione clienti
