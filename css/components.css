@@ -761,3 +761,11 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .st-pdf{padding:14px;margin-bottom:14px}
 .st-pdf .nota{padding:0;margin:10px 2px 0}
 .st-pdf .st-pdf-spunta{margin-top:10px;padding:12px 2px 0;border-top:1px solid var(--bordo)}
+
+/* Altro: notifiche su questo telefono */
+.notifiche-box{border-top:1px solid var(--bordo)}
+.notifiche-box .info-riga{border-bottom:none}
+.notifiche-box .nota{padding:0 14px 4px}
+.notifiche-box .nota:empty{display:none}
+.notifiche-azioni{display:flex;flex-wrap:wrap;gap:8px;padding:6px 14px 14px}
+.notifiche-azioni .btn{flex:1 1 auto}

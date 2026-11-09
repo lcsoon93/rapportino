@@ -22,3 +22,7 @@ verify_jwt = true
 # PIN di accesso: solo con una sessione (si imposta/cambia/rimuove il proprio PIN)
 [functions.pin]
 verify_jwt = true
+
+# notifiche push: solo con una sessione (svuota la coda scritta dal database)
+[functions.notifiche]
+verify_jwt = true

@@ -1,6 +1,7 @@
 // Schermate di accesso (password o PIN), cambio password e PIN di accesso.
 // Nessuna password e nessun PIN vengono salvati nel browser: i campi si svuotano subito dopo l'invio.
 // Del PIN il telefono ricorda solo lo username di chi l'ha attivato (per proporre l'accesso con PIN).
+import { scollegaNotifiche } from "../services/notifiche.js";
 import {
   accedi, accediConPin, cambiaPassword, esci, impostaPin, profilo, ricordaUtentePin, rimuoviPin, statoPin, utentePin,
 } from "../core/sessione.js";
@@ -149,6 +150,7 @@ export async function apriCambioPassword(){
 export async function esciDallApp(){
   if(!confirm("Uscire dall'app? Le modifiche vengono prima inviate al server.")) return;
   await sincronizza(true);
+  await scollegaNotifiche();       // il telefono non riceve piu' gli avvisi di questo utente
   await esci();
 }
 export function nascondiSchermate(){ mostraSchermata(null); }
