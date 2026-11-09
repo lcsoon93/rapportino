@@ -26,9 +26,13 @@ export async function registraServiceWorker(){
     return registrazione;
   }catch(e){ console.warn("Service worker non registrato:", e.message); return null; }
 }
+// service worker pronto, con un tempo massimo (su alcuni browser "ready" puo' restare in attesa)
 async function pronta(){
   if(!registrazione) await registraServiceWorker();
-  return navigator.serviceWorker.ready;
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise((_, no)=>setTimeout(()=>no(new Error("L'app non è ancora pronta per le notifiche: chiudila e riaprila, poi riprova.")), 6000)),
+  ]);
 }
 function chiaveApplicazione(){
   const s = VAPID_PUBLIC_KEY.replace(/-/g, "+").replace(/_/g, "/");
@@ -50,7 +54,9 @@ async function salvaSulServer(sub){
 
 // stato su questo telefono: "non-supportate" | "serve-installare" | "negate" | "attive" | "spente"
 export async function statoNotifiche(){
-  if(!supportate()) return iOS() && !installata() ? "serve-installare" : "non-supportate";
+  // su iPhone/iPad le notifiche esistono solo nell'app aperta dalla schermata Home
+  if(iOS() && !installata()) return "serve-installare";
+  if(!supportate()) return "non-supportate";
   if(permesso() === "denied") return "negate";
   const reg = await pronta();
   const sub = await reg.pushManager.getSubscription();
@@ -58,9 +64,8 @@ export async function statoNotifiche(){
 }
 
 export async function attivaNotifiche(){
-  if(!supportate()) throw new Error(iOS() && !installata()
-    ? "Su iPhone aggiungi prima l'app alla schermata Home (Condividi → Aggiungi alla schermata Home) e aprila da lì."
-    : "Questo browser non supporta le notifiche.");
+  if(iOS() && !installata()) throw new Error("Su iPhone aggiungi prima l'app alla schermata Home (Condividi → Aggiungi alla schermata Home) e aprila da lì.");
+  if(!supportate()) throw new Error("Questo browser non supporta le notifiche.");
   const p = await Notification.requestPermission();
   if(p !== "granted") throw new Error("Permesso negato: abilita le notifiche per Rapportino nelle impostazioni del telefono.");
   const reg = await pronta();
