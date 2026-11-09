@@ -68,6 +68,7 @@ js/
     pdf/comune.js          intestazione, piè di pagina (con data e numerazione), misure firma, righe di dati con separatori
     pdf/giornata.js        PDF della giornata (schede per cliente A5 o foglio unico) e del rapportino (schede, con orario dei tecnici)
     pdf/report.js          PDF settimana e mese
+    pdf/cliente-mese.js    PDF riepilogo dei lavori di un cliente nel mese (dallo Storico)
   utils/                   funzioni piccole e senza stato
     dates.js               date italiane, giorni di settimana/mese, ora corrente
     formatters.js          ore, euro, saldo, HTML sicuro, evidenziazione

@@ -586,9 +586,10 @@
     </div>
     <details class="card st-filtri" open>
       <summary>Filtri</summary>
+      <div class="campo"><label for="st-mese">Mese</label><input type="month" id="st-mese" onchange="scegliMeseStorico()"></div>
       <div class="due">
-        <div><label for="st-dal">Dal</label><input type="date" id="st-dal" onchange="disegnaStorico()"></div>
-        <div><label for="st-al">Al</label><input type="date" id="st-al" onchange="disegnaStorico()"></div>
+        <div><label for="st-dal">Dal</label><input type="date" id="st-dal" onchange="cambiaDateStorico()"></div>
+        <div><label for="st-al">Al</label><input type="date" id="st-al" onchange="cambiaDateStorico()"></div>
       </div>
       <div class="campo"><label for="st-cliente">Cliente</label><select id="st-cliente" onchange="disegnaStorico()"><option value="">Tutti i clienti</option></select></div>
       <div class="due campo">
@@ -601,6 +602,11 @@
       </div>
       <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:12px" id="st-azzera" onclick="azzeraFiltriStorico()">Azzera i filtri</button>
     </details>
+    <div class="card st-pdf">
+      <button type="button" class="btn btn-primario btn-blocco" id="st-pdf-cliente" onclick="pdfClienteStorico(this)" disabled>
+        <svg class="i"><use href="#i-file"/></svg><span>PDF riepilogo cliente</span></button>
+      <p class="nota" id="st-pdf-nota" style="margin:8px 0 0">Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.</p>
+    </div>
     <div class="msg-info nascosto" id="st-stato-msg" role="status" aria-live="polite"></div>
     <p class="elenco-nota" id="st-conteggio"></p>
     <div id="st-elenco"></div>
