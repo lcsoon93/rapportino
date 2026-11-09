@@ -11,7 +11,7 @@
 //   soloOreCliente (sul documento): niente orari e ore dei singoli operai; ore di ogni riga = sulPosto
 //   (tempo sul posto dei tecnici del rapportino) e totale = somma delle righe.
 //   vecchio: scheda della vecchia app (giornate "rapporti"): tecnici della giornata, ore non indicate
-//   (erano per giornata, non per cliente) e fuori dal totale.
+//   ("—": erano per giornata, non per cliente) e fuori dal totale; nel PDF non e' segnalata come tale.
 // }
 import { dataIt } from "../../utils/dates.js";
 import { oreTesto } from "../../utils/formatters.js";
@@ -65,7 +65,7 @@ function celleRiga(doc, r, soloCliente){
 
   const tot = soloCliente ? (r.sulPosto || 0) : (r.operai || []).reduce((t, o)=>t + (o.minuti || 0), 0);
   const ore = r.vecchio
-    ? righeCella(doc, "n.d. *", l[3], 8.5, "normal", COLORI.grigio, 4.4)
+    ? righeCella(doc, "—", l[3], 9, "normal", COLORI.grigio, 4.4)
     : righeCella(doc, tot ? oreTesto(tot) : "—", l[3], 9, "bold", COLORI.blu, 4.4);
   return [data, lavoro, operai, ore];
 }
@@ -164,8 +164,7 @@ export function generaPDFRiepilogoCliente(d){
   });
   const nomi = d.soloOreCliente ? [] : Object.keys(perOperaio).sort((a, b)=>a.localeCompare(b, "it"));
   const bozze = d.righe.filter(r=>r.bozza).length;
-  const vecchi = d.righe.filter(r=>r.vecchio).length;
-  const servono = 20 + 6 * (2 + nomi.length + (bozze ? 1 : 0) + (vecchi ? 4 : 0)) + 14;
+  const servono = 20 + 6 * (2 + nomi.length + (bozze ? 1 : 0)) + 14;
   if(y + servono > LIMITE){ doc.addPage(); filigranaPDF(doc, W / 2, 155, 125); y = intestazioneCompatta(doc, TITOLO, info) + 9; }
   y += 5;
   y = titoloSezione(doc, "Riepilogo", ML, y, CW);
@@ -182,7 +181,6 @@ export function generaPDFRiepilogoCliente(d){
     voce(n + " (" + v.n + (v.n === 1 ? " intervento" : " interventi") + ")", oreTesto(v.minuti));
   });
   if(bozze) voce("di cui ancora in corso (bozza)", String(bozze), 0, COLORI.rosso);
-  if(vecchi) voce("di cui dalla vecchia app *", String(vecchi), 0, COLORI.grigio);
   y += 1.5;
   coloreRiempimento(doc, COLORI.blu);
   doc.rect(ML, y - 5.5, CW, 9.5, "F");
@@ -190,13 +188,6 @@ export function generaPDFRiepilogoCliente(d){
   doc.text("TOTALE ORE", ML + 3, y + 0.8);
   doc.text(oreTesto(totale), W - MR - 3, y + 0.8, {align:"right"});
   stileTesto(doc, 10);
-  if(vecchi){
-    y += 10;
-    stileTesto(doc, 8, "normal", COLORI.grigio);
-    doc.splitTextToSize("* Lavori registrati con la vecchia app: le ore erano registrate per giornata e non per cliente, " +
-      "quindi non sono indicate e non rientrano nel totale ore.", CW).forEach(t=>{ doc.text(t, ML, y); y += 3.8; });
-    stileTesto(doc, 10);
-  }
 
   const centro = (d.cliente.length > 38 ? d.cliente.slice(0, 37) + "…" : d.cliente) + " · " + d.periodo;
   aggiungiPiePagina(doc, centro);
