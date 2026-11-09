@@ -286,7 +286,8 @@ Le righe non si spezzano tra due pagine, salvo quelle più alte di una pagina, c
 (senza orari e ore dei singoli operai)". Compare nelle opzioni del PDF della giornata e del rapportino,
 nei report settimanale e mensile e nello Storico. Attivata in un punto vale per tutte ed è salvata sul
 telefono (`orePerCliente`). Cambia solo le stampe, PDF e testi per mail: nell'app le ore per operaio
-restano visibili.
+restano visibili. La spunta ha il permesso `pdf.opzioni` (admin e worker): l'utente company non la
+vede e stampa sempre le ore complete, anche se sul telefono è rimasta salvata attiva.
 - Ore per cliente = **tempo sul posto**, cioè dal primo arrivo all'ultima uscita senza contare due volte
   le ore in comune (`minutiSulPosto`). Luca 8-11 e Francesco 8-11 = 3 ore; 8-11 e 9-12 = 4 ore.
 - Nelle giornate della vecchia app (`minutiCliente`) valgono le fasce orarie del cliente, se ci sono.

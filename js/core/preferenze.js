@@ -1,6 +1,7 @@
 // Preferenze di stampa salvate in localStorage e opzioni lette dalle spunte.
 import { minutiOperaio, oreConStraordinario } from "../services/calculations.js";
 import { oreTesto } from "../utils/formatters.js";
+import { puo } from "./permessi.js";
 
 export function leggiPrefNascondiOreMese(){
   try{ return localStorage.getItem("nascondiOreMese") === "1"; }catch(e){ return false; }
@@ -30,8 +31,13 @@ export function salvaPrefNascondiOre(v){
 // mese e Storico): nei PDF e nei testi niente orari e ore dei singoli operai, solo i nomi dei tecnici e le
 // ore di lavoro presso il cliente (tempo sul posto). Nell'app le ore per operaio restano visibili.
 export const SPUNTE_ORE_CLIENTE = ["ore-cliente-giorno", "ore-cliente-rapportino", "ore-cliente-sett", "ore-cliente-mese", "ore-cliente-storico"];
-export function orePerCliente(){
+// stato salvato della spunta (per inizializzarla, anche prima che il profilo sia caricato)
+export function prefOrePerCliente(){
   try{ return localStorage.getItem("orePerCliente") === "1"; }catch(e){ return false; }
+}
+// usata dalle stampe: chi non vede la spunta (company) stampa sempre le ore complete
+export function orePerCliente(){
+  return puo("pdf.opzioni") && prefOrePerCliente();
 }
 export function salvaPrefOrePerCliente(v){
   try{ localStorage.setItem("orePerCliente", v ? "1" : "0"); }catch(e){}
