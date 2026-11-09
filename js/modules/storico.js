@@ -3,6 +3,8 @@
 // Dettaglio intervento e rapportino (foto, PDF) con le schermate gia' esistenti.
 import { registraVista } from "../core/navigation.js";
 import { elencoInterventi, minutiTra, nomeOperaio, operaiAttivi, storicoRapportini } from "../services/api-lavori.js";
+import { minutiSulPosto } from "../services/calculations.js";
+import { orePerCliente } from "../core/preferenze.js";
 import { avanzamento } from "../services/avanzamento.js";
 import { dataIt, isoDi, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
@@ -93,6 +95,7 @@ export function datiRiepilogoCliente(){
     .map(r=>({
       data: r.data, indirizzo: r.indirizzo || "", tipologia: r.tipologia || "", attivita: r.attivita || "",
       materiali: Array.isArray(r.materiali) ? r.materiali : [], esito: r.esito || "", bozza: r.stato !== "completato",
+      sulPosto: minutiSulPosto(r.rapportino_operai),
       operai: (r.rapportino_operai || []).map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: String(o.dalle || "").slice(0, 5),
         alle: String(o.alle || "").slice(0, 5), minuti: minuti(o) })).sort((a, b)=>a.nome.localeCompare(b.nome, "it")),
     }));
@@ -106,7 +109,7 @@ export function datiRiepilogoCliente(){
   // indirizzi del cliente nel periodo (senza doppioni); nella tabella l'indirizzo si ripete solo se ce n'e' piu' d'uno
   const indirizzi = [...new Set(righe.map(r=>r.indirizzo.trim()).filter(Boolean))];
   if(indirizzi.length <= 1) righe.forEach(r=>{ r.indirizzo = ""; });
-  return { cliente, indirizzi, periodo: etichettaPeriodo(), righe };
+  return { cliente, indirizzi, periodo: etichettaPeriodo(), righe, soloOreCliente: orePerCliente() };
 }
 export function pdfClienteStorico(btn){
   if(!$("st-cliente").value || !dati.periodo) return;

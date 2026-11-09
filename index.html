@@ -359,6 +359,10 @@
         <input type="checkbox" id="nascondi-ore-giorno">
         <span>Non stampare le ore totali di ogni operaio (solo dalle - alle)</span>
       </label>
+      <label class="check">
+        <input type="checkbox" id="ore-cliente-giorno">
+        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
+      </label>
       <div class="avviso" id="avviso" style="text-align:left;margin:8px 0 0">Salvataggio automatico attivo. Con "Invia PDF" scegli Mail o Gmail: il PDF è allegato.</div>
     </div>
 
@@ -413,6 +417,10 @@
         <input type="checkbox" id="stampa-extra-sett">
         <span>Stampa le ore in più nel PDF</span>
       </label>
+      <label class="check">
+        <input type="checkbox" id="ore-cliente-sett">
+        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
+      </label>
       </div>
     </div>
   </section>
@@ -451,6 +459,10 @@
           <input type="checkbox" id="nascondi-ore-mese">
           <span>Non stampare le ore lavorate nel riepilogo del PDF</span>
         </label>
+        <label class="check">
+        <input type="checkbox" id="ore-cliente-mese">
+        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
+      </label>
         <label class="check" style="display:none">
           <input type="checkbox" id="stampa-extra-mese">
           <span>Stampa le ore in più nel PDF</span>
@@ -655,6 +667,10 @@
       <button type="button" class="btn btn-primario btn-blocco" id="st-pdf-cliente" onclick="pdfClienteStorico(this)" disabled>
         <svg class="i"><use href="#i-file"/></svg><span>PDF riepilogo cliente</span></button>
       <p class="nota" id="st-pdf-nota" style="margin:8px 0 0">Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.</p>
+      <label class="check" style="margin-top:8px">
+        <input type="checkbox" id="ore-cliente-storico">
+        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
+      </label>
     </div>
     <div class="msg-info nascosto" id="st-stato-msg" role="status" aria-live="polite"></div>
     <p class="elenco-nota" id="st-conteggio"></p>
@@ -720,6 +736,13 @@
         <div class="campo"><label for="rf-firmatario">Nome firmatario (stampatello)</label><input type="text" id="rf-firmatario" autocomplete="off"></div>
       </div>
     </form>
+    <div class="modulo m-opzioni">
+      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>Opzioni del PDF</div>
+      <label class="check">
+        <input type="checkbox" id="ore-cliente-rapportino">
+        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
+      </label>
+    </div>
   </section>
   <!-- ================= RAPPORTINI COMPILATI (company e admin) ================= -->
   <section id="vista-rapporti" class="nascosto">

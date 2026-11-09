@@ -10,10 +10,10 @@
 // del cliente "(segue)". Testi e tabelle si spezzano riga per riga; un titolo non resta mai da solo
 // in fondo; foto con proporzioni reali (ridotte se non entrano per poco); firma con l'ultima foto.
 import { dataIt } from "../../utils/dates.js";
-import { totaleImporti, totaleSpese } from "../calculations.js";
+import { minutiCliente, totaleImporti, totaleSpese } from "../calculations.js";
 import { rigaOrarioCliente } from "../../modules/report.js";
-import { contoOreOperaio } from "../../core/preferenze.js";
-import { euro } from "../../utils/formatters.js";
+import { contoOreOperaio, orePerCliente } from "../../core/preferenze.js";
+import { euro, oreTesto } from "../../utils/formatters.js";
 import { datiGiornata } from "../../modules/rapportini.js";
 import {
   aggiungiPiePagina, COLORI, coloreLinea, coloreRiempimento, etichetteStato, filigranaPDF, intestazioneCompatta,
@@ -24,7 +24,12 @@ const TITOLO_RAPPORTINO = "RAPPORTINO DI INTERVENTO";
 const TITOLO_GIORNATA = "RAPPORTO DI LAVORO GIORNALIERO";
 const W = 210;
 const statiCliente = c=>[c.urgente ? "URGENZA" : "", c.stato === "Da ultimare" ? "DA ULTIMARE" : ""].filter(Boolean);
-const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : ""].filter(Boolean);
+const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : "",
+  c.oreLavoro ? "Ore di lavoro: " + oreTesto(c.oreLavoro) : ""].filter(Boolean);
+// spunta "solo ore per cliente": niente orario dei tecnici; per ogni cliente le ore di lavoro (tempo sul posto)
+const conOrePerCliente = d=>!orePerCliente() ? d
+  : { ...d, soloOreCliente: true, tecnici: d.tecnici || (d.operai || []).map(o=>o.nome).filter(Boolean).join(" / "),
+      clienti: d.clienti.map(c=>({ ...c, oreLavoro: minutiCliente(c, d) })) };
 const oreOperaio = op=>contoOreOperaio(op, "").trim().replace(/^\(|\)$/g, "");
 const nuovoDoc = ()=>{ const { jsPDF } = window.jspdf; return new jsPDF({unit:"mm", format:"a4"}); };
 
@@ -365,7 +370,7 @@ function rapportinoSingolo(d, iso){
   const data = dataIt(iso);
   const rif = d.riferimento || riferimentoGiornata(data);
   const { doc, im } = documentoPagina(TITOLO_RAPPORTINO, { riferimento: rif, data });
-  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: true });
+  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: !d.soloOreCliente });
   const c = d.clienti[0];
   if(c) im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   else { stileTesto(doc, 10.5, "normal", COLORI.grigio); doc.text("Nessun lavoro cliente registrato per questo giorno.", 18, im.y); }
@@ -431,7 +436,7 @@ function multiCliente(d, iso){
     im.y = nuovaColonna();
     im.leggiCornice();
     // i dati generali in ogni colonna: dopo il taglio ogni rapportino e' completo
-    const haOrario = d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle;
+    const haOrario = !d.soloOreCliente && (d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle);
     im.datiGenerali({ data, riferimento: cliente.rif, tecnici: d.tecnici, operai: d.operai, orari: haOrario });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
@@ -450,18 +455,18 @@ function multiCliente(d, iso){
 // dati/iso facoltativi: senza argomenti usa il foglio giornaliero aperto; con argomenti stampa una
 // giornata "virtuale", es. un rapportino (dati.riferimento, dati.mostraOrario, cliente.note)
 export function generaPDFPerCliente(dati, iso){
-  const d = dati || datiGiornata();
+  const d = conOrePerCliente(dati || datiGiornata());
   return d.clienti.length > 1 ? multiCliente(d, iso) : rapportinoSingolo(d, iso);
 }
 
 // Foglio unico ("RAPPORTO DI LAVORO GIORNALIERO"): tutti i lavori della giornata numerati e riepiloghi.
 export function generaPDFFoglioUnico(dati, iso){
-  const d = dati || datiGiornata();
+  const d = conOrePerCliente(dati || datiGiornata());
   const data = dataIt(iso);
   const rif = d.riferimento || riferimentoGiornata(data);
   const { doc, im, ML, MR } = documentoPagina(TITOLO_GIORNATA, { riferimento: rif, data });
   const XR = W - MR, CW = XR - ML;
-  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: true });
+  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: !d.soloOreCliente });
 
   im.y = titoloSezione(doc, "Lavori eseguiti", ML, im.y, CW);
   if(d.clienti.length === 0){
