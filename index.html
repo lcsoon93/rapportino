@@ -239,7 +239,7 @@
           <div class="riepilogo-tit"><h2>Riepilogo giornata</h2><span id="home-riep-data"></span></div>
           <div class="stat-griglia">
             <div class="stat brand"><span class="stat-val" id="st-interventi">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Interventi</span></div>
-            <div class="stat pervinca"><span class="stat-val" id="st-ore">0 ore</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Ore registrate</span></div>
+            <div class="stat pervinca"><span class="stat-val" id="st-ore">0 ore</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Ore di lavoro</span></div>
             <div class="stat ok"><span class="stat-val" id="st-firmati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Firmati</span></div>
             <div class="stat att"><span class="stat-val" id="st-dafirmare">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-pen"/></svg>Da firmare</span></div>
           </div>
@@ -345,7 +345,7 @@
       <div class="totore">Totale spese: <b id="totspese">0,00 €</b></div>
     </div>
 
-    <div class="modulo m-opzioni">
+    <div class="modulo m-opzioni" data-permesso="pdf.opzioni">
       <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>Opzioni del PDF</div>
       <label class="check">
         <input type="checkbox" id="pdf-foglio-unico">
@@ -359,7 +359,7 @@
         <input type="checkbox" id="nascondi-ore-giorno">
         <span>Non stampare le ore totali di ogni operaio (solo dalle - alle)</span>
       </label>
-      <label class="check">
+      <label class="check" data-permesso="pdf.opzioni">
         <input type="checkbox" id="ore-cliente-giorno">
         <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
@@ -417,7 +417,7 @@
         <input type="checkbox" id="stampa-extra-sett">
         <span>Stampa le ore in più nel PDF</span>
       </label>
-      <label class="check">
+      <label class="check" data-permesso="pdf.opzioni">
         <input type="checkbox" id="ore-cliente-sett">
         <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
@@ -459,7 +459,7 @@
           <input type="checkbox" id="nascondi-ore-mese">
           <span>Non stampare le ore lavorate nel riepilogo del PDF</span>
         </label>
-        <label class="check">
+        <label class="check" data-permesso="pdf.opzioni">
         <input type="checkbox" id="ore-cliente-mese">
         <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
@@ -666,8 +666,8 @@
     <div class="card st-pdf">
       <button type="button" class="btn btn-primario btn-blocco" id="st-pdf-cliente" onclick="pdfClienteStorico(this)" disabled>
         <svg class="i"><use href="#i-file"/></svg><span>PDF riepilogo cliente</span></button>
-      <p class="nota" id="st-pdf-nota" style="margin:8px 0 0">Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.</p>
-      <label class="check" style="margin-top:8px">
+      <p class="nota" id="st-pdf-nota">Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.</p>
+      <label class="check st-pdf-spunta" data-permesso="pdf.opzioni">
         <input type="checkbox" id="ore-cliente-storico">
         <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
@@ -736,7 +736,7 @@
         <div class="campo"><label for="rf-firmatario">Nome firmatario (stampatello)</label><input type="text" id="rf-firmatario" autocomplete="off"></div>
       </div>
     </form>
-    <div class="modulo m-opzioni">
+    <div class="modulo m-opzioni" data-permesso="pdf.opzioni">
       <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>Opzioni del PDF</div>
       <label class="check">
         <input type="checkbox" id="ore-cliente-rapportino">

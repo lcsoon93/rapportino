@@ -1,7 +1,7 @@
 // Home (admin): riepilogo degli interventi pianificati (tabella interventi), riepilogo della
 // giornata del foglio giornaliero, elenco delle sue schede, nuovo rapportino.
 import { dataIt, dataLunga, isoDi, oggiIso } from "../utils/dates.js";
-import { minutiOperaio } from "../services/calculations.js";
+import { minutiSulPosto } from "../services/calculations.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
 import { mostraVista, registraVista, vistaCorrente } from "../core/navigation.js";
@@ -31,7 +31,9 @@ export function disegnaHome(){
   const registrata = !!leggiDB()[iso] || d.clienti.length > 0;
   const clienti = d.clienti;
   const firmati = clienti.filter(c=>c.firma).length;
-  const minuti = registrata ? d.operai.reduce((a,op)=>a + minutiOperaio(op), 0) : 0;
+  // ore della giornata di lavoro (dal primo inizio all'ultima fine), non la somma delle ore dei singoli
+  // operai: Luca e Francesco 8-17 = 9 ore, non 18
+  const minuti = registrata ? minutiSulPosto(d.operai) : 0;
   document.getElementById("st-interventi").textContent = clienti.length;
   document.getElementById("st-ore").textContent = oreTesto(minuti);
   document.getElementById("st-firmati").textContent = firmati;

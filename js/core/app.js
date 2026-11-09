@@ -5,7 +5,8 @@ import { LOGO_B64 } from "../../assets/logo/logo.js";
 import { SINC_ATTIVA } from "./config.js";
 import { costruisciNav, mostraVista } from "./navigation.js";
 import { applicaPermessi, puo, vistaIniziale } from "./permessi.js";
-import { SPUNTE_ORE_CLIENTE, leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese, orePerCliente } from "./preferenze.js";
+import { SPUNTE_ORE_CLIENTE, leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese, aggiornaSpunteOreCliente } from "./preferenze.js";
+import { caricaImpostazioni } from "../services/impostazioni.js";
 import { caricaArchivio, impostaProprietarioArchivio, leggiDB, leggiMappa, proprietarioArchivio, svuotaArchivioLocale } from "./storage.js";
 import { su } from "./eventi.js";
 import { haRuolo, nomeCompleto, profilo, ripristina } from "./sessione.js";
@@ -43,7 +44,12 @@ const prefExtra = leggiPrefExtra();
 document.getElementById("pdf-foglio-unico").checked = leggiPrefFoglioUnico();
 document.getElementById("nascondi-ore-giorno").checked = leggiPrefNascondiOre();
 document.getElementById("nascondi-ore-mese").checked = leggiPrefNascondiOreMese();
-SPUNTE_ORE_CLIENTE.forEach(id=>{ const el = document.getElementById(id); if(el) el.checked = orePerCliente(); });
+aggiornaSpunteOreCliente();                     // ultimo valore noto; poi si aggiorna dal server
+function aggiornaImpostazioni(){
+  caricaImpostazioni().then(aggiornaSpunteOreCliente).catch(e=>console.warn("Impostazioni non lette:", e.message));
+}
+// tornando sull'app si rilegge (l'admin puo' averla cambiata nel frattempo)
+document.addEventListener("visibilitychange", ()=>{ if(!document.hidden && profilo) aggiornaImpostazioni(); });
 
 const NOMI_RUOLO = { admin: "Amministratore", company: "Company", worker: "Operaio" };
 let archivioPronto = null;
@@ -78,6 +84,7 @@ async function entra(p){
   document.getElementById("app-utente").textContent = nomeCompleto(p) + " · " + NOMI_RUOLO[p.ruolo] + (p.ruolo === "admin" && haRuolo("worker", p) ? " e operaio" : "");
   costruisciNav();
   applicaPermessi();
+  aggiornaImpostazioni();
   aggiornaClientiNoti();
   document.getElementById("data").value = oggi;
   caricaGiornata(oggi);

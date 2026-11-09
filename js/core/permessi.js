@@ -11,7 +11,7 @@ const PERMESSI = {
     "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino", "vista.storico",
     "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
-    "backup.esporta", "backup.importa", "report", "pdf",
+    "backup.esporta", "backup.importa", "report", "pdf", "pdf.opzioni",
   ],
   company: [
     "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
