@@ -311,9 +311,9 @@ generarne il PDF con "PDF giornata". I filtri si applicano anche a queste voci:
 - Stato: "Completato" oppure "In corso", che corrisponde a "Da ultimare".
 - Ricerca: nome, indirizzo, lavoro, "Fatturare a" e tipologia.
 
-Nel PDF del riepilogo queste schede compaiono con i tecnici della giornata, ma senza ore. Nella vecchia
-app le ore erano per giornata e non per cliente, quindi la colonna Ore riporta "n.d. *". Una nota spiega
-che quelle ore non rientrano nel totale, e il riepilogo indica quanti lavori vengono dalla vecchia app.
+Nel PDF del riepilogo queste schede compaiono come le altre, con i tecnici della giornata, ma senza
+ore: nella vecchia app le ore erano per giornata e non per cliente. La colonna Ore riporta "—" e quelle
+ore non rientrano nel totale. Il PDF non indica quali lavori vengono dalla vecchia app.
 
 ## Rifiniture di sicurezza (Fase F)
 
