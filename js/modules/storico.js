@@ -10,6 +10,7 @@ import { icona } from "../utils/dom.js";
 import { STATO_INTERVENTO, STATO_RAPPORTINO, oraBreve } from "./gestione-interventi.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFRiepilogoCliente } from "../services/pdf/cliente-mese.js";
+import { leggiDB } from "../core/storage.js";
 
 const $ = id=>document.getElementById(id);
 const GIORNI_DEFAULT = 30;
@@ -19,7 +20,29 @@ let richiesta = 0;
 const minuti = o=>minutiTra(String(o.dalle || "").slice(0, 5), String(o.alle || "").slice(0, 5));
 const minutiRapportino = r=>(r.rapportino_operai || []).reduce((t, o)=>t + minuti(o), 0);
 const nFoto = r=>(r.allegati && r.allegati[0] && r.allegati[0].count) || 0;
-const norma = t=>String(t || "").toLocaleLowerCase("it-IT").normalize("NFD").replace(/[̀-ͯ]/g, "");
+const norma = t=>String(t || "").toLocaleLowerCase("it-IT").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
+const stessoCliente = (a, b)=>norma(a) === norma(b);
+
+// Rapporti della vecchia app (tabella "rapporti", una giornata con piu' schede cliente): sono gia' sul
+// telefono (archivio sincronizzato per admin e company), quindi si leggono da li', senza richieste in piu'.
+// Una voce per ogni scheda cliente con nome; le ore erano per giornata, non per cliente: non si usano.
+function vecchiRapporti(dal, al){
+  const db = leggiDB(), out = [];
+  Object.keys(db).filter(iso=>iso >= dal && iso <= al).sort().forEach(iso=>{
+    const g = db[iso] || {};
+    const tecnici = (g.operai || []).map(o=>String(o.nome || "").trim()).filter(Boolean);
+    (g.clienti || []).forEach(c=>{
+      if(!c || !String(c.nome || "").trim() || c.nome === "(senza nome)") return;
+      out.push({ iso, c, tecnici: tecnici.length ? tecnici : String(g.tecnici || "").split(/\s*[\/,]\s*/).filter(Boolean) });
+    });
+  });
+  return out;
+}
+// l'operaio scelto nel filtro (id) e' tra i tecnici di una giornata vecchia (nomi liberi): nome completo o primo nome
+function tecnicoDellaGiornata(id, tecnici){
+  const n = norma(nomeOperaio(id)), primo = n.split(" ")[0];
+  return tecnici.some(t=>{ const x = norma(t); return x === n || (primo && (x === primo || x.split(" ")[0] === primo)); });
+}
 
 function predefiniti(){
   const d = new Date(oggiIso() + "T12:00:00"); d.setDate(d.getDate() - GIORNI_DEFAULT);
@@ -54,7 +77,7 @@ function aggiornaPulsantePDF(){
   const cliente = $("st-cliente").value;
   $("st-pdf-cliente").disabled = !cliente || !dati.periodo;
   $("st-pdf-nota").textContent = cliente
-    ? "Tutti i rapportini di " + cliente + " " + (meseDelPeriodo() ? "di " : "") + etichettaPeriodo() + " (gli altri filtri non contano)."
+    ? "Tutti i lavori di " + cliente + " " + (meseDelPeriodo() ? "di " : "") + etichettaPeriodo() + ", anche quelli della vecchia app (gli altri filtri non contano)."
     : "Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.";
 }
 
@@ -64,8 +87,8 @@ function aggiornaPulsantePDF(){
 // condivisione parte subito dal tocco sul pulsante.
 export function datiRiepilogoCliente(){
   const cliente = $("st-cliente").value, dal = $("st-dal").value, al = $("st-al").value;
-  const righe = dati.rapportini
-    .filter(r=>r.cliente === cliente && r.data >= dal && r.data <= al)
+  const nuovi = dati.rapportini
+    .filter(r=>stessoCliente(r.cliente, cliente) && r.data >= dal && r.data <= al)
     .sort((a, b)=>a.data.localeCompare(b.data) || String(a.completato_il || "").localeCompare(String(b.completato_il || "")))
     .map(r=>({
       data: r.data, indirizzo: r.indirizzo || "", tipologia: r.tipologia || "", attivita: r.attivita || "",
@@ -73,6 +96,13 @@ export function datiRiepilogoCliente(){
       operai: (r.rapportino_operai || []).map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: String(o.dalle || "").slice(0, 5),
         alle: String(o.alle || "").slice(0, 5), minuti: minuti(o) })).sort((a, b)=>a.nome.localeCompare(b.nome, "it")),
     }));
+  // vecchia app: stessi dati della scheda cliente, i tecnici della giornata e nessuna ora (vecchio: true)
+  const vecchi = vecchiRapporti(dal, al).filter(v=>stessoCliente(v.c.nome, cliente)).map(({ iso, c, tecnici })=>({
+    data: iso, indirizzo: String(c.indirizzo || ""), tipologia: c.tipologia || "", attivita: c.dettagli || "",
+    materiali: Array.isArray(c.materiali) ? c.materiali : [], esito: c.stato || "", bozza: false, vecchio: true,
+    tecnici, operai: [],
+  }));
+  const righe = nuovi.concat(vecchi).sort((a, b)=>a.data.localeCompare(b.data));
   // indirizzi del cliente nel periodo (senza doppioni); nella tabella l'indirizzo si ripete solo se ce n'e' piu' d'uno
   const indirizzi = [...new Set(righe.map(r=>r.indirizzo.trim()).filter(Boolean))];
   if(indirizzi.length <= 1) righe.forEach(r=>{ r.indirizzo = ""; });
@@ -98,11 +128,16 @@ async function carica(){
   if(n !== richiesta) return;
   dati = { interventi, rapportini, periodo };
   // clienti e operai presenti nel periodo per i due elenchi a scelta
-  const clienti = [...new Set([...interventi.map(i=>i.cliente), ...rapportini.map(r=>r.cliente)].filter(Boolean))]
-    .sort((a, b)=>a.localeCompare(b, "it"));
+  // un cliente per nome (senza differenze di maiuscole, accenti e spazi), anche dai rapporti della vecchia app
+  const perNome = new Map();
+  [...interventi.map(i=>i.cliente), ...rapportini.map(r=>r.cliente),
+   ...vecchiRapporti($("st-dal").value, $("st-al").value).map(v=>String(v.c.nome).trim())].filter(Boolean)
+    .forEach(n=>{ if(!perNome.has(norma(n))) perNome.set(norma(n), n); });
+  const clienti = [...perNome.values()].sort((a, b)=>a.localeCompare(b, "it"));
   const scelto = $("st-cliente").value;
   $("st-cliente").innerHTML = '<option value="">Tutti i clienti</option>' + clienti.map(c=>'<option>' + esc(c) + '</option>').join("");
-  if(clienti.includes(scelto)) $("st-cliente").value = scelto;
+  const ritrovato = clienti.find(c=>stessoCliente(c, scelto));
+  if(ritrovato) $("st-cliente").value = ritrovato;
   const ids = new Set();
   interventi.forEach(i=>(i.intervento_operai || []).forEach(a=>ids.add(a.operaio_id)));
   rapportini.forEach(r=>{ ids.add(r.autore_id); (r.rapportino_operai || []).forEach(o=>ids.add(o.operaio_id)); });
@@ -122,7 +157,7 @@ function voci(){
   const out = [];
   dati.interventi.forEach(i=>{
     const rr = perIntervento[i.id] || [];
-    if(cliente && i.cliente !== cliente) return;
+    if(cliente && !stessoCliente(i.cliente, cliente)) return;
     if(operaio && !(i.intervento_operai || []).some(a=>a.operaio_id === operaio) && !conOperaio(rr)) return;
     if(st && !(st === "bozza" ? rr.some(r=>r.stato === "bozza") : i.stato === st)) return;
     if(cerca && !norma([i.cliente, i.indirizzo, i.descrizione, ...rr.map(r=>r.attivita)].join(" ")).includes(cerca)) return;
@@ -131,11 +166,21 @@ function voci(){
   // rapportini autonomi e rapportini di interventi fuori dal periodo (il rapportino e' nel periodo)
   const idInterventi = new Set(dati.interventi.map(i=>i.id));
   dati.rapportini.filter(r=>!r.intervento_id || !idInterventi.has(r.intervento_id)).forEach(r=>{
-    if(cliente && r.cliente !== cliente) return;
+    if(cliente && !stessoCliente(r.cliente, cliente)) return;
     if(!conOperaio([r])) return;
     if(st && !((st === "completato" && r.stato === "completato") || ((st === "bozza" || st === "in_corso") && r.stato === "bozza"))) return;
     if(cerca && !norma([r.cliente, r.indirizzo, r.attivita, r.note].join(" ")).includes(cerca)) return;
     out.push({ tipo: "rapportino", data: r.data, ora: "", r });
+  });
+  // rapporti della vecchia app (schede cliente delle giornate)
+  vecchiRapporti($("st-dal").value, $("st-al").value).forEach(v=>{
+    const c = v.c;
+    if(cliente && !stessoCliente(c.nome, cliente)) return;
+    if(operaio && !tecnicoDellaGiornata(operaio, v.tecnici)) return;
+    const daUltimare = c.stato === "Da ultimare";
+    if(st && !((st === "completato" && !daUltimare) || (st === "in_corso" && daUltimare))) return;
+    if(cerca && !norma([c.nome, c.indirizzo, c.dettagli, c.fatturare, c.tipologia].join(" ")).includes(cerca)) return;
+    out.push({ tipo: "vecchio", data: v.iso, ora: "", v });
   });
   // piu' recenti prima
   return out.sort((a, b)=>b.data.localeCompare(a.data) || String(b.ora).localeCompare(String(a.ora)));
@@ -170,6 +215,21 @@ function scheda(v){
       (rr.length ? '<div class="st-rapportini">' + rr.sort((a, b)=>a.data.localeCompare(b.data)).map(rigaRapportino).join("") + '</div>'
         : '<div class="nota" style="padding:8px 0 0">Nessun rapportino.</div>') +
     '</article>';
+  }
+  if(v.tipo === "vecchio"){
+    const { iso, c, tecnici } = v.v;
+    const att = String(c.dettagli || "").trim();
+    return '<article class="card st-voce" data-tipo="vecchio" data-data="' + iso + '">' +
+      '<div class="st-autonomo"><span class="badge neutro">Vecchia app</span> <b>' + esc(c.nome) + '</b>' +
+        (c.stato === "Da ultimare" ? ' <span class="badge att">Da ultimare</span>' : '') +
+        '<span class="cli-ind" style="display:block">' + esc([dataIt(iso), c.indirizzo].filter(Boolean).join(" · ")) + '</span>' +
+        (tecnici.length ? '<span class="cli-ind" style="display:block">' + icona("users", "i-sm") + ' ' + esc(tecnici.join(" / ")) + '</span>' : '') +
+        (att ? '<span class="int-desc">' + esc(att.length > 160 ? att.slice(0, 159) + "…" : att) + '</span>' : '') +
+      '</div>' +
+      '<div class="st-azioni" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">' +
+        '<button type="button" class="btn btn-secondario" data-permesso="vista.giorno" onclick="apriGiorno(\'' + iso + '\')">' + icona("file") + '<span>Apri giornata</span></button>' +
+        '<button type="button" class="btn btn-secondario" onclick="pdfRapporto(this,\'' + iso + '\')">' + icona("file") + '<span>PDF giornata</span></button>' +
+      '</div></article>';
   }
   const r = v.r;
   return '<article class="card st-voce" data-tipo="rapportino" data-id="' + r.id + '">' +

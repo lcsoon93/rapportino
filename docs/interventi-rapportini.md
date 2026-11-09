@@ -282,6 +282,21 @@ Le righe non si spezzano tra due pagine, salvo quelle più alte di una pagina, c
 "(segue)". L'intestazione della tabella si ripete su ogni pagina. File:
 `Riepilogo_<cliente>_<AAAA-MM>.pdf`.
 
+**Rapporti della vecchia app.** Le giornate della tabella `rapporti`, con più schede cliente ciascuna,
+sono già sul telefono di admin e company grazie all'archivio sincronizzato. Lo Storico le legge da lì,
+senza richieste in più e senza modifiche al database. Ogni scheda cliente con nome diventa una voce
+"Vecchia app" nell'elenco. Admin può aprire la giornata con "Apri giornata" e tutti e due i ruoli possono
+generarne il PDF con "PDF giornata". I filtri si applicano anche a queste voci:
+- Cliente: il nome è confrontato senza maiuscole, accenti né spazi in più. L'elenco dei clienti
+  comprende anche quelli della vecchia app.
+- Operaio: confrontato con i nomi dei tecnici della giornata, sia nome completo sia solo nome.
+- Stato: "Completato" oppure "In corso", che corrisponde a "Da ultimare".
+- Ricerca: nome, indirizzo, lavoro, "Fatturare a" e tipologia.
+
+Nel PDF del riepilogo queste schede compaiono con i tecnici della giornata, ma senza ore. Nella vecchia
+app le ore erano per giornata e non per cliente, quindi la colonna Ore riporta "n.d. *". Una nota spiega
+che quelle ore non rientrano nel totale, e il riepilogo indica quanti lavori vengono dalla vecchia app.
+
 ## Rifiniture di sicurezza (Fase F)
 
 - Migrazione `supabase/migrations/20261111090000_rapporti_privilegi.sql` (rollback
