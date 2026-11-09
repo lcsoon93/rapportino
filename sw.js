@@ -1,7 +1,7 @@
 // Service worker di Rapportino: app installabile, apertura anche senza rete, notifiche push.
 // File dell'app: prima la rete (cosi' si vede sempre l'ultima versione pubblicata), la copia salvata
 // solo se la rete manca. I dati (Supabase) non passano mai di qui.
-const CACHE = "rapportino-v1";
+const CACHE = "rapportino-v2";
 const STESSA_ORIGINE = self.location.origin;
 const ESTERNI = ["https://cdnjs.cloudflare.com/", "https://fonts.googleapis.com/", "https://fonts.gstatic.com/"];
 
@@ -22,7 +22,8 @@ self.addEventListener("fetch", e=>{
   e.respondWith((async()=>{
     const cache = await caches.open(CACHE);
     try{
-      const risposta = await fetch(r);
+      // file dell'app: sempre ricontrollati sul server (niente versioni miste tra pagina e moduli)
+      const risposta = nostro ? await fetch(r.url, { cache: "no-cache", credentials: "same-origin" }) : await fetch(r);
       if(risposta && (risposta.ok || risposta.type === "opaque")) cache.put(r, risposta.clone()).catch(()=>{});
       return risposta;
     }catch(err){

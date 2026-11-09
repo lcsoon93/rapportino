@@ -33,16 +33,18 @@ const TESTI = {
   "spente": ["Spente", ""],
   "negate": ["Bloccate", "Le notifiche sono bloccate: abilitale per Rapportino nelle impostazioni del telefono, poi torna qui."],
   "serve-installare": ["Da installare", "Su iPhone le notifiche funzionano solo con l'app sulla schermata Home: in Safari tocca Condividi → \"Aggiungi alla schermata Home\", poi apri Rapportino dall'icona e torna qui."],
+  "non-pronte": ["Da verificare", "L'app non ha ancora finito di prepararsi: chiudila e riaprila, poi torna qui. Puoi anche provare con \"Attiva notifiche\"."],
   "non-supportate": ["Non disponibili", "Questo browser non supporta le notifiche. Su Android usa Chrome; su iPhone aggiungi l'app alla schermata Home."],
 };
 export async function aggiornaNotificheUI(){
   const $ = id=>document.getElementById(id);
+  if($("notifiche-stato").textContent === "—") $("notifiche-stato").textContent = "Controllo…";
   let stato;
-  try{ stato = await statoNotifiche(); }catch(e){ stato = "non-supportate"; }
+  try{ stato = await statoNotifiche(); }catch(e){ stato = "non-pronte"; }
   const [etichetta, nota] = TESTI[stato] || TESTI["non-supportate"];
   $("notifiche-stato").textContent = etichetta;
   $("notifiche-nota").textContent = nota || cosaRicevi();
-  $("notifiche-attiva").classList.toggle("nascosto", stato !== "spente");
+  $("notifiche-attiva").classList.toggle("nascosto", stato !== "spente" && stato !== "non-pronte");
   $("notifiche-prova").classList.toggle("nascosto", stato !== "attive");
   $("notifiche-spegni").classList.toggle("nascosto", stato !== "attive");
 }
