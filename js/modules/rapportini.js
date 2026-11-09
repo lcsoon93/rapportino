@@ -1,7 +1,8 @@
 // Rapportino della giornata: caricamento, raccolta dati, salvataggio automatico, data selezionata.
 import { SINC_ATTIVA } from "../core/config.js";
 import { dataIt, dataLunga, etichettaGiorno, isoDi, oggiIso } from "../utils/dates.js";
-import { SPUNTE_ORE_CLIENTE, salvaPrefExtra, salvaPrefFoglioUnico, salvaPrefNascondiOre, salvaPrefNascondiOreMese, salvaPrefOrePerCliente } from "../core/preferenze.js";
+import { SPUNTE_ORE_CLIENTE, salvaPrefExtra, salvaPrefFoglioUnico, salvaPrefNascondiOre, salvaPrefNascondiOreMese, aggiornaSpunteOreCliente } from "../core/preferenze.js";
+import { salvaImpostazione } from "../services/impostazioni.js";
 import { avvisoArchivio, leggiDB, leggiTimbri, scriviDB, scriviTimbri } from "../core/storage.js";
 import { cancellaGiornoRemoto, inviaGiorno, registraBase, statoSinc, versioneConfermata } from "../services/sync.js";
 import { mostraVista } from "../core/navigation.js";
@@ -177,7 +178,11 @@ document.addEventListener("change", e=>{
   if(SPUNTE_ORE_CLIENTE.includes(e.target.id)){
     const v = e.target.checked;
     SPUNTE_ORE_CLIENTE.forEach(id=>{ const el = document.getElementById(id); if(el) el.checked = v; });
-    salvaPrefOrePerCliente(v);
+    // impostazione condivisa: la decide l'admin e vale per le stampe di tutti
+    salvaImpostazione("ore_per_cliente", v).catch(err=>{
+      aggiornaSpunteOreCliente();            // torna com'era
+      alert("Impostazione non salvata: " + err.message + "\nControlla la connessione e riprova.");
+    });
     return;
   }
   if(e.target.id === "nascondi-ore-mese"){

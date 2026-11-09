@@ -284,10 +284,12 @@ Le righe non si spezzano tra due pagine, salvo quelle più alte di una pagina, c
 
 **Stampe con le sole ore per cliente.** È una spunta condivisa: "Nelle stampe solo le ore per cliente
 (senza orari e ore dei singoli operai)". Compare nelle opzioni del PDF della giornata e del rapportino,
-nei report settimanale e mensile e nello Storico. Attivata in un punto vale per tutte ed è salvata sul
-telefono (`orePerCliente`). Cambia solo le stampe, PDF e testi per mail: nell'app le ore per operaio
-restano visibili. La spunta ha il permesso `pdf.opzioni` (admin e worker): l'utente company non la
-vede e stampa sempre le ore complete, anche se sul telefono è rimasta salvata attiva.
+nei report settimanale e mensile e nello Storico. La vede e la cambia **solo l'amministratore**
+(permesso `pdf.opzioni`); è salvata su Supabase nella tabella `impostazioni` (chiave `ore_per_cliente`,
+migrazione `20261114090000_impostazioni.sql`) e vale per le stampe di **tutti** gli utenti, company e
+operai compresi. L'app la rilegge all'accesso e ogni volta che si torna sull'app; offline usa l'ultimo
+valore noto. Se il salvataggio fallisce la spunta torna com'era. Cambia solo le stampe, PDF e testi per
+mail: nell'app le ore per operaio restano visibili.
 - Ore per cliente = **tempo sul posto**, cioè dal primo arrivo all'ultima uscita senza contare due volte
   le ore in comune (`minutiSulPosto`). Luca 8-11 e Francesco 8-11 = 3 ore; 8-11 e 9-12 = 4 ore.
 - Nelle giornate della vecchia app (`minutiCliente`) valgono le fasce orarie del cliente, se ci sono.

@@ -22,7 +22,7 @@ const PERMESSI = {
   worker: [
     "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
     "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario: solo gli interventi che le policy gli mostrano
-    "rapportini.compila", "pdf.opzioni",
+    "rapportini.compila",
   ],
 };
 
