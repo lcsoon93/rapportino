@@ -143,7 +143,7 @@ export async function elencoRapportini({ dal, al, stato, autore, intervento } = 
 }
 // Storico: rapportini di un periodo (per data del rapportino) e quelli collegati agli interventi
 // indicati, con ore e numero di foto. Solo cio' che RLS consente all'utente.
-const CAMPI_STORICO = "id, intervento_id, autore_id, data, cliente, indirizzo, attivita, note, stato, completato_il, " +
+const CAMPI_STORICO = "id, intervento_id, autore_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, stato, completato_il, " +
   "rapportino_operai(operaio_id, dalle, alle), allegati(count)";
 export async function storicoRapportini({ dal, al, interventi = [] }){
   let q = client.from("rapportini").select(CAMPI_STORICO);

@@ -23,7 +23,7 @@ import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapport
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
 import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
-import { azzeraFiltriStorico, cercaStorico, disegnaStorico } from "../modules/storico.js";
+import { azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico } from "../modules/storico.js";
 import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
 
 Object.assign(window, {
@@ -47,7 +47,7 @@ Object.assign(window, {
   aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
-  azzeraFiltriStorico, cercaStorico, disegnaStorico,
+  azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico,
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
   annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal

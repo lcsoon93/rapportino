@@ -263,6 +263,25 @@ stato, avanzamento, ore totali e un rapportino per operaio con le sue ore e le f
 dell'intervento o rapportino (foto e PDF dalle schermate esistenti). Rapportini autonomi e rapportini
 di interventi fuori periodo compaiono come voci a sé.
 
+### Riepilogo mensile per cliente (PDF)
+
+Solo frontend, nessuna modifica SQL. Nei filtri dello Storico il campo **Mese** imposta Dal/Al sul
+primo e sull'ultimo giorno del mese (se le date vengono cambiate a mano, Mese resta valorizzato solo se
+il periodo è ancora un mese intero). Scelto un **Cliente**, il pulsante **PDF riepilogo cliente**
+stampa tutti i suoi rapportini con data nel periodo (gli altri filtri, cioè operaio, stato e ricerca, non contano),
+dai dati già caricati: nessuna richiesta in più, e cosa compare lo decide RLS come per lo Storico.
+`storicoRapportini` legge anche `tipologia`, `materiali` ed `esito`.
+
+PDF (`js/services/pdf/cliente-mese.js`, `generaPDFRiepilogoCliente`): A4 verticale, stile COMP.HAS,
+titolo "RIEPILOGO LAVORI" e periodo ("Novembre 2026" oppure "dal … al …"). Contiene il cliente con i suoi
+indirizzi del periodo e una tabella in ordine di data (Data / Lavoro eseguito / Operai / Ore). Il lavoro
+eseguito comprende attività, tipologia, materiali, l'etichetta DA ULTIMARE o IN CORSO (BOZZA) e
+l'indirizzo, che compare solo se il cliente ne ha più d'uno. Seguono i totali: rapportini, giorni con
+lavori, ore e interventi per operaio, rapportini ancora in bozza e TOTALE ORE. Niente foto né firme.
+Le righe non si spezzano tra due pagine, salvo quelle più alte di una pagina, che continuano con
+"(segue)". L'intestazione della tabella si ripete su ogni pagina. File:
+`Riepilogo_<cliente>_<AAAA-MM>.pdf`.
+
 ## Rifiniture di sicurezza (Fase F)
 
 - Migrazione `supabase/migrations/20261111090000_rapporti_privilegi.sql` (rollback

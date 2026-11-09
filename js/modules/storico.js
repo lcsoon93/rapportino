@@ -8,6 +8,8 @@ import { dataIt, isoDi, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
 import { STATO_INTERVENTO, STATO_RAPPORTINO, oraBreve } from "./gestione-interventi.js";
+import { condividi } from "../services/condivisione.js";
+import { generaPDFRiepilogoCliente } from "../services/pdf/cliente-mese.js";
 
 const $ = id=>document.getElementById(id);
 const GIORNI_DEFAULT = 30;
@@ -21,10 +23,68 @@ const norma = t=>String(t || "").toLocaleLowerCase("it-IT").normalize("NFD").rep
 
 function predefiniti(){
   const d = new Date(oggiIso() + "T12:00:00"); d.setDate(d.getDate() - GIORNI_DEFAULT);
-  $("st-dal").value = isoDi(d); $("st-al").value = oggiIso();
+  $("st-dal").value = isoDi(d); $("st-al").value = oggiIso(); $("st-mese").value = "";
   $("st-cliente").value = ""; $("st-operaio").value = ""; $("st-stato").value = ""; $("st-cerca").value = "";
 }
 export function azzeraFiltriStorico(){ predefiniti(); disegnaStorico(); }
+
+// ---------------------------------------------------------------- mese
+const NOMI_MESI = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno","Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
+const ultimoGiorno = am=>{ const [a, m] = am.split("-").map(Number); return am + "-" + String(new Date(a, m, 0).getDate()).padStart(2, "0"); };
+// "AAAA-MM" se il periodo Dal-Al e' esattamente un mese intero, altrimenti ""
+function meseDelPeriodo(){
+  const dal = $("st-dal").value, al = $("st-al").value;
+  return dal && dal.endsWith("-01") && al === ultimoGiorno(dal.slice(0, 7)) ? dal.slice(0, 7) : "";
+}
+// scelta del mese: imposta Dal e Al sul primo e sull'ultimo giorno
+export function scegliMeseStorico(){
+  const m = $("st-mese").value;
+  if(!m) return;
+  $("st-dal").value = m + "-01"; $("st-al").value = ultimoGiorno(m);
+  disegnaStorico();
+}
+// Dal/Al cambiati a mano: il campo Mese resta valorizzato solo se il periodo e' ancora un mese intero
+export function cambiaDateStorico(){ $("st-mese").value = meseDelPeriodo(); disegnaStorico(); }
+function etichettaPeriodo(){
+  const m = meseDelPeriodo();
+  if(m){ const [a, mm] = m.split("-"); return NOMI_MESI[+mm - 1] + " " + a; }
+  return "dal " + dataIt($("st-dal").value) + " al " + dataIt($("st-al").value);
+}
+function aggiornaPulsantePDF(){
+  const cliente = $("st-cliente").value;
+  $("st-pdf-cliente").disabled = !cliente || !dati.periodo;
+  $("st-pdf-nota").textContent = cliente
+    ? "Tutti i rapportini di " + cliente + " " + (meseDelPeriodo() ? "di " : "") + etichettaPeriodo() + " (gli altri filtri non contano)."
+    : "Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.";
+}
+
+// ---------------------------------------------------------------- PDF riepilogo cliente
+// Dai rapportini gia' caricati per il periodo (stessi dati che RLS mostra nello Storico): solo quelli con
+// data nel periodo e il cliente scelto, in ordine di data. Nessuna richiesta in piu' al server, cosi' la
+// condivisione parte subito dal tocco sul pulsante.
+export function datiRiepilogoCliente(){
+  const cliente = $("st-cliente").value, dal = $("st-dal").value, al = $("st-al").value;
+  const righe = dati.rapportini
+    .filter(r=>r.cliente === cliente && r.data >= dal && r.data <= al)
+    .sort((a, b)=>a.data.localeCompare(b.data) || String(a.completato_il || "").localeCompare(String(b.completato_il || "")))
+    .map(r=>({
+      data: r.data, indirizzo: r.indirizzo || "", tipologia: r.tipologia || "", attivita: r.attivita || "",
+      materiali: Array.isArray(r.materiali) ? r.materiali : [], esito: r.esito || "", bozza: r.stato !== "completato",
+      operai: (r.rapportino_operai || []).map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: String(o.dalle || "").slice(0, 5),
+        alle: String(o.alle || "").slice(0, 5), minuti: minuti(o) })).sort((a, b)=>a.nome.localeCompare(b.nome, "it")),
+    }));
+  // indirizzi del cliente nel periodo (senza doppioni); nella tabella l'indirizzo si ripete solo se ce n'e' piu' d'uno
+  const indirizzi = [...new Set(righe.map(r=>r.indirizzo.trim()).filter(Boolean))];
+  if(indirizzi.length <= 1) righe.forEach(r=>{ r.indirizzo = ""; });
+  return { cliente, indirizzi, periodo: etichettaPeriodo(), righe };
+}
+export function pdfClienteStorico(btn){
+  if(!$("st-cliente").value || !dati.periodo) return;
+  const d = datiRiepilogoCliente();
+  const nome = "Riepilogo_" + d.cliente.replace(/[^\w]+/g, "_").slice(0, 40) + "_" +
+    (meseDelPeriodo() || ($("st-dal").value + "_" + $("st-al").value)) + ".pdf";
+  condividi(btn, ()=>generaPDFRiepilogoCliente(d), nome);
+}
 
 // ---------------------------------------------------------------- dati
 async function carica(){
@@ -123,10 +183,11 @@ let disegno = 0;
 export async function disegnaStorico(){
   const n = ++disegno;                                  // conta solo l'ultimo disegno richiesto
   if(!$("st-dal").value) predefiniti();
-  if($("st-al").value && $("st-dal").value > $("st-al").value){ stato("La data iniziale è dopo quella finale.", "err"); $("st-elenco").innerHTML = ""; $("st-conteggio").textContent = ""; return; }
+  if($("st-al").value && $("st-dal").value > $("st-al").value){ $("st-pdf-cliente").disabled = true; stato("La data iniziale è dopo quella finale.", "err"); $("st-elenco").innerHTML = ""; $("st-conteggio").textContent = ""; return; }
   try{ await carica(); }
-  catch(e){ if(n === disegno){ stato(e.message, "err"); $("st-elenco").innerHTML = ""; } dati.periodo = ""; return; }
+  catch(e){ if(n === disegno){ stato(e.message, "err"); $("st-elenco").innerHTML = ""; } dati.periodo = ""; $("st-pdf-cliente").disabled = true; return; }
   if(n !== disegno) return;
+  aggiornaPulsantePDF();
   const lista = voci();
   stato("");
   $("st-conteggio").textContent = lista.length ? lista.length + (lista.length === 1 ? " risultato" : " risultati") : "";
