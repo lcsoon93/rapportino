@@ -3,7 +3,7 @@
 // quelle richiamate dagli handler inline (in index.html e nell'HTML generato dai moduli).
 // Se aggiungi un onclick="nuovaFunzione()" aggiungi qui anche nuovaFunzione.
 import { mostraVista } from "./navigation.js";
-import { vaiASezione } from "../modules/altro.js";
+import { attivaNotificheUI, disattivaNotificheUI, provaNotificaUI, vaiASezione } from "../modules/altro.js";
 import { disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana } from "../modules/calendario.js";
 import { apriCliente, eseguiRicerca, nuovoPerCliente } from "../modules/clienti.js";
 import { apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino } from "../modules/dashboard.js";
@@ -28,7 +28,7 @@ import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDett
 
 Object.assign(window, {
   mostraVista,
-  vaiASezione,
+  vaiASezione, attivaNotificheUI, disattivaNotificheUI, provaNotificaUI,
   disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana,
   apriCliente, eseguiRicerca, nuovoPerCliente,
   apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino,

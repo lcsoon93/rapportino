@@ -199,6 +199,32 @@ foto:[{src,w,h}], firma, urgente}], spese:[{d, i, allegato, clienteId}] }`.
 Dopo una modifica prova almeno: nuovo rapportino, firma, PDF della giornata, calendario,
 esporta/importa backup. Nei test non usare il server vero: blocca `supabase.co`.
 
+## App installabile e notifiche
+
+**App (PWA).** `manifest.webmanifest`, le icone in `assets/icone/` e il service worker `sw.js` rendono il
+sito installabile: su iPhone Safari → Condividi → "Aggiungi alla schermata Home"; su Android Chrome →
+"Installa app". Si apre a schermo intero. Il service worker scarica sempre i file dalla rete (si vede
+l'ultima versione pubblicata) e usa la copia salvata solo senza rete; i dati di Supabase non passano da lì.
+
+**Notifiche push** (Altro → Account → "Notifiche su questo telefono", da attivare su ogni telefono):
+- operaio assegnato: intervento assegnato, modificato (data, ora, cliente, indirizzo, descrizione, priorità,
+  tipologia), annullato, ripristinato, eliminato, oppure tolto dall'intervento;
+- company: rapportino aggiunto (primo salvataggio sul server) o completato, da qualsiasi operaio;
+- chi fa la modifica non riceve la propria notifica; toccandola si apre l'intervento o il rapportino.
+
+Come funziona: i trigger della migrazione `20261115090000_notifiche.sql` scrivono destinatari e testi in
+`notifiche_coda`; dopo ogni salvataggio l'app chiama la Edge Function `notifiche`, che svuota la coda
+(una notifica per persona e argomento) e invia con Web Push (`_shared/webpush.ts`, VAPID + aes128gcm, solo
+WebCrypto). Iscrizioni in `notifiche_iscrizioni`, solo verso i servizi push di Google, Apple, Mozilla e
+Microsoft. Dal browser non si leggono né la coda né le iscrizioni degli altri. All'uscita il telefono
+viene scollegato dall'utente.
+
+Su iPhone servono iOS 16.4 o successivo e l'app aggiunta alla schermata Home.
+
+Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functions `VAPID_PUBLIC_KEY`
+(la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
+funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
+
 ## Supabase: messa in produzione
 
 Stato al 08/11/2026: tutte le migrazioni fino a `20261113090000` sono applicate in produzione e le

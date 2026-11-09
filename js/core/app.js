@@ -7,6 +7,9 @@ import { costruisciNav, mostraVista } from "./navigation.js";
 import { applicaPermessi, puo, vistaIniziale } from "./permessi.js";
 import { SPUNTE_ORE_CLIENTE, leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese, aggiornaSpunteOreCliente } from "./preferenze.js";
 import { caricaImpostazioni } from "../services/impostazioni.js";
+import { inviaNotificheInCoda, registraServiceWorker, ricollegaNotifiche } from "../services/notifiche.js";
+import { apriDettaglioIntervento } from "../modules/agenda.js";
+import { apriRapportino } from "../modules/modulo-rapportino.js";
 import { caricaArchivio, impostaProprietarioArchivio, leggiDB, leggiMappa, proprietarioArchivio, svuotaArchivioLocale } from "./storage.js";
 import { su } from "./eventi.js";
 import { haRuolo, nomeCompleto, profilo, ripristina } from "./sessione.js";
@@ -89,6 +92,10 @@ async function entra(p){
   document.getElementById("data").value = oggi;
   caricaGiornata(oggi);
   mostraVista(vistaIniziale());
+  // notifiche: il telefono gia' iscritto resta collegato a questo utente; si inviano quelle in coda
+  ricollegaNotifiche();
+  inviaNotificheInCoda();
+  apriDaLink(location.href);
   // rapportini rimasti sul telefono: invio automatico (all'avvio, al ritorno della rete e nell'app)
   if(puo("rapportini.compila")) avviaSincronizzazione().catch(e=>console.error(e));
   if(SINC_ATTIVA()){
@@ -109,6 +116,25 @@ su("uscita", async motivo=>{
   const p = await chiediAccesso(motivo === "scaduta" ? "Sessione scaduta: accedi di nuovo." : "");
   await entra(p);
 });
+
+// apertura da una notifica: ./?intervento=<id> oppure ./?rapportino=<id>
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function apriDaLink(indirizzo){
+  let q;
+  try{ q = new URL(indirizzo).searchParams; }catch(e){ return; }
+  const int = q.get("intervento"), rap = q.get("rapportino");
+  if(int || rap) history.replaceState(null, "", location.pathname);      // non si riapre a ogni ricarica
+  if(!profilo) return;
+  if(int && UUID.test(int)) apriDettaglioIntervento(int);
+  else if(rap && UUID.test(rap)) apriRapportino(rap);
+}
+registraServiceWorker();
+if("serviceWorker" in navigator){
+  // notifica toccata con l'app gia' aperta
+  navigator.serviceWorker.addEventListener("message", e=>{
+    if(e.data && e.data.tipo === "apri") apriDaLink(e.data.url);
+  });
+}
 
 window.__appAvviata = true;     // l'avviso di avvio in index.html non serve piu'
 (async function avvio(){

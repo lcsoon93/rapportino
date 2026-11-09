@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Rapportino · COMP.HAS</title>
 <meta name="theme-color" content="#F4F6F8">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="./assets/icone/icona-192.png">
+<link rel="apple-touch-icon" href="./assets/icone/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Rapportino">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -493,6 +500,15 @@
             <div class="info-riga"><span>Utente</span><b id="altro-utente">—</b></div>
             <button type="button" class="voce" onclick="apriPin()"><span class="v-ic"><svg class="i"><use href="#i-lock"/></svg></span><span class="v-testi"><span class="v-tit">PIN di accesso</span><span class="v-sub">Accedi con 6 cifre invece della password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="apriCambioPassword()"><span class="v-ic"><svg class="i"><use href="#i-lock"/></svg></span><span class="v-testi"><span class="v-tit">Cambia password</span><span class="v-sub">Serve la password attuale</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <div class="notifiche-box" id="notifiche-box">
+              <div class="info-riga"><span>Notifiche su questo telefono</span><b id="notifiche-stato">—</b></div>
+              <p class="nota" id="notifiche-nota"></p>
+              <div class="notifiche-azioni">
+                <button type="button" class="btn btn-primario nascosto" id="notifiche-attiva" onclick="attivaNotificheUI(this)"><svg class="i"><use href="#i-check"/></svg><span>Attiva notifiche</span></button>
+                <button type="button" class="btn btn-secondario nascosto" id="notifiche-prova" onclick="provaNotificaUI(this)"><span>Invia una prova</span></button>
+                <button type="button" class="btn btn-secondario nascosto" id="notifiche-spegni" onclick="disattivaNotificheUI(this)"><span>Disattiva</span></button>
+              </div>
+            </div>
             <button type="button" class="voce" onclick="esciDallApp()"><span class="v-ic att"><svg class="i"><use href="#i-logout"/></svg></span><span class="v-testi"><span class="v-tit">Esci</span><span class="v-sub">Prima invia al server le modifiche</span></span></button>
           </div>
         </div>

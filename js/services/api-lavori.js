@@ -3,6 +3,7 @@
 // le policy RLS e i trigger del database (autore, creatore e assegnatore li impone il server).
 import { client, profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
+import { inviaNotificheInCoda } from "./notifiche.js";
 
 function controlla({ data, error, status }){
   if(error){
@@ -75,6 +76,8 @@ export async function elencoInterventi({ dal, al, soloMiei } = {}){
 const memoria = new Map();
 const DURATA = 30000;
 export function invalidaInterventi(){ memoria.clear(); }
+// dopo ogni scrittura su interventi e rapportini: dati da rileggere e notifiche in coda da inviare
+function dopoScrittura(){ invalidaInterventi(); inviaNotificheInCoda(); }
 export function interventiPeriodo(dal, al){
   const chiave = dal + "|" + al;
   const m = memoria.get(chiave);
@@ -101,7 +104,7 @@ export async function leggiIntervento(id){
 }
 // crea o aggiorna e allinea le assegnazioni
 export async function salvaIntervento(dati, operai){
-  try{ return await scriviIntervento(dati, operai); }finally{ invalidaInterventi(); }
+  try{ return await scriviIntervento(dati, operai); }finally{ dopoScrittura(); }
 }
 async function scriviIntervento(dati, operai){
   const campi = { data: dati.data, ora: dati.ora || null, cliente: dati.cliente, indirizzo: dati.indirizzo || "",
@@ -122,10 +125,10 @@ async function scriviIntervento(dati, operai){
   return intervento.id;
 }
 export async function annullaIntervento(id, annullato){
-  try{ controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id)); }finally{ invalidaInterventi(); }
+  try{ controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id)); }finally{ dopoScrittura(); }
 }
 export async function eliminaIntervento(id){
-  try{ controlla(await client.from("interventi").delete().eq("id", id)); }finally{ invalidaInterventi(); }
+  try{ controlla(await client.from("interventi").delete().eq("id", id)); }finally{ dopoScrittura(); }
 }
 
 // ---------------------------------------------------------------- rapportini
@@ -165,16 +168,16 @@ export async function leggiRapportino(id){
 export async function salvaRapportino(rapportino, ore, completa){
   // lo stato dell'intervento lo ricalcola il database: dopo il salvataggio si rilegge
   try{ return controlla(await client.rpc("salva_rapportino", { p_rapportino: rapportino, p_ore: ore, p_completa: !!completa })); }
-  finally{ invalidaInterventi(); }
+  finally{ dopoScrittura(); }
 }
 export async function riapriRapportino(id){
-  try{ controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id)); }finally{ invalidaInterventi(); }
+  try{ controlla(await client.from("rapportini").update({ stato: "bozza" }).eq("id", id)); }finally{ dopoScrittura(); }
 }
 export async function eliminaRapportino(id){
   // prima i file delle foto nello Storage (la cancellazione del rapportino porta via i metadati)
   const percorsi = controlla(await client.from("allegati").select("percorso").eq("rapportino_id", id).not("percorso", "is", null)).map(a=>a.percorso);
   if(percorsi.length) await client.storage.from(BUCKET_FOTO).remove(percorsi);
-  try{ controlla(await client.from("rapportini").delete().eq("id", id)); }finally{ invalidaInterventi(); }
+  try{ controlla(await client.from("rapportini").delete().eq("id", id)); }finally{ dopoScrittura(); }
 }
 
 // ---------------------------------------------------------------- allegati (foto)
