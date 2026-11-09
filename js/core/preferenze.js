@@ -26,6 +26,16 @@ export function leggiPrefNascondiOre(){
 export function salvaPrefNascondiOre(v){
   try{ localStorage.setItem("nascondiOreGiorno", v ? "1" : "0"); }catch(e){}
 }
+// Stampe con le ore per cliente e non per operaio (spunta condivisa da giornata, rapportino, settimana,
+// mese e Storico): nei PDF e nei testi niente orari e ore dei singoli operai, solo i nomi dei tecnici e le
+// ore di lavoro presso il cliente (tempo sul posto). Nell'app le ore per operaio restano visibili.
+export const SPUNTE_ORE_CLIENTE = ["ore-cliente-giorno", "ore-cliente-rapportino", "ore-cliente-sett", "ore-cliente-mese", "ore-cliente-storico"];
+export function orePerCliente(){
+  try{ return localStorage.getItem("orePerCliente") === "1"; }catch(e){ return false; }
+}
+export function salvaPrefOrePerCliente(v){
+  try{ localStorage.setItem("orePerCliente", v ? "1" : "0"); }catch(e){}
+}
 // " (9 ore)" accanto a dalle-alle, oppure niente se la spunta e' attiva
 export function contoOreOperaio(op, spazio){
   if(document.getElementById("nascondi-ore-giorno").checked) return "";

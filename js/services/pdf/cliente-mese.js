@@ -6,7 +6,12 @@
 // dati = {
 //   cliente, indirizzi: [..], periodo: "Novembre 2026" | "dal gg/mm/aaaa al gg/mm/aaaa",
 //   righe: [{ data: "AAAA-MM-GG", indirizzo, tipologia, attivita, materiali: [{a,q}], esito, bozza,
-//             operai: [{ nome, dalle, alle, minuti }] }]          (in ordine di data)
+//             operai: [{ nome, dalle, alle, minuti }],
+//             vecchio, tecnici: [nomi] }]                          (in ordine di data)
+//   soloOreCliente (sul documento): niente orari e ore dei singoli operai; ore di ogni riga = sulPosto
+//   (tempo sul posto dei tecnici del rapportino) e totale = somma delle righe.
+//   vecchio: scheda della vecchia app (giornate "rapporti"): tecnici della giornata, ore non indicate
+//   (erano per giornata, non per cliente) e fuori dal totale.
 // }
 import { dataIt } from "../../utils/dates.js";
 import { oreTesto } from "../../utils/formatters.js";
@@ -32,7 +37,7 @@ function righeCella(doc, testo, larg, dim, peso, colore, inter){
   stileTesto(doc, dim, peso, colore);
   return doc.splitTextToSize(String(testo), larg).map(t=>({ t, dim, peso, colore, h: inter }));
 }
-function celleRiga(doc, r){
+function celleRiga(doc, r, soloCliente){
   const l = COL.map(c=>c.w - PAD * 2);
   const data = righeCella(doc, dataIt(r.data), l[0], 9, "bold", COLORI.testo, 4.4);
 
@@ -50,13 +55,18 @@ function celleRiga(doc, r){
   const operai = [];
   (r.operai || []).forEach(o=>{
     operai.push(...righeCella(doc, o.nome, l[2], 8.5, "bold", COLORI.testo, 4));
+    if(soloCliente) return;                       // solo i nomi: niente orari ne' ore dei singoli operai
     const orario = [o.dalle, o.alle].filter(Boolean).join(" – ");
     if(orario) operai.push(...righeCella(doc, orario + "  (" + oreTesto(o.minuti) + ")", l[2], 8, "normal", COLORI.grigio, 3.8));
   });
+  // vecchia app: i tecnici della giornata, senza orario (le ore erano per giornata, non per cliente)
+  if(r.vecchio) (r.tecnici || []).forEach(t=>operai.push(...righeCella(doc, t, l[2], 8.5, "bold", COLORI.testo, 4)));
   if(!operai.length) operai.push(...righeCella(doc, "—", l[2], 8.5, "normal", COLORI.grigio, 4));
 
-  const tot = r.operai.reduce((t, o)=>t + (o.minuti || 0), 0);
-  const ore = righeCella(doc, tot ? oreTesto(tot) : "—", l[3], 9, "bold", COLORI.blu, 4.4);
+  const tot = soloCliente ? (r.sulPosto || 0) : (r.operai || []).reduce((t, o)=>t + (o.minuti || 0), 0);
+  const ore = r.vecchio
+    ? righeCella(doc, "n.d. *", l[3], 8.5, "normal", COLORI.grigio, 4.4)
+    : righeCella(doc, tot ? oreTesto(tot) : "—", l[3], 9, "bold", COLORI.blu, 4.4);
   return [data, lavoro, operai, ore];
 }
 
@@ -108,7 +118,7 @@ export function generaPDFRiepilogoCliente(d){
   } else {
     intestazioneTabella();
     d.righe.forEach(r=>{
-      let celle = celleRiga(doc, r);
+      let celle = celleRiga(doc, r, d.soloOreCliente);
       const altezza = c=>c.reduce((t, l)=>t + l.h, 0);
       // una riga che sta in una pagina non si spezza: si va a capo pagina prima
       const alta = Math.max(...celle.map(altezza)) + 2.4;
@@ -145,15 +155,17 @@ export function generaPDFRiepilogoCliente(d){
   const giorni = new Set();
   d.righe.forEach(r=>{
     giorni.add(r.data);
+    if(d.soloOreCliente){ totale += r.vecchio ? 0 : (r.sulPosto || 0); return; }
     r.operai.forEach(o=>{
       const v = perOperaio[o.nome] || (perOperaio[o.nome] = { minuti: 0, n: 0 });
       v.minuti += o.minuti || 0; v.n++;
       totale += o.minuti || 0;
     });
   });
-  const nomi = Object.keys(perOperaio).sort((a, b)=>a.localeCompare(b, "it"));
+  const nomi = d.soloOreCliente ? [] : Object.keys(perOperaio).sort((a, b)=>a.localeCompare(b, "it"));
   const bozze = d.righe.filter(r=>r.bozza).length;
-  const servono = 20 + 6 * (2 + nomi.length + (bozze ? 1 : 0)) + 14;
+  const vecchi = d.righe.filter(r=>r.vecchio).length;
+  const servono = 20 + 6 * (2 + nomi.length + (bozze ? 1 : 0) + (vecchi ? 4 : 0)) + 14;
   if(y + servono > LIMITE){ doc.addPage(); filigranaPDF(doc, W / 2, 155, 125); y = intestazioneCompatta(doc, TITOLO, info) + 9; }
   y += 5;
   y = titoloSezione(doc, "Riepilogo", ML, y, CW);
@@ -163,13 +175,14 @@ export function generaPDFRiepilogoCliente(d){
     doc.text(val, W - MR - 2, y, {align:"right"});
     y += 6;
   };
-  voce("Interventi (rapportini)", String(d.righe.length));
+  voce("Interventi", String(d.righe.length));
   voce("Giorni con lavori", String(giorni.size));
   nomi.forEach(n=>{
     const v = perOperaio[n];
     voce(n + " (" + v.n + (v.n === 1 ? " intervento" : " interventi") + ")", oreTesto(v.minuti));
   });
   if(bozze) voce("di cui ancora in corso (bozza)", String(bozze), 0, COLORI.rosso);
+  if(vecchi) voce("di cui dalla vecchia app *", String(vecchi), 0, COLORI.grigio);
   y += 1.5;
   coloreRiempimento(doc, COLORI.blu);
   doc.rect(ML, y - 5.5, CW, 9.5, "F");
@@ -177,6 +190,13 @@ export function generaPDFRiepilogoCliente(d){
   doc.text("TOTALE ORE", ML + 3, y + 0.8);
   doc.text(oreTesto(totale), W - MR - 3, y + 0.8, {align:"right"});
   stileTesto(doc, 10);
+  if(vecchi){
+    y += 10;
+    stileTesto(doc, 8, "normal", COLORI.grigio);
+    doc.splitTextToSize("* Lavori registrati con la vecchia app: le ore erano registrate per giornata e non per cliente, " +
+      "quindi non sono indicate e non rientrano nel totale ore.", CW).forEach(t=>{ doc.text(t, ML, y); y += 3.8; });
+    stileTesto(doc, 10);
+  }
 
   const centro = (d.cliente.length > 38 ? d.cliente.slice(0, 37) + "…" : d.cliente) + " · " + d.periodo;
   aggiungiPiePagina(doc, centro);

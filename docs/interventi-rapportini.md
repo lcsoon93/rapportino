@@ -282,6 +282,39 @@ Le righe non si spezzano tra due pagine, salvo quelle più alte di una pagina, c
 "(segue)". L'intestazione della tabella si ripete su ogni pagina. File:
 `Riepilogo_<cliente>_<AAAA-MM>.pdf`.
 
+**Stampe con le sole ore per cliente.** È una spunta condivisa: "Nelle stampe solo le ore per cliente
+(senza orari e ore dei singoli operai)". Compare nelle opzioni del PDF della giornata e del rapportino,
+nei report settimanale e mensile e nello Storico. Attivata in un punto vale per tutte ed è salvata sul
+telefono (`orePerCliente`). Cambia solo le stampe, PDF e testi per mail: nell'app le ore per operaio
+restano visibili.
+- Ore per cliente = **tempo sul posto**, cioè dal primo arrivo all'ultima uscita senza contare due volte
+  le ore in comune (`minutiSulPosto`). Luca 8-11 e Francesco 8-11 = 3 ore; 8-11 e 9-12 = 4 ore.
+- Nelle giornate della vecchia app (`minutiCliente`) valgono le fasce orarie del cliente, se ci sono.
+  Altrimenti, se nella giornata c'è un solo cliente, si usa il tempo sul posto dei tecnici; se i clienti
+  sono più d'uno, le ore restano non indicate.
+- Giornata e rapportino: niente "Orario dei tecnici", restano i nomi dei tecnici; sotto ogni cliente
+  compare "Ore di lavoro: X".
+- Settimana e mese: per ogni giorno i tecnici, i clienti con le ore quando note e il tempo sul posto
+  della giornata. Totale = somma dei giorni conteggiati, senza totali per operaio né confronto con il
+  monte ore. Nel mese vale ancora "Non stampare le ore lavorate nel riepilogo".
+- Riepilogo cliente: nella colonna Operai solo i nomi; le ore di ogni rapportino sono il tempo sul posto
+  dei suoi tecnici e in fondo c'è solo il TOTALE ORE.
+
+**Rapporti della vecchia app.** Le giornate della tabella `rapporti`, con più schede cliente ciascuna,
+sono già sul telefono di admin e company grazie all'archivio sincronizzato. Lo Storico le legge da lì,
+senza richieste in più e senza modifiche al database. Ogni scheda cliente con nome diventa una voce
+"Vecchia app" nell'elenco. Admin può aprire la giornata con "Apri giornata" e tutti e due i ruoli possono
+generarne il PDF con "PDF giornata". I filtri si applicano anche a queste voci:
+- Cliente: il nome è confrontato senza maiuscole, accenti né spazi in più. L'elenco dei clienti
+  comprende anche quelli della vecchia app.
+- Operaio: confrontato con i nomi dei tecnici della giornata, sia nome completo sia solo nome.
+- Stato: "Completato" oppure "In corso", che corrisponde a "Da ultimare".
+- Ricerca: nome, indirizzo, lavoro, "Fatturare a" e tipologia.
+
+Nel PDF del riepilogo queste schede compaiono con i tecnici della giornata, ma senza ore. Nella vecchia
+app le ore erano per giornata e non per cliente, quindi la colonna Ore riporta "n.d. *". Una nota spiega
+che quelle ore non rientrano nel totale, e il riepilogo indica quanti lavori vengono dalla vecchia app.
+
 ## Rifiniture di sicurezza (Fase F)
 
 - Migrazione `supabase/migrations/20261111090000_rapporti_privilegi.sql` (rollback

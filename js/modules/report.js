@@ -1,7 +1,7 @@
 // Report: aggregazione di settimana e mese, monte ore, testi per mail.
 import { dataIt, GIORNI, giorniLavorativiMese, giorniMese, giorniSettimana } from "../utils/dates.js";
-import { eccedenza, minutiOperaio, ORARIO_ORDINARIO, totaleImporti, totaleSpese } from "../services/calculations.js";
-import { contoOreOperaio } from "../core/preferenze.js";
+import { eccedenza, minutiCliente, minutiOperaio, minutiSulPosto, ORARIO_ORDINARIO, totaleImporti, totaleSpese } from "../services/calculations.js";
+import { contoOreOperaio, orePerCliente } from "../core/preferenze.js";
 import { euro, oreTesto, saldoTesto } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
 import { datiGiornata } from "./rapportini.js";
@@ -42,11 +42,25 @@ export function rigaOrarioCliente(c){
   }).filter(Boolean);
   return testi.length ? " (" + testi.join(" / ") + ")" : "";
 }
+// Spunta "solo ore per cliente": per ogni giornata i nomi dei tecnici, il tempo sul posto della squadra
+// (dal primo arrivo all'ultima uscita) e le ore presso ciascun cliente quando si conoscono.
+export function perCliente(d){
+  return {
+    tecnici: (d.operai || []).map(o=>o.nome).filter(Boolean),
+    sulPosto: minutiSulPosto(d.operai),
+    clientiOre: (d.clienti || []).filter(c=>c.nome).map(c=>({ nome: c.nome, minuti: minutiCliente(c, d) })),
+  };
+}
+// "Snav (3 ore), Rossi" - clienti della giornata con le ore quando note
+export function clientiConOre(r){
+  return (r.clientiOre || []).map(c=>c.nome + (c.minuti ? " (" + oreTesto(c.minuti) + ")" : "")).join(", ");
+}
 export function testoRapporto(){
   const d = datiGiornata();
+  const soloCliente = orePerCliente();
   const righe = [];
   righe.push("RAPPORTO DI LAVORO - " + dataIt());
-  righe.push("Tecnici: " + d.tecnici);
+  righe.push("Tecnici: " + (d.tecnici || (soloCliente ? d.operai.map(o=>o.nome).filter(Boolean).join(" / ") : "")));
   righe.push("");
   righe.push("LAVORI ESEGUITI:");
   if(d.clienti.length === 0) righe.push("-");
@@ -62,17 +76,20 @@ export function testoRapporto(){
       righe.push("   Materiale:");
       c.materiali.forEach(m=>righe.push("   - " + testoMateriale(m)));
     }
+    if(soloCliente){ const m = minutiCliente(c, d); if(m) righe.push("   Ore di lavoro: " + oreTesto(m)); }
     if(c.importo) righe.push("   Da fatturare: " + euro(c.importo));
     if(c.foto && c.foto.length) righe.push("   Foto allegate: " + c.foto.length + " (vedi PDF)");
     if(c.firma) righe.push("   Firmato dal cliente" + (c.firmatario ? ": " + c.firmatario : "") + " (vedi PDF)");
   });
-  righe.push("");
-  righe.push("ORARIO:");
-  if(d.operai.length === 0) righe.push("-");
-  d.operai.forEach(op=>{
-    righe.push("- " + op.nome + ": " + (op.dalle || "—") + " - " + (op.alle || "—") + contoOreOperaio(op, "  "));
-  });
-  if(d.escludi) righe.push("(giornata esclusa dal monte ore)");
+  if(!soloCliente){
+    righe.push("");
+    righe.push("ORARIO:");
+    if(d.operai.length === 0) righe.push("-");
+    d.operai.forEach(op=>{
+      righe.push("- " + op.nome + ": " + (op.dalle || "—") + " - " + (op.alle || "—") + contoOreOperaio(op, "  "));
+    });
+    if(d.escludi) righe.push("(giornata esclusa dal monte ore)");
+  }
 
   const totImp = totaleImporti(d.clienti);
   if(totImp){
@@ -92,7 +109,7 @@ export function datiSettimana(){
   const db = leggiDB();
   const giorni = giorniSettimana(iso);
   const operaiTotali = {}; // nome -> {minuti, giorni}
-  let totGenerale = 0, giorniConteggiati = 0;
+  let totGenerale = 0, giorniConteggiati = 0, totSulPosto = 0;
   const righe = giorni.map((g,i)=>{
     const d = db[g];
     if(!d) return {iso: g, nome: GIORNI[i], dati: null};
@@ -108,14 +125,16 @@ export function datiSettimana(){
         totGenerale += o.minuti;
       });
     }
+    if(!d.escludi) totSulPosto += minutiSulPosto(d.operai);
     return {
       iso: g, nome: GIORNI[i], dati: d, operai, totGiorno,
       escluso: !!d.escludi,
-      clienti: d.clienti.map(c=>c.nome).join(", ")
+      clienti: d.clienti.map(c=>c.nome).join(", "),
+      ...perCliente(d)
     };
   });
   return {
-    righe, operaiTotali, totGenerale,
+    righe, operaiTotali, totGenerale, totSulPosto,
     giorniLavorati: righe.filter(r=>r.dati).length,
     giorniConteggiati,
     dal: dataIt(giorni[0]), al: dataIt(giorni[6])
@@ -127,6 +146,17 @@ export function testoSettimana(){
   const righe = [];
   righe.push("REPORT SETTIMANALE " + s.dal + " - " + s.al);
   righe.push("");
+  if(orePerCliente()){
+    s.righe.forEach(r=>{
+      righe.push(r.nome + " " + dataIt(r.iso) + (r.dati ? (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
+        "  —  " + (r.tecnici.join(" / ") || "—") + (r.clientiOre.length ? "  —  " + clientiConOre(r) : "") +
+        (r.sulPosto ? "  —  " + oreTesto(r.sulPosto) : "") : "  —  -"));
+    });
+    righe.push("");
+    righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
+    righe.push("TOTALE ORE: " + oreTesto(s.totSulPosto));
+    return righe.join("\n");
+  }
   s.righe.forEach(r=>{
     if(r.dati){
       const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
@@ -151,7 +181,7 @@ export function datiMese(){
   const db = leggiDB();
   const giorni = giorniMese(iso);
   const operaiTotali = {};
-  let totGenerale = 0, giorniConteggiati = 0, totSpese = 0;
+  let totGenerale = 0, giorniConteggiati = 0, totSpese = 0, totSulPosto = 0;
   const righe = giorni.map(g=>{
     const d = db[g];
     if(!d) return null;
@@ -168,20 +198,22 @@ export function datiMese(){
         totGenerale += o.minuti;
       });
     }
+    if(!d.escludi) totSulPosto += minutiSulPosto(d.operai);
     const data = new Date(g + "T12:00:00");
     return {
       iso: g,
       nome: GIORNI[(data.getDay() + 6) % 7],
       operai, totGiorno,
       escluso: !!d.escludi,
-      clienti: d.clienti.map(c=>c.nome).join(", ")
+      clienti: d.clienti.map(c=>c.nome).join(", "),
+      ...perCliente(d)
     };
   }).filter(Boolean);
   const [aa, mm] = iso.split("-");
   const nomiMesi = ["Gennaio","Febbraio","Marzo","Aprile","Maggio","Giugno",
                     "Luglio","Agosto","Settembre","Ottobre","Novembre","Dicembre"];
   return {
-    righe, operaiTotali, totGenerale, totSpese,
+    righe, operaiTotali, totGenerale, totSpese, totSulPosto,
     giorniLavorati: righe.length,
     giorniConteggiati,
     etichetta: nomiMesi[+mm - 1] + " " + aa
@@ -193,6 +225,18 @@ export function testoMese(){
   const righe = [];
   righe.push("REPORT MENSILE - " + s.etichetta.toUpperCase());
   righe.push("");
+  if(orePerCliente()){
+    s.righe.forEach(r=>{
+      righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
+        "  —  " + (r.tecnici.join(" / ") || "—") + (r.clientiOre.length ? "  —  " + clientiConOre(r) : "") +
+        (r.sulPosto ? "  —  " + oreTesto(r.sulPosto) : ""));
+    });
+    righe.push("");
+    righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
+    if(!oreMeseNascoste()) righe.push("TOTALE ORE: " + oreTesto(s.totSulPosto));
+    if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
+    return righe.join("\n");
+  }
   s.righe.forEach(r=>{
     const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
     righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +

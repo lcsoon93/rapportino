@@ -5,7 +5,7 @@ import { LOGO_B64 } from "../../assets/logo/logo.js";
 import { SINC_ATTIVA } from "./config.js";
 import { costruisciNav, mostraVista } from "./navigation.js";
 import { applicaPermessi, puo, vistaIniziale } from "./permessi.js";
-import { leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese } from "./preferenze.js";
+import { SPUNTE_ORE_CLIENTE, leggiPrefExtra, leggiPrefFoglioUnico, leggiPrefNascondiOre, leggiPrefNascondiOreMese, orePerCliente } from "./preferenze.js";
 import { caricaArchivio, impostaProprietarioArchivio, leggiDB, leggiMappa, proprietarioArchivio, svuotaArchivioLocale } from "./storage.js";
 import { su } from "./eventi.js";
 import { haRuolo, nomeCompleto, profilo, ripristina } from "./sessione.js";
@@ -43,6 +43,7 @@ const prefExtra = leggiPrefExtra();
 document.getElementById("pdf-foglio-unico").checked = leggiPrefFoglioUnico();
 document.getElementById("nascondi-ore-giorno").checked = leggiPrefNascondiOre();
 document.getElementById("nascondi-ore-mese").checked = leggiPrefNascondiOreMese();
+SPUNTE_ORE_CLIENTE.forEach(id=>{ const el = document.getElementById(id); if(el) el.checked = orePerCliente(); });
 
 const NOMI_RUOLO = { admin: "Amministratore", company: "Company", worker: "Operaio" };
 let archivioPronto = null;
@@ -102,6 +103,7 @@ su("uscita", async motivo=>{
   await entra(p);
 });
 
+window.__appAvviata = true;     // l'avviso di avvio in index.html non serve piu'
 (async function avvio(){
   let p = null;
   try{ p = await ripristina(); }catch(e){ console.error(e); }
