@@ -102,6 +102,7 @@ su("uscita", async motivo=>{
   await entra(p);
 });
 
+window.__appAvviata = true;     // l'avviso di avvio in index.html non serve piu'
 (async function avvio(){
   let p = null;
   try{ p = await ripristina(); }catch(e){ console.error(e); }

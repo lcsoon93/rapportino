@@ -14,6 +14,55 @@
 <link rel="stylesheet" href="./css/layout.css">
 <link rel="stylesheet" href="./css/components.css">
 <link rel="stylesheet" href="./css/responsive.css">
+<script>
+// Avviso di avvio: se l'app non parte (errore di caricamento o di sintassi, file mancante, avvio bloccato)
+// al posto della pagina bianca compare il messaggio d'errore, da inviare a chi gestisce l'app.
+// Gli errori successivi all'avvio non vengono mostrati qui.
+(function(){
+  var errori = [];
+  function mostra(){
+    if(!document.body) return;
+    var b = document.getElementById("errore-avvio");
+    if(!b){
+      b = document.createElement("div");
+      b.id = "errore-avvio";
+      b.setAttribute("role", "alert");
+      b.style.cssText = "position:fixed;left:12px;right:12px;top:12px;z-index:99999;background:#fff;border:2px solid #A83428;" +
+        "border-radius:10px;padding:12px;font:13px/1.45 -apple-system,system-ui,sans-serif;color:#212529;white-space:pre-wrap;" +
+        "word-break:break-word;max-height:85vh;overflow:auto";
+      document.body.appendChild(b);
+    }
+    b.textContent = "L'app non si è avviata. Fai uno screenshot di questo messaggio e invialo a chi gestisce l'app.\n\n" +
+      errori.join("\n\n") + "\n\n" + navigator.userAgent;
+  }
+  function file(u){ return String(u || "").split("/").slice(-2).join("/"); }
+  window.addEventListener("error", function(e){
+    if(window.__appAvviata) return;
+    var t = e.target;
+    if(t && t !== window && (t.src || t.href)) errori.push("File non caricato: " + file(t.src || t.href));
+    else errori.push((e.message || "Errore") + (e.filename ? "  (" + file(e.filename) + ":" + e.lineno + ")" : ""));
+    mostra();
+  }, true);
+  window.addEventListener("unhandledrejection", function(e){
+    if(window.__appAvviata) return;
+    var r = e.reason;
+    errori.push("Errore: " + (r && r.message ? r.message : String(r)));
+    mostra();
+  });
+  window.addEventListener("load", function(){
+    // dopo 10 s deve essere visibile la schermata di accesso oppure l'app (body senza "non-autenticato")
+    setTimeout(function(){
+      var accesso = document.querySelector(".schermata:not(.nascosto)");
+      if(accesso || !document.body.classList.contains("non-autenticato")) return;
+      errori.push(window.__appAvviata
+        ? "Il codice è partito ma dopo 10 secondi non è comparsa né la schermata di accesso né l'app."
+        : "Il codice dell'app non è partito entro 10 secondi dal caricamento della pagina.");
+      mostra();
+    }, 10000);
+    if(errori.length) mostra();
+  });
+})();
+</script>
 </head>
 <body class="non-autenticato">
 <!-- icone (tratti in stile Lucide, inline: nessuna libreria esterna) -->
