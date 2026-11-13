@@ -55,7 +55,11 @@ async function conPulsante(btn, azione){
   finally{ btn.disabled = false; aggiornaNotificheUI(); }
 }
 export function attivaNotificheUI(btn){
-  return conPulsante(btn, async()=>{ await attivaNotifiche(); await provaNotifica().catch(()=>{}); });
+  return conPulsante(btn, async()=>{ 
+    await attivaNotifiche();
+    try{ await provaNotifica(); }
+    catch(e){ throw new Error("Notifiche attivate, ma la notifica di prova non è partita. " + e.message); }
+  });
 }
 export function provaNotificaUI(btn){
   return conPulsante(btn, async()=>{ await provaNotifica(); });

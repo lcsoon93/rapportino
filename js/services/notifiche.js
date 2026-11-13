@@ -111,6 +111,11 @@ export async function scollegaNotifiche(){
 export async function provaNotifica(){
   const r = await chiamaFunzione("notifiche", { azione: "prova" });
   if(!r.ok) throw new Error(r.errore);
+  // la funzione risponde 200 anche se il servizio push (Apple/Google) rifiuta: l'esito e' in dati.ok
+  if(!r.dati || !r.dati.ok){
+    const dett = (r.dati && r.dati.errori || []).join("; ");
+    throw new Error("Il servizio di notifiche del telefono ha rifiutato l'invio" + (dett ? ": " + dett : "."));
+  }
   return r.dati;
 }
 
