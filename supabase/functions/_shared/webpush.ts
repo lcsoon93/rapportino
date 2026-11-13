@@ -81,8 +81,11 @@ export async function inviaPush(isc: Iscrizione, contenuto: unknown, v: ChiaviVa
     "Urgency": opz.urgenza || "high",
     "Authorization": await intestazioneVapid(isc.endpoint, v),
   };
-  // Topic: una notifica non ancora consegnata viene sostituita dalla successiva sullo stesso argomento
-  if (opz.argomento) intestazioni["Topic"] = opz.argomento.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32);
+  // Topic: una notifica non ancora consegnata viene sostituita dalla successiva sullo stesso argomento.
+  // Apple (web.push.apple.com) la rifiuta con 400 BadWebPushTopic: li' non si invia (sul telefono
+  // la sostituzione la fa comunque il "tag" della notifica nel service worker).
+  const apple = /(^|\.)push\.apple\.com$/.test(new URL(isc.endpoint).hostname);
+  if (opz.argomento && !apple) intestazioni["Topic"] = opz.argomento.replace(/[^A-Za-z0-9_-]/g, "").slice(0, 32);
   const r = await fetch(isc.endpoint, { method: "POST", headers: intestazioni, body: corpo as BodyInit });
   const testo = r.ok ? "" : (await r.text().catch(() => "")).slice(0, 300);
   return { stato: r.status, testo };

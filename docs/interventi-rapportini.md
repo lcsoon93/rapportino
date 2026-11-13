@@ -486,6 +486,8 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   localStorage (`rapportino-vapid-iscrizione`) la chiave usata; se diversa da `config.js` (o sconosciuta
   e non leggibile da `sub.options`, come su iOS) lo stato è "spente", all'accesso l'iscrizione non viene
   ricollegata e "Attiva notifiche" la rifà. Se l'errore resta: secret `VAPID_PUBLIC_KEY` diverso.
+- `400 BadWebPushTopic` da Apple: l'intestazione `Topic` non viene più inviata a `*.push.apple.com`
+  (resta per Google e Mozilla); la sostituzione delle notifiche sul telefono la fa il `tag`.
 - Corretto "Disattiva": `client.rpc(...)` di supabase-js non ha `.catch` (errore su iPhone);
   ora `await` dentro `try` (`disiscriviSulServer`). Test E2E: Attiva/Disattiva con iscrizione finta stile iOS.
 
