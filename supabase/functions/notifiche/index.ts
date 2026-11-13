@@ -36,7 +36,7 @@ async function aUtente(admin: ReturnType<typeof clientAdmin>, iscrizioni: Iscriz
       else if (r.stato === 404 || r.stato === 410) await admin.from("notifiche_iscrizioni").delete().eq("endpoint", isc.endpoint);
       else errori.push(r.stato + " " + r.testo);
       // nei log solo il servizio e lo stato (mai l'endpoint completo ne' le chiavi)
-      if (r.stato < 200 || r.stato >= 300) console.warn("push", new URL(isc.endpoint).host, r.stato, r.testo);
+      console.log("push", new URL(isc.endpoint).host, r.stato, r.testo);
     } catch (e) {
       errori.push(String((e as Error).message || e));
       console.warn("push", new URL(isc.endpoint).host, "eccezione", String((e as Error).message || e));

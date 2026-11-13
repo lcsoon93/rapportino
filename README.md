@@ -223,7 +223,7 @@ Su iPhone servono iOS 16.4 o successivo e l'app aggiunta alla schermata Home.
 
 Diagnosi: se Apple/Google rifiutano l'invio, la notifica di prova mostra in app lo stato e il motivo
 restituiti dal servizio push (es. `403 BadJwtToken`); la funzione `notifiche` scrive lo stesso nei log
-(`push <servizio> <stato> <motivo>`, senza endpoint né chiavi). Apple accetta in `VAPID_SUBJECT` solo un
+(`push <servizio> <stato> <motivo>` per ogni invio, 201 = accettata; senza endpoint né chiavi). Apple accetta in `VAPID_SUBJECT` solo un
 `mailto:` reale o un `https://`: un dominio fittizio produce `BadJwtToken`.
 
 Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functions `VAPID_PUBLIC_KEY`

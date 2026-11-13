@@ -470,6 +470,16 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   Riferimento per cliente `RG-AAAAMMGG-n`.
 - **Foglio unico** della giornata: invariato (A4, lavori numerati, riepiloghi).
 
+## Notifiche push: esito dell'invio
+
+- La Edge Function `notifiche` risponde 200 anche quando il servizio push rifiuta: l'esito reale è in
+  `ok`/`errori` del corpo. La notifica di prova (anche quella automatica dopo "Attiva notifiche")
+  mostra all'utente lo stato e il motivo del rifiuto invece di ignorarlo.
+- Ogni invio viene scritto nei log della funzione: `push <host del servizio> <stato> <motivo>`
+  (201 = accettato), senza endpoint né chiavi.
+- Apple accetta in `VAPID_SUBJECT` solo `mailto:` con un indirizzo reale o un `https://`.
+- Verifiche in sola lettura: `notifiche_iscrizioni` (dispositivo, servizio), `notifiche_coda` per `esito`.
+
 ## Procedura di applicazione
 
 **Stato (08/11/2026): procedura completata.** Le migrazioni 20261108–20261111 sono in produzione dal
