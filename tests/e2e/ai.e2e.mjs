@@ -61,7 +61,7 @@ function nuovoSupabase(ruolo){
       return json(route, /vnd\.pgrst\.object/.test(req.headers()["accept"] || "") ? prof : [prof]);
     }
     if(p === "/rest/v1/rpc/operai_attivi" || p === "/rest/v1/rpc/nomi_utenti") return json(route, [{ id: UTENTI.worker.id, username: "mario", nome: "Mario Bianchi", attivo: true }]);
-    if(p.startsWith("/rest/v1/rpc/")) return json(route, null);
+    if(p.startsWith("/rest/v1/rpc/")){ if(/notifiche_/.test(p)) stato.scritture.push(m + " " + p); return json(route, null); }
     if(p.startsWith("/rest/v1/")){
       if(m !== "GET" && m !== "HEAD"){ stato.scritture.push(m + " " + p); return json(route, [], 201); }
       if(/vnd\.pgrst\.object/.test(req.headers()["accept"] || "")) return json(route, null, 406);
@@ -281,6 +281,36 @@ try{
     await page.waitForTimeout(200);
     assert.equal(await page.evaluate(()=>window.__xss), undefined);
     assert.match(await page.textContent("#ai-esito"), /<img src=x/);
+  });
+  await prova("notifiche: Disattiva e Attiva funzionano; iscrizione con chiave sconosciuta (iOS) rifatta", async()=>{
+    const esito = await page.evaluate(async()=>{
+      const log = [];
+      let attuale = { endpoint: "https://web.push.apple.com/vecchia", options: {},             // come iOS: chiave non leggibile
+        unsubscribe: async()=>{ log.push("unsubscribe vecchia"); attuale = null; return true; } };
+      const reg = { pushManager: {
+        getSubscription: async()=>attuale,
+        subscribe: async()=>{ log.push("subscribe"); attuale = { endpoint: "https://web.push.apple.com/nuova", options: {},
+          toJSON: ()=>({ endpoint: "https://web.push.apple.com/nuova", keys: { p256dh: "B".repeat(87), auth: "A".repeat(22) } }),
+          unsubscribe: async()=>{ log.push("unsubscribe nuova"); attuale = null; return true; } }; return attuale; } } };
+      Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: { ready: Promise.resolve(reg), register: async()=>reg, getRegistration: async()=>reg, addEventListener(){} } });
+      Object.defineProperty(window, "Notification", { configurable: true, value: { permission: "granted", requestPermission: async()=>"granted" } });
+      if(!("PushManager" in window)) window.PushManager = function(){};
+      try{ localStorage.removeItem("rapportino-vapid-iscrizione"); }catch(e){}
+      const m = await import("./js/services/notifiche.js");
+      const prima = await m.statoNotifiche();
+      await m.attivaNotifiche();
+      const dopo = await m.statoNotifiche();
+      await m.disattivaNotifiche();
+      const spente = await m.statoNotifiche();
+      return { log, prima, dopo, spente, chiave: localStorage.getItem("rapportino-vapid-iscrizione") };
+    });
+    assert.equal(esito.prima, "spente", "chiave sconosciuta: da riattivare");
+    assert.deepEqual(esito.log, ["unsubscribe vecchia", "subscribe", "unsubscribe nuova"]);
+    assert.equal(esito.dopo, "attive");
+    assert.equal(esito.spente, "spente");
+    assert.equal(esito.chiave, null);
+    const rpc = sb.stato.scritture.filter(x=>/notifiche_/.test(x));
+    assert.ok(rpc.includes("POST /rest/v1/rpc/notifiche_disiscrivi") && rpc.includes("POST /rest/v1/rpc/notifiche_iscrivi"), rpc.join(", "));
   });
   tutteEsterne.push(...w.esterne);
   assert.deepEqual(w.errori, [], "errori JavaScript: " + w.errori.join("; "));

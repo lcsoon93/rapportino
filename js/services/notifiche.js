@@ -18,6 +18,11 @@ export function iOS(){
 }
 export function permesso(){ return "Notification" in window ? Notification.permission : "unsupported"; }
 
+// il query builder di supabase-js e' "thenable" ma non ha .catch: si usa sempre await dentro try
+async function disiscriviSulServer(endpoint){
+  try{ await client.rpc("notifiche_disiscrivi", { p_endpoint: endpoint }); }catch(e){}
+}
+
 // chiave pubblica con cui e' stata creata l'iscrizione di questo telefono (iOS non sempre la espone
 // in sub.options): se la chiave dell'app cambia, l'iscrizione va rifatta
 const CHIAVE_ISCRIZIONE = "rapportino-vapid-iscrizione";
@@ -86,7 +91,7 @@ export async function attivaNotifiche(){
   let sub = await reg.pushManager.getSubscription();
   // iscrizione creata con un'altra chiave (o non si sa con quale): si rifa'
   if(sub && chiaveDiversa(sub)){
-    await client.rpc("notifiche_disiscrivi", { p_endpoint: sub.endpoint }).catch(()=>{});
+    await disiscriviSulServer(sub.endpoint);
     await sub.unsubscribe().catch(()=>{});
     sub = null;
   }
@@ -100,7 +105,7 @@ export async function disattivaNotifiche(){
   const reg = await pronta();
   const sub = await reg.pushManager.getSubscription();
   if(!sub) return;
-  await client.rpc("notifiche_disiscrivi", { p_endpoint: sub.endpoint }).catch(()=>{});
+  await disiscriviSulServer(sub.endpoint);
   await sub.unsubscribe();
   ricordaChiave("");
 }
