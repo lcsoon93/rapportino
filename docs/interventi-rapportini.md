@@ -483,6 +483,53 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
 - Apple accetta in `VAPID_SUBJECT` solo `mailto:` con un indirizzo reale o un `https://`.
 - Verifiche in sola lettura: `notifiche_iscrizioni` (dispositivo, servizio), `notifiche_coda` per `esito`.
 
+## Assistente AI con Groq (Fase I)
+
+Architettura
+- Browser: `js/services/ai.js` (unico punto: chiamate, limiti lato app, messaggi d'errore, foto ridotte a
+  1024 px JPEG, ricerca nell'archivio della vecchia app sul telefono), `js/services/controlli.js`
+  (controllo automatico senza rete), `js/modules/assistente-ai.js` (foglio "ai-foglio": caricamento →
+  anteprima modificabile → "Applica" / "Annulla"; Storico; Altro). `modulo-rapportino.js` espone
+  `statoRapportinoAperto()` (sola lettura) e `applicaAlRapportino()` (solo dopo "Applica": cambia i campi e
+  passa da `cambiato()`, quindi bozza locale e sincronizzazione restano quelle di sempre).
+- Server: Edge Function `ai` (verify_jwt) → `_shared/ai-gestore.ts` (sessione, permessi per azione,
+  limiti, azioni), `_shared/ai-logica.ts` (validazioni, prompt, validazione delle risposte, riassunto dei
+  dati, statistiche), `_shared/groq.ts` (chiamata a Groq, errori, JSON, modello di riserva, elenco modelli).
+  `comune.ts` ha in più `clientUtente(req)`: client con chiave anon e token dell'utente, quindi RLS.
+
+Azioni e ruoli (server: `PERMESSI_AI`; interfaccia: permessi `ai.*` in `core/permessi.js`)
+- `testo` (genera / migliora / correggi), `foto`, `suggerimenti`: admin, worker.
+- `controllo`: tutti; `ricerca`: tutti (RLS limita l'operaio ai propri dati).
+- `domanda`, `predittiva`: admin, company. `modelli`: admin.
+
+Regole di sicurezza
+- Il ruolo lo legge il server dal profilo; azione non consentita = 403 prima di letture e chiamate.
+- Letture solo con il token dell'utente; mai con service_role. Il service_role serve solo per
+  `limite_tentativi` (chiavi `ai-min:<id>` 10/60 s e `ai-giorno:<id>` per ruolo/86400 s).
+- Il contenuto dei dati nel prompt è racchiuso tra `<dati>` e trattato come materiale, non istruzioni.
+- Le risposte del modello sono validate: campi e lunghezze limitati, livelli e stati da elenchi chiusi,
+  date verificate; i filtri della ricerca sono ripuliti da virgole, parentesi, punti e caratteri jolly
+  prima di diventare filtri PostgREST. Risposta non valida: un secondo tentativo, poi errore 502.
+- Errori di Groq: chiave non valida → 503 "non configurato correttamente"; 429 → 429 con Retry-After;
+  modello assente → modello di riserva; tempo scaduto → 504. La chiave non compare mai nelle risposte.
+- Nessuna scrittura: le "automazioni" (suggerimenti, "Prepara intervento") compilano campi che l'utente
+  controlla e salva con i pulsanti di sempre.
+
+Controllo automatico (anche nella conferma di "Completa"): data, cliente, attività (assente o troppo breve),
+indirizzo, tipologia, ore (assenti, incomplete, fine prima dell'inizio, sovrapposte, oltre 12 ore,
+notturne), materiali (quantità mancante, non numerica, zero), esito "Da ultimare" senza note, firma e
+firmatario, foto (assenti per guasti e nuovi impianti, non inviate, non scaricate), data futura o vecchia.
+
+Predittiva: ricorrenze (≥ 3 date di lavoro per cliente; regolare se il coefficiente di variazione degli
+intervalli ≤ 0,35, con data stimata), anomalie (ore oltre media + 2 deviazioni standard su ≥ 8 rapportini,
+bozze ferme da più di 7 giorni, completati senza firmatario, interventi pianificati scaduti da più di 3
+giorni), tendenze (≥ 4 mesi: variazione tra prima e seconda metà del periodo). Con dati insufficienti
+nessuna chiamata al modello.
+
+Test (nessuno tocca la produzione): `tests/server/ai.test.mts` (25), `tests/unit/controlli.test.mjs` (6),
+`tests/e2e/ai.e2e.mjs` (15, Chromium, Supabase finto, service worker bloccato), `tests/sql/` (migrazioni
+su Postgres 16 locale, limiti e RLS per ruolo).
+
 ## Procedura di applicazione
 
 **Stato (08/11/2026): procedura completata.** Le migrazioni 20261108–20261111 sono in produzione dal

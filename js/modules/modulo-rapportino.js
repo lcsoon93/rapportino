@@ -19,6 +19,7 @@ import { codaPersistente, fotoDelRapportino, leggiBozza, metti, salvaBozza, togl
 import { elencoCoda, inviaRapportino, segnaApertoNelModulo, segnaModificaNelModulo } from "../services/sinc-rapportini.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
+import { controllaRapportino, elencoTesto } from "../services/controlli.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
@@ -408,6 +409,38 @@ export function chiudiRapportino(){
   mostraVista(vistaDiRitorno || "lavoro");
 }
 
+// ---------------------------------------------------------------- assistente AI e controllo automatico
+// Stato del rapportino aperto (per il controllo e per l'assistente AI): solo lettura del modulo.
+function contaFoto(){
+  return { totali: allegati.length + inAttesa.length, nonInviate: inAttesa.length, nonDisponibili: allegati.filter(a=>a.errore).length };
+}
+export function statoRapportinoAperto(){
+  if(!corrente || vistaCorrente !== "rapportino") return null;
+  const { rapportino, ore } = leggiModulo();
+  return {
+    id: corrente.id, rapportino, modificabile: modificabile(),
+    ore: ore.map(o=>({ ...o, nome: nomeOperaio(o.operaio_id) })),
+    foto: contaFoto(),
+    sorgentiFoto: [...allegati.map(a=>a.src || a.contenuto), ...inAttesa.map(v=>v._src)].filter(Boolean),
+    intervento: corrente.intervento ? String(corrente.intervento.descrizione || "") : "",
+  };
+}
+export function controlloRapportinoAperto(){
+  const st = statoRapportinoAperto();
+  return st ? controllaRapportino({ rapportino: st.rapportino, ore: st.ore, foto: st.foto, oggi: oggiIso() }) : [];
+}
+// Applica una proposta GIA' CONFERMATA dall'utente: cambia solo i campi del modulo; il salvataggio
+// segue il percorso normale (bozza sul telefono subito, invio con Salva o in automatico).
+export function applicaAlRapportino({ attivita, aggiungiAttivita, materiali } = {}){
+  if(!corrente || !modificabile()) return false;
+  const campo = $("rf-attivita");
+  if(typeof attivita === "string") campo.value = attivita;
+  if(aggiungiAttivita) campo.value = (campo.value.trim() ? campo.value.replace(/\s+$/, "") + "\n" : "") + aggiungiAttivita;
+  (materiali || []).forEach(m=>{ if(m && m.a) aggiungiMaterialeRapportino({ a: m.a, q: m.q || "" }); });
+  cambiato();
+  return true;
+}
+
 // ---------------------------------------------------------------- salvataggio
 // Salva / Completa: il contenuto va prima nella coda del telefono, poi lo invia la sincronizzazione
 // (stesso percorso dell'invio automatico: un solo invio alla volta per rapportino, risposte perse e
@@ -419,7 +452,9 @@ async function salva(completa){
     if(!rapportino.attivita){ messaggio("Per completare descrivi le attività svolte.", "err"); $("rf-attivita").focus(); return false; }
     if(!ore.some(o=>o.dalle && o.alle)){ messaggio("Per completare indica le ore lavorate (dalle / alle).", "err"); return false; }
     if(ore.some(o=>o.dalle && o.alle && o.alle <= o.dalle)){ messaggio("Controlla le ore: \"alle\" deve essere dopo \"dalle\".", "err"); return false; }
-    if(!confirm("Completare il rapportino? Dopo non potrai più modificarlo.")) return false;
+    // controllo automatico (senza rete): le possibili dimenticanze compaiono nella conferma
+    const avvisi = elencoTesto(controlloRapportinoAperto(), ["attenzione"]);
+    if(!confirm((avvisi ? "Prima di completare controlla:\n" + avvisi + "\n\n" : "") + "Completare il rapportino? Dopo non potrai più modificarlo.")) return false;
   }
   return invia(completa);
 }

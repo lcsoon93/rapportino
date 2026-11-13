@@ -52,6 +52,8 @@ js/
     consultazione.js       rapportini degli operai per mese (filtri) e giornate del foglio giornaliero
     utenti.js              admin: elenco con nome e cognome, ruoli, stato e PIN; crea operai; modifica nome/cognome
                            (e ruolo di operaio degli admin); rimuove PIN; disattiva/riattiva; reimposta password
+    assistente-ai.js       interfaccia dell'assistente AI: pulsanti nel rapportino, ricerca nello Storico,
+                           assistente dati in Altro; anteprima modificabile e conferma prima di applicare
   services/                servizi usati da più sezioni
     calculations.js        minuti lavorati, 9 ore ordinarie e straordinario, totali
     signature.js           pad firma a schermo intero, ritaglio, anteprima
@@ -64,6 +66,8 @@ js/
     stato-schede.js        stato di una scheda (da fare / compilata / firmata), uguale alla regola del database
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON
+    ai.js                  UNICO punto di accesso all'assistente AI (Edge Function "ai"): chiamate, limiti, errori, foto ridotte
+    controlli.js           controllo automatico del rapportino (dati mancanti, ore, materiali, firma, foto), anche offline
     condivisione.js        invio PDF (condivisione Mail/Gmail) e testo (mailto)
     pdf/comune.js          intestazione, piè di pagina (con data e numerazione), misure firma, righe di dati con separatori
     pdf/giornata.js        PDF della giornata (schede per cliente A5 o foglio unico) e del rapportino (schede, con orario dei tecnici)
@@ -78,7 +82,9 @@ supabase/                  backend (Supabase Free)
                            piu' operai, foto nello Storage, privilegi di rapporti, PIN e doppio ruolo,
                            recupero dell'accesso
   rollback/                annullamento di ogni migrazione (da eseguire in ordine inverso)
-  functions/               Edge Functions: accesso, cambia-password, utenti, inizializza, pin
+  functions/               Edge Functions: accesso, cambia-password, utenti, inizializza, pin, notifiche, ai
+                           (_shared/groq.ts, ai-logica.ts, ai-gestore.ts: assistente AI senza dipendenze esterne)
+tests/                     test senza produzione: unit, server (Edge Function ai), e2e (Playwright), sql (Postgres locale)
   config.toml              niente registrazione pubblica; verify_jwt per funzione
 ```
 
@@ -229,6 +235,68 @@ restituiti dal servizio push (es. `403 BadJwtToken`); la funzione `notifiche` sc
 Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functions `VAPID_PUBLIC_KEY`
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
 funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
+
+## Assistente AI (Groq)
+
+Funzioni (tutte propongono, nessuna salva o modifica dati senza conferma dell'utente):
+
+| Funzione | Dove | Ruoli |
+|---|---|---|
+| Assistente rapportini: "Da appunti", "Migliora", "Correggi" | Rapportino → Attività svolte | admin, operaio |
+| Descrizione dalle foto (fino a 3, ridotte a 1024 px) | Rapportino → Foto → "Descrivi dalle foto" | admin, operaio |
+| Controllo automatico: dati mancanti, ore, materiali, firma, foto (senza rete); coerenza del testo con l'AI | Rapportino → "Controlla rapportino"; anche nella conferma di "Completa" | tutti (company in sola lettura) |
+| Automazioni: attività, materiali già usati per il cliente, controlli consigliati | Rapportino → "Suggerimenti" | admin, operaio |
+| Ricerca intelligente in linguaggio naturale | Storico (diventa filtri modificabili) e Altro → Assistente AI → "Cerca" | tutti (l'operaio trova solo i propri dati) |
+| Assistente dati: domande su interventi e rapportini di un periodo | Altro → Assistente AI → "Chiedi" | admin, company |
+| Predittiva: ricorrenze per cliente, anomalie, tendenze mensili; "Prepara intervento" compila il modulo senza salvarlo | Altro → "Ricorrenze e tendenze" | admin, company |
+| Verifica dei modelli Groq configurati | Altro → "Verifica modelli" | admin |
+
+Come funziona: il browser chiama solo la Edge Function `ai` (`js/services/ai.js`, unico punto).
+La funzione controlla sessione e ruolo, applica i limiti, legge i dati **con il token dell'utente**
+(quindi con le policy RLS: nessun dato in più di quelli che l'utente vede già) e chiama Groq con
+`GROQ_API_KEY`, che esiste solo nei secret di Supabase. Le risposte del modello vengono validate e
+ripulite; i filtri della ricerca diventano query parametrizzate. La parte predittiva calcola ricorrenze,
+anomalie e tendenze con regole fisse e soglie minime (almeno 3 lavori per cliente, 8 rapportini con ore,
+4 mesi di dati): se i dati non bastano lo dice e non chiama il modello; il modello commenta solo i numeri.
+Al modello non vanno mai la firma (solo "presente/assente") né identificativi tecnici; le foto solo su
+richiesta, ridotte. Nei log della funzione: azione, ruolo, esito, durata, modello e token, mai i contenuti.
+
+Limiti (in `supabase/functions/_shared/ai-logica.ts`): 10 richieste al minuto per utente; al giorno 200
+(admin), 150 (company), 80 (operaio); testo 4000 caratteri, domanda 500, ricerca 300, 3 foto da 1,5 MB;
+periodo massimo 12 mesi, 400 righe lette, 24.000 caratteri di dati per domanda; risposte con
+`max_completion_tokens` da 500 a 1500; tempi massimi 25 s (testo) e 45 s (foto). I limiti per utente
+usano la funzione già esistente `limite_tentativi` (migrazione `20261112090000`, solo service_role):
+**nessuna migrazione nuova**. Se il limite non è verificabile la richiesta viene rifiutata.
+
+Modelli (verificati sulla documentazione Groq a novembre 2026; si cambiano con i secret, senza codice):
+
+| Uso | Modello predefinito | Secret per cambiarlo |
+|---|---|---|
+| Testo, ricerca, domande, controllo, suggerimenti | `openai/gpt-oss-120b` (produzione, JSON mode) | `GROQ_MODELLO_TESTO` |
+| Riserva se il primo non è disponibile | `llama-3.3-70b-versatile` (produzione) | `GROQ_MODELLO_RISERVA` |
+| Foto | `qwen/qwen3.8-27b` (immagini, max 3 per richiesta; su Groq è in anteprima) | `GROQ_MODELLO_VISIONE` |
+
+"Verifica modelli" (admin) confronta i modelli configurati con quelli attivi sull'account Groq.
+
+Offline: i pulsanti AI rispondono "serve la connessione" senza inviare nulla; il controllo automatico,
+le bozze sul telefono e la sincronizzazione funzionano come prima. "Applica" scrive solo nei campi del
+modulo: la bozza va subito sul telefono e al server con Salva o con l'invio automatico.
+
+Attivazione in produzione (da fare dal proprietario):
+1. Creare una chiave su console.groq.com (API Keys).
+2. Supabase → Edge Functions → Secrets: `GROQ_API_KEY` = la chiave (mai nel codice o nel frontend).
+   Facoltativi: `GROQ_MODELLO_TESTO`, `GROQ_MODELLO_RISERVA`, `GROQ_MODELLO_VISIONE`.
+3. Pubblicare la funzione `ai` con verify_jwt attivo (`supabase functions deploy ai`, oppure dal
+   pannello: file `ai/index.ts` più `_shared/comune.ts`, `_shared/groq.ts`, `_shared/ai-logica.ts`,
+   `_shared/ai-gestore.ts`). Nessuna migrazione da eseguire.
+4. Pubblicare il frontend (merge su `main`).
+5. Da admin: Altro → Assistente AI → "Verifica modelli".
+Senza la chiave l'app funziona come prima e i pulsanti AI rispondono "assistente non configurato".
+
+Privacy: i testi (e le foto scelte) vengono inviati a Groq solo per generare la risposta; l'app non li
+salva. Valutare l'informativa per clienti e dipendenti prima dell'uso.
+
+Test: vedi `tests/LEGGIMI.md` (Node per unit/server, Playwright per e2e, Postgres locale per SQL).
 
 ## Supabase: messa in produzione
 

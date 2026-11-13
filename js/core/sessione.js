@@ -9,8 +9,8 @@ import { emetti } from "./eventi.js";
 const FUNZIONI = SUPABASE_URL + "/functions/v1/";
 // ogni richiesta a Supabase ha un tempo massimo: su una rete "appesa" (Wi-Fi senza Internet) la
 // richiesta fallisce invece di restare in attesa per minuti (30 s; 120 s per i file dello Storage)
-function fetchConLimite(url, opz = {}){
-  const ms = /\/storage\/v1\/object/.test(String(url)) ? 120000 : 30000;
+function fetchConLimite(url, opz = {}, msRichiesti){
+  const ms = msRichiesti || (/\/storage\/v1\/object/.test(String(url)) ? 120000 : 30000);
   const ctl = new AbortController();
   const t = setTimeout(()=>ctl.abort(), ms);
   if(opz.signal){ if(opz.signal.aborted) ctl.abort(); else opz.signal.addEventListener("abort", ()=>ctl.abort()); }
@@ -30,8 +30,8 @@ export async function tokenAccesso(){
   return data.session ? data.session.access_token : null;
 }
 
-// chiamata a una Edge Function (con la sessione, se c'e')
-export async function chiamaFunzione(nome, corpo, conSessione = true){
+// chiamata a una Edge Function (con la sessione, se c'e'); opzioni.timeout in ms (predefinito 30 s)
+export async function chiamaFunzione(nome, corpo, conSessione = true, opzioni = {}){
   const token = conSessione ? await tokenAccesso() : null;
   let risposta;
   try{
@@ -40,7 +40,7 @@ export async function chiamaFunzione(nome, corpo, conSessione = true){
       method: "POST",
       headers: { "Content-Type": "application/json", "apikey": SUPABASE_KEY, "Authorization": "Bearer " + (token || SUPABASE_KEY) },
       body: JSON.stringify(corpo || {}),
-    });
+    }, opzioni.timeout);
   }catch(e){
     return { ok: false, stato: 0, errore: "Nessuna connessione. Controlla la rete e riprova." };
   }

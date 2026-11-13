@@ -154,6 +154,9 @@ function stato(testo, tipo){ $("st-stato-msg").textContent = testo || ""; $("st-
 // ---------------------------------------------------------------- filtri
 function voci(){
   const cliente = $("st-cliente").value, operaio = $("st-operaio").value, st = $("st-stato").value, cerca = norma($("st-cerca").value.trim());
+  // piu' parole: devono comparire tutte (in qualsiasi ordine); una sola parola o frase come prima
+  const parole = cerca.split(" ").filter(Boolean);
+  const contiene = t=>{ const x = norma(t); return x.includes(cerca) || parole.every(p=>x.includes(p)); };
   const perIntervento = {};
   dati.rapportini.forEach(r=>{ if(r.intervento_id) (perIntervento[r.intervento_id] = perIntervento[r.intervento_id] || []).push(r); });
   const conOperaio = rr=>!operaio || rr.some(r=>r.autore_id === operaio || (r.rapportino_operai || []).some(o=>o.operaio_id === operaio));
@@ -163,7 +166,7 @@ function voci(){
     if(cliente && !stessoCliente(i.cliente, cliente)) return;
     if(operaio && !(i.intervento_operai || []).some(a=>a.operaio_id === operaio) && !conOperaio(rr)) return;
     if(st && !(st === "bozza" ? rr.some(r=>r.stato === "bozza") : i.stato === st)) return;
-    if(cerca && !norma([i.cliente, i.indirizzo, i.descrizione, ...rr.map(r=>r.attivita)].join(" ")).includes(cerca)) return;
+    if(cerca && !contiene([i.cliente, i.indirizzo, i.descrizione, ...rr.map(r=>r.attivita)].join(" "))) return;
     out.push({ tipo: "intervento", data: i.data, ora: i.ora || "", i, rr });
   });
   // rapportini autonomi e rapportini di interventi fuori dal periodo (il rapportino e' nel periodo)
@@ -172,7 +175,7 @@ function voci(){
     if(cliente && !stessoCliente(r.cliente, cliente)) return;
     if(!conOperaio([r])) return;
     if(st && !((st === "completato" && r.stato === "completato") || ((st === "bozza" || st === "in_corso") && r.stato === "bozza"))) return;
-    if(cerca && !norma([r.cliente, r.indirizzo, r.attivita, r.note].join(" ")).includes(cerca)) return;
+    if(cerca && !contiene([r.cliente, r.indirizzo, r.attivita, r.note].join(" "))) return;
     out.push({ tipo: "rapportino", data: r.data, ora: "", r });
   });
   // rapporti della vecchia app (schede cliente delle giornate)
@@ -182,7 +185,7 @@ function voci(){
     if(operaio && !tecnicoDellaGiornata(operaio, v.tecnici)) return;
     const daUltimare = c.stato === "Da ultimare";
     if(st && !((st === "completato" && !daUltimare) || (st === "in_corso" && daUltimare))) return;
-    if(cerca && !norma([c.nome, c.indirizzo, c.dettagli, c.fatturare, c.tipologia].join(" ")).includes(cerca)) return;
+    if(cerca && !contiene([c.nome, c.indirizzo, c.dettagli, c.fatturare, c.tipologia].join(" "))) return;
     out.push({ tipo: "vecchio", data: v.iso, ora: "", v });
   });
   // piu' recenti prima

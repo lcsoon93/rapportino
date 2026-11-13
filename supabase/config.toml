@@ -26,3 +26,7 @@ verify_jwt = true
 # notifiche push: solo con una sessione (svuota la coda scritta dal database)
 [functions.notifiche]
 verify_jwt = true
+
+# assistente AI (Groq): solo con una sessione; i dati li legge con il token dell'utente (RLS)
+[functions.ai]
+verify_jwt = true

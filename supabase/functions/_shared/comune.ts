@@ -23,6 +23,15 @@ export function errore(messaggio: string, stato = 400): Response {
 export function clientAdmin(): SupabaseClient {
   return createClient(URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
 }
+// client con i permessi DELL'UTENTE che chiama (token della sessione): ogni lettura passa da RLS.
+// Usato dall'assistente AI per leggere solo i dati che l'utente vede gia' nell'app.
+export function clientUtente(req: Request): SupabaseClient {
+  const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
+  return createClient(URL, ANON, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: { headers: { Authorization: "Bearer " + token } },
+  });
+}
 // client "anonimo" usato solo per verificare una password (signInWithPassword)
 export function clientAnonimo(): SupabaseClient {
   return createClient(URL, ANON, { auth: { persistSession: false, autoRefreshToken: false } });

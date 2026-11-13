@@ -88,6 +88,7 @@
   <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
   <symbol id="i-pen" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"/></symbol>
   <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-ai" viewBox="0 0 24 24"><path d="M12 3l1.8 4.7L18.5 9.5l-4.7 1.8L12 16l-1.8-4.7L5.5 9.5l4.7-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/></symbol>
   <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
   <symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/></symbol>
   <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
@@ -211,6 +212,18 @@
 
 <main class="colonna">
 
+  <!-- ================= ASSISTENTE AI (foglio: anteprima modificabile + conferma) ================= -->
+  <div id="ai-foglio" class="foglio nascosto" role="dialog" aria-modal="true" aria-labelledby="ai-titolo">
+    <div class="foglio-sfondo" data-ai-chiudi></div>
+    <div class="foglio-pannello">
+      <div class="foglio-testa"><h2 id="ai-titolo">Assistente</h2>
+        <button type="button" class="foglio-chiudi" id="ai-chiudi" aria-label="Chiudi" data-ai-chiudi>&times;</button></div>
+      <p class="nota ai-avviso" id="ai-nota"></p>
+      <div class="msg-info" id="ai-msg" role="status" aria-live="polite"></div>
+      <div class="foglio-corpo" id="ai-corpo"></div>
+      <div class="foglio-azioni" id="ai-azioni"></div>
+    </div>
+  </div>
   <!-- ================= DETTAGLIO INTERVENTO (foglio dal basso) ================= -->
   <div id="int-dettaglio" class="foglio nascosto" role="dialog" aria-modal="true" aria-labelledby="idt-titolo">
     <div class="foglio-sfondo" onclick="chiudiDettaglioIntervento()"></div>
@@ -512,6 +525,26 @@
             <button type="button" class="voce" onclick="esciDallApp()"><span class="v-ic att"><svg class="i"><use href="#i-logout"/></svg></span><span class="v-testi"><span class="v-tit">Esci</span><span class="v-sub">Prima invia al server le modifiche</span></span></button>
           </div>
         </div>
+        <div class="gruppo" data-permesso="ai.ricerca ai.assistente">
+          <div class="gruppo-tit">Assistente AI</div>
+          <div class="card ai-card">
+            <label for="ai-domanda">Chiedi o cerca nei dati</label>
+            <textarea id="ai-domanda" rows="2" maxlength="500" placeholder="Es. quante ore per il cliente Rossi a ottobre? · interventi urgenti ancora aperti"></textarea>
+            <div class="due" data-permesso="ai.assistente">
+              <div><label for="ai-dal">Dal</label><input type="date" id="ai-dal"></div>
+              <div><label for="ai-al">Al</label><input type="date" id="ai-al"></div>
+            </div>
+            <div class="ai-pulsanti">
+              <button type="button" class="btn btn-primario" id="ai-chiedi" data-permesso="ai.assistente" onclick="aiAssistente('domanda', this)"><svg class="i"><use href="#i-ai"/></svg><span>Chiedi</span></button>
+              <button type="button" class="btn btn-secondario" id="ai-cerca" data-permesso="ai.ricerca" onclick="aiAssistente('ricerca', this)"><svg class="i"><use href="#i-search"/></svg><span>Cerca</span></button>
+              <button type="button" class="btn btn-secondario" id="ai-tendenze" data-permesso="ai.predittiva" onclick="aiAssistente('predittiva', this)"><svg class="i"><use href="#i-chart"/></svg><span>Ricorrenze e tendenze</span></button>
+              <button type="button" class="btn btn-secondario" id="ai-modelli" data-permesso="ai.modelli" onclick="aiAssistente('modelli', this)"><span>Verifica modelli</span></button>
+            </div>
+            <p class="nota ai-fonte">Usa solo i dati che il tuo account può vedere; le risposte vanno verificate. I testi sono elaborati dal servizio Groq; nulla viene modificato senza conferma.</p>
+            <div class="msg-info" id="ai-esito-msg" role="status" aria-live="polite"></div>
+            <div id="ai-esito"></div>
+          </div>
+        </div>
         <div class="gruppo" data-permesso="utenti.gestisci">
           <div class="gruppo-tit">Amministrazione</div>
           <div class="card">
@@ -661,6 +694,10 @@
       <span class="cerca-lente"><svg class="i"><use href="#i-search"/></svg></span>
       <input type="search" id="st-cerca" placeholder="Cerca cliente, indirizzo, descrizione…" autocomplete="off" aria-label="Cerca nello storico" oninput="cercaStorico()">
     </div>
+    <div class="ai-cerca" data-permesso="ai.ricerca">
+      <input type="text" id="st-ai" maxlength="300" placeholder="Ricerca intelligente: es. caldaie riparate da Mario a ottobre" autocomplete="off" aria-label="Ricerca intelligente" onkeydown="if(event.key==='Enter') aiRicercaStorico(document.getElementById('st-ai-vai'))">
+      <button type="button" class="btn btn-secondario" id="st-ai-vai" onclick="aiRicercaStorico(this)"><svg class="i"><use href="#i-ai"/></svg><span>Cerca</span></button>
+    </div>
     <details class="card st-filtri" open>
       <summary>Filtri</summary>
       <div class="campo"><label for="st-mese">Mese</label><input type="month" id="st-mese" onchange="scegliMeseStorico()"></div>
@@ -702,6 +739,7 @@
     <div class="msg-info" id="rap-msg" role="status" aria-live="polite"></div>
     <div class="card conf-box nascosto" id="rap-conflitto" role="region" aria-label="Conflitto"></div>
     <div class="card cli-scheda nascosto" id="rap-intervento"></div>
+    <button type="button" class="ai-btn ai-controlla" id="rf-ai-controllo" data-permesso="ai.controllo" onclick="aiControlloRapportino()"><svg class="i"><use href="#i-check"/></svg>Controlla rapportino</button>
 
     <form id="rap-form" novalidate>
       <div class="modulo">
@@ -714,7 +752,13 @@
         <div class="campo"><label for="rf-indirizzo">Indirizzo</label><input type="text" id="rf-indirizzo" autocomplete="off"></div>
         <div class="campo"><label for="rf-tipologia">Tipologia</label>
           <select id="rf-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
-        <div class="campo"><label for="rf-attivita">Attività svolte</label><textarea id="rf-attivita" placeholder="Cosa avete fatto" rows="4"></textarea></div>
+        <div class="campo"><label for="rf-attivita">Attività svolte</label><textarea id="rf-attivita" placeholder="Cosa avete fatto (anche appunti veloci: l'assistente può scrivere la descrizione)" rows="4"></textarea>
+          <div class="ai-barra rf-solo-bozza" data-permesso="ai.rapportino" role="group" aria-label="Assistente AI">
+            <button type="button" class="ai-btn" id="rf-ai-genera" onclick="aiTestoRapportino('genera')"><svg class="i"><use href="#i-ai"/></svg>Da appunti</button>
+            <button type="button" class="ai-btn" id="rf-ai-migliora" onclick="aiTestoRapportino('migliora')"><svg class="i"><use href="#i-ai"/></svg>Migliora</button>
+            <button type="button" class="ai-btn" id="rf-ai-correggi" onclick="aiTestoRapportino('correggi')">Correggi</button>
+            <button type="button" class="ai-btn" id="rf-ai-suggerimenti" onclick="aiSuggerimentiRapportino()">Suggerimenti</button>
+          </div></div>
         <div class="campo"><label>Materiale utilizzato</label><div id="rf-materiali"></div>
           <button type="button" class="mat-add" onclick="aggiungiMaterialeRapportino()"><svg class="i"><use href="#i-plus"/></svg>Riga materiale</button></div>
         <div class="campo"><label for="rf-note">Note</label><textarea id="rf-note" rows="2"></textarea></div>
@@ -735,6 +779,7 @@
           <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-file').click()"><svg class="i"><use href="#i-image"/></svg>Carica foto</button>
           <button type="button" class="mat-add" style="flex:1" onclick="document.getElementById('rf-foto-camera').click()"><svg class="i"><use href="#i-camera"/></svg>Scatta foto</button>
         </div>
+        <button type="button" class="ai-btn ai-foto-btn rf-solo-bozza" id="rf-ai-foto" data-permesso="ai.rapportino" onclick="aiFotoRapportino()"><svg class="i"><use href="#i-ai"/></svg>Descrivi dalle foto</button>
         <div class="msg-info att nascosto" id="rf-foto-stato" role="status" aria-live="polite"></div>
         <button type="button" class="mat-add nascosto" id="rf-foto-invia" onclick="inviaFotoOra()"><svg class="i"><use href="#i-upload"/></svg>Invia foto</button>
       </div>
