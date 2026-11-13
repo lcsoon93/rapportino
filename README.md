@@ -231,6 +231,10 @@ Diagnosi: se Apple/Google rifiutano l'invio, la notifica di prova mostra in app 
 restituiti dal servizio push (es. `403 BadJwtToken`); la funzione `notifiche` scrive lo stesso nei log
 (`push <servizio> <stato> <motivo>` per ogni invio, 201 = accettata; senza endpoint né chiavi). Apple accetta in `VAPID_SUBJECT` solo un
 `mailto:` reale o un `https://`: un dominio fittizio produce `BadJwtToken`.
+`VapidPkHashMismatch` (Apple) = il telefono è iscritto con una chiave pubblica diversa da quella del
+server: l'app ricorda con quale chiave ha creato l'iscrizione e, se la chiave di `config.js` cambia,
+la rifà al primo "Attiva notifiche" (su iOS la chiave dell'iscrizione non sempre è leggibile); se
+l'errore resta, il secret `VAPID_PUBLIC_KEY` non coincide con `js/core/config.js`.
 
 Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functions `VAPID_PUBLIC_KEY`
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la

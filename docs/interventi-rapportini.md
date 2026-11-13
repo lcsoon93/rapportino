@@ -482,6 +482,10 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   Coppia rigenerata il 2026-11-13 (nuova chiave pubblica in `js/core/config.js`).
 - Apple accetta in `VAPID_SUBJECT` solo `mailto:` con un indirizzo reale o un `https://`.
 - Verifiche in sola lettura: `notifiche_iscrizioni` (dispositivo, servizio), `notifiche_coda` per `esito`.
+- `400 VapidPkHashMismatch` da Apple: iscrizione creata con un'altra chiave pubblica. L'app salva in
+  localStorage (`rapportino-vapid-iscrizione`) la chiave usata; se diversa da `config.js` (o sconosciuta
+  e non leggibile da `sub.options`, come su iOS) lo stato è "spente", all'accesso l'iscrizione non viene
+  ricollegata e "Attiva notifiche" la rifà. Se l'errore resta: secret `VAPID_PUBLIC_KEY` diverso.
 
 ## Assistente AI con Groq (Fase I)
 

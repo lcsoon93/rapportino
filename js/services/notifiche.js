@@ -18,6 +18,20 @@ export function iOS(){
 }
 export function permesso(){ return "Notification" in window ? Notification.permission : "unsupported"; }
 
+// chiave pubblica con cui e' stata creata l'iscrizione di questo telefono (iOS non sempre la espone
+// in sub.options): se la chiave dell'app cambia, l'iscrizione va rifatta
+const CHIAVE_ISCRIZIONE = "rapportino-vapid-iscrizione";
+const chiaveUsata = ()=>{ try{ return localStorage.getItem(CHIAVE_ISCRIZIONE) || ""; }catch(e){ return ""; } };
+const ricordaChiave = k=>{ try{ k ? localStorage.setItem(CHIAVE_ISCRIZIONE, k) : localStorage.removeItem(CHIAVE_ISCRIZIONE); }catch(e){} };
+function chiaveDiversa(sub){
+  const k = sub && sub.options && sub.options.applicationServerKey;
+  if(k){
+    const a = new Uint8Array(k), b = chiaveApplicazione();
+    return a.length !== b.length || a.some((v, i)=>v !== b[i]);
+  }
+  return chiaveUsata() !== VAPID_PUBLIC_KEY;       // chiave non leggibile: decide quella ricordata
+}
+
 let registrazione = null;
 export async function registraServiceWorker(){
   if(!("serviceWorker" in navigator)) return null;
@@ -60,7 +74,7 @@ export async function statoNotifiche(){
   if(permesso() === "denied") return "negate";
   const reg = await pronta();
   const sub = await reg.pushManager.getSubscription();
-  return sub && permesso() === "granted" ? "attive" : "spente";
+  return sub && permesso() === "granted" && !chiaveDiversa(sub) ? "attive" : "spente";
 }
 
 export async function attivaNotifiche(){
@@ -70,14 +84,15 @@ export async function attivaNotifiche(){
   if(p !== "granted") throw new Error("Permesso negato: abilita le notifiche per Rapportino nelle impostazioni del telefono.");
   const reg = await pronta();
   let sub = await reg.pushManager.getSubscription();
-  // iscrizione creata con un'altra chiave: si rifa'
-  if(sub && sub.options && sub.options.applicationServerKey){
-    const k = new Uint8Array(sub.options.applicationServerKey);
-    const atteso = chiaveApplicazione();
-    if(k.length !== atteso.length || k.some((v, i)=>v !== atteso[i])){ await sub.unsubscribe(); sub = null; }
+  // iscrizione creata con un'altra chiave (o non si sa con quale): si rifa'
+  if(sub && chiaveDiversa(sub)){
+    await client.rpc("notifiche_disiscrivi", { p_endpoint: sub.endpoint }).catch(()=>{});
+    await sub.unsubscribe().catch(()=>{});
+    sub = null;
   }
   if(!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: chiaveApplicazione() });
   await salvaSulServer(sub);
+  ricordaChiave(VAPID_PUBLIC_KEY);
 }
 
 export async function disattivaNotifiche(){
@@ -87,6 +102,7 @@ export async function disattivaNotifiche(){
   if(!sub) return;
   await client.rpc("notifiche_disiscrivi", { p_endpoint: sub.endpoint }).catch(()=>{});
   await sub.unsubscribe();
+  ricordaChiave("");
 }
 
 // all'accesso: un'iscrizione gia' presente sul telefono viene (ri)collegata all'utente attuale
@@ -95,7 +111,8 @@ export async function ricollegaNotifiche(){
     if(!supportate() || permesso() !== "granted" || !profilo) return;
     const reg = await pronta();
     const sub = await reg.pushManager.getSubscription();
-    if(sub) await salvaSulServer(sub);
+    // iscrizione con una chiave vecchia: non si ricollega (va rifatta con "Attiva notifiche")
+    if(sub && !chiaveDiversa(sub)) await salvaSulServer(sub);
   }catch(e){ console.warn("Notifiche:", e.message); }
 }
 // all'uscita: il telefono non riceve piu' gli avvisi di questo utente
@@ -114,6 +131,10 @@ export async function provaNotifica(){
   // la funzione risponde 200 anche se il servizio push (Apple/Google) rifiuta: l'esito e' in dati.ok
   if(!r.dati || !r.dati.ok){
     const dett = (r.dati && r.dati.errori || []).join("; ");
+    if(/VapidPkHashMismatch|BadJwtToken|InvalidJwt/i.test(dett)){
+      ricordaChiave("");                  // al prossimo "Attiva notifiche" l'iscrizione viene rifatta
+      throw new Error("Questo telefono è iscritto con una chiave delle notifiche diversa da quella del server. Tocca \"Disattiva\" e poi \"Attiva notifiche\". Se l'errore resta, controlla il secret VAPID_PUBLIC_KEY su Supabase (" + dett + ").");
+    }
     throw new Error("Il servizio di notifiche del telefono ha rifiutato l'invio" + (dett ? ": " + dett : "."));
   }
   return r.dati;
