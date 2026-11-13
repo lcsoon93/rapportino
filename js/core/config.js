@@ -9,4 +9,4 @@ export const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdX
 export const SINC_ATTIVA = () => SUPABASE_URL !== "" && SUPABASE_KEY !== "";
 
 // Notifiche push: chiave PUBBLICA VAPID (la privata e' solo nei secret della Edge Function "notifiche")
-export const VAPID_PUBLIC_KEY = "BF_rYoxWGH_hFSF1NiqEeslYGGiNHUiVRN94SPWLx6CVWV9M8gwNwA_86qwklR7gPy7vbhn2kvZPZfh_SnlwY6U";
+export const VAPID_PUBLIC_KEY = "BPItmGE7YNuJThrWemZnM2GzGsG4I6TvNBuUMkTb0BKPf1il6Algn4JrUPqqvPNEwt5y9GKvSqa9GpEBmrfDLYk";

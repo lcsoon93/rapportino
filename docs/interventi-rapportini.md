@@ -477,6 +477,9 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   mostra all'utente lo stato e il motivo del rifiuto invece di ignorarlo.
 - Ogni invio viene scritto nei log della funzione: `push <host del servizio> <stato> <motivo>`
   (201 = accettato), senza endpoint né chiavi.
+- Le chiavi nei secret vanno incollate senza virgolette, spazi o etichette (Public 87 caratteri, Private 43,
+  solo lettere, numeri, `-` e `_`): altrimenti la funzione fallisce con `Failed to decode base64`.
+  Coppia rigenerata il 2026-11-13 (nuova chiave pubblica in `js/core/config.js`).
 - Apple accetta in `VAPID_SUBJECT` solo `mailto:` con un indirizzo reale o un `https://`.
 - Verifiche in sola lettura: `notifiche_iscrizioni` (dispositivo, servizio), `notifiche_coda` per `esito`.
 
