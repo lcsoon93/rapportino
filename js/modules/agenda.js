@@ -201,43 +201,54 @@ document.addEventListener("keydown", e=>{
 
 // ---------------------------------------------------------------- Calendario: Giorno
 function meseDi(iso){ const m = iso.slice(0, 7), g = giorniMese(m); return [g[0], g[g.length - 1]]; }
+// Lavori di un giorno: interventi programmati divisi per stato + rapportini senza intervento
+// ("lavori non programmati", quelli che RLS mostra all'utente). Usato da Calendario -> Giorno e dalla Home.
+export async function lavoriDelGiorno(iso){
+  const [dal, al] = meseDi(iso);
+  await operaiAttivi().catch(()=>[]);
+  const [lista, autonomi] = await Promise.all([
+    interventiPeriodo(dal, al).then(l=>l.filter(i=>i.data === iso).sort(ordina)),
+    elencoRapportini({ dal: iso, al: iso }).catch(()=>null),
+  ]);
+  return {
+    daEseguire: lista.filter(i=>i.stato === "pianificato" || i.stato === "in_corso"),
+    eseguiti: lista.filter(i=>i.stato === "completato"),
+    annullati: lista.filter(i=>i.stato === "annullato"),
+    nonProgrammati: autonomi ? autonomi.filter(r=>!r.intervento_id) : [],
+    rapportini: autonomi || [],                // tutti i rapportini del giorno (per le ore di lavoro)
+    rapportiniNonLetti: autonomi === null,
+  };
+}
+export function htmlLavoriGiorno(g, iso){
+  const sezione = (titolo, n, html)=>'<div class="ag-sez"><div class="gruppo-tit">' + esc(titolo) + ' <span class="ag-sez-n">' + n + '</span></div>' + html + '</div>';
+  let html = "";
+  if(g.daEseguire.length) html += sezione("Da eseguire", g.daEseguire.length, elencoRighe(g.daEseguire, false));
+  if(g.eseguiti.length) html += sezione("Eseguiti", g.eseguiti.length, elencoRighe(g.eseguiti, false));
+  if(g.nonProgrammati.length) html += sezione("Lavori non programmati", g.nonProgrammati.length,
+    '<div class="card cli-elenco">' + g.nonProgrammati.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>');
+  if(g.annullati.length) html += sezione("Annullati", g.annullati.length, elencoRighe(g.annullati, false));
+  if(g.rapportiniNonLetti) html += '<div class="card nota">Lavori non programmati non disponibili (rete).</div>';
+  return html || '<div class="card nota">Nessun intervento o lavoro il ' + esc(dataIt(iso)) + '.</div>';
+}
+export const contaLavori = g=>g.daEseguire.length + g.eseguiti.length + g.nonProgrammati.length;
+
 export async function disegnaGiornoCal(){
   if(!$("cg-data").value) $("cg-data").value = oggiIso();
   const iso = $("cg-data").value;
   $("cg-titolo").textContent = dataLunga(iso);
   $("cg-oggi").classList.toggle("nascosto", iso === oggiIso());
   stato($("cg-stato"), "Caricamento…");
-  let lista, autonomi = null;
-  try{
-    const [dal, al] = meseDi(iso);
-    await operaiAttivi().catch(()=>[]);
-    [lista, autonomi] = await Promise.all([
-      interventiPeriodo(dal, al).then(l=>l.filter(i=>i.data === iso).sort(ordina)),
-      // lavori non programmati: rapportini del giorno senza intervento (quelli che RLS mostra all'utente)
-      elencoRapportini({ dal: iso, al: iso }).then(l=>l.filter(r=>!r.intervento_id)).catch(()=>null),
-    ]);
-  }catch(e){
+  let g;
+  try{ g = await lavoriDelGiorno(iso); }
+  catch(e){
     if($("cg-data").value !== iso) return;
     stato($("cg-stato"), messaggioErrore(e), "err"); $("cg-elenco").innerHTML = ""; return;
   }
   if($("cg-data").value !== iso) return;          // nel frattempo si e' cambiato giorno
   stato($("cg-stato"), "");
-  // interventi programmati divisi per stato + lavori non programmati
-  const daEseguire = lista.filter(i=>i.stato === "pianificato" || i.stato === "in_corso");
-  const eseguiti = lista.filter(i=>i.stato === "completato");
-  const annullati = lista.filter(i=>i.stato === "annullato");
-  const sezione = (titolo, n, html)=>'<div class="ag-sez"><div class="gruppo-tit">' + esc(titolo) + ' <span class="ag-sez-n">' + n + '</span></div>' + html + '</div>';
-  const nonProgrammati = autonomi || [];
-  const totale = daEseguire.length + eseguiti.length + nonProgrammati.length;
+  const totale = contaLavori(g);
   $("cg-conteggio").textContent = totale ? totale + (totale === 1 ? " lavoro" : " lavori") : "";
-  let html = "";
-  if(daEseguire.length) html += sezione("Da eseguire", daEseguire.length, elencoRighe(daEseguire, false));
-  if(eseguiti.length) html += sezione("Eseguiti", eseguiti.length, elencoRighe(eseguiti, false));
-  if(nonProgrammati.length) html += sezione("Lavori non programmati", nonProgrammati.length,
-    '<div class="card cli-elenco">' + nonProgrammati.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>');
-  if(annullati.length) html += sezione("Annullati", annullati.length, elencoRighe(annullati, false));
-  if(autonomi === null) html += '<div class="card nota">Lavori non programmati non disponibili (rete).</div>';
-  $("cg-elenco").innerHTML = html || '<div class="card nota">Nessun intervento o lavoro il ' + esc(dataIt(iso)) + '.</div>';
+  $("cg-elenco").innerHTML = htmlLavoriGiorno(g, iso);
 }
 export function apriGiornoCal(iso){
   $("cg-data").value = iso || oggiIso();

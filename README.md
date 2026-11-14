@@ -250,8 +250,13 @@ funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga t
 Home → "Apri giornata" (e Calendario → Giorno) mostra il lavoro del giorno scelto, diviso in:
 **Da eseguire** (interventi pianificati o in corso), **Eseguiti** (completati), **Lavori non programmati**
 (rapportini creati senza intervento, di tutti gli operai per admin e company, i propri per l'operaio) e
-**Annullati**. Ogni voce apre il dettaglio dell'intervento o il rapportino. Il foglio giornaliero della
-vecchia app resta raggiungibile dal pulsante in fondo alla vista.
+**Annullati**. Ogni voce apre il dettaglio dell'intervento o il rapportino.
+
+La Home dell'admin usa gli stessi dati (non più il foglio giornaliero della vecchia app): "Riepilogo
+giornata" con Lavori, Ore di lavoro (dal primo inizio all'ultima fine degli orari segnati nei rapportini
+del giorno: unione, non somma), Eseguiti e Da eseguire; sotto, "Lavori di oggi" con le stesse sezioni.
+"Nuovo rapportino" apre un rapportino normale (anagrafica clienti, telefono, sincronizzazione).
+Il foglio giornaliero della vecchia app resta solo in Altro → "Rapportino della giornata".
 
 ## PDF della giornata (rapportini completati)
 

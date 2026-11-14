@@ -270,15 +270,15 @@
         <div class="card riepilogo">
           <div class="riepilogo-tit"><h2>Riepilogo giornata</h2><span id="home-riep-data"></span></div>
           <div class="stat-griglia">
-            <div class="stat brand"><span class="stat-val" id="st-interventi">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Interventi</span></div>
+            <div class="stat brand"><span class="stat-val" id="st-interventi">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Lavori</span></div>
             <div class="stat pervinca"><span class="stat-val" id="st-ore">0 ore</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Ore di lavoro</span></div>
-            <div class="stat ok"><span class="stat-val" id="st-firmati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Firmati</span></div>
-            <div class="stat att"><span class="stat-val" id="st-dafirmare">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-pen"/></svg>Da firmare</span></div>
+            <div class="stat ok"><span class="stat-val" id="st-firmati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Eseguiti</span></div>
+            <div class="stat att"><span class="stat-val" id="st-dafirmare">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Da eseguire</span></div>
           </div>
         </div>
 
         <div class="home-cta">
-          <button type="button" class="btn btn-primario btn-xl" onclick="nuovoRapportino()">
+          <button type="button" class="btn btn-primario btn-xl" id="home-nuovo-rapportino" onclick="nuovoRapportinoAutonomo()">
             <svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo rapportino
           </button>
         </div>
@@ -314,7 +314,7 @@
         <div id="ha-mancanti"></div>
 
         <div class="sezione-head">
-          <h2 id="home-int-titolo">Foglio giornaliero di oggi</h2>
+          <h2 id="home-int-titolo">Lavori di oggi</h2>
         </div>
         <div id="home-interventi"></div>
       </div>
@@ -422,7 +422,6 @@
         <button type="button" class="mini nascosto" id="cg-oggi" onclick="apriGiornoCal('')">Oggi</button></div>
       <div class="msg-info nascosto" id="cg-stato" role="status" aria-live="polite"></div>
       <div id="cg-elenco"></div>
-      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:12px" data-permesso="vista.giorno" onclick="apriFoglioGiornoCal()"><svg class="i"><use href="#i-file"/></svg>Apri il foglio giornaliero di questo giorno</button>
     </div>
   </section>
 

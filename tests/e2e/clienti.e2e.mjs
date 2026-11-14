@@ -496,6 +496,26 @@ try{
     await a.page.waitForFunction(()=>document.getElementById("rf-cliente").value === "Lavoro Fatto A Mano");
   });
 
+  await prova("Home: riepilogo e lavori del giorno dai dati nuovi; Nuovo rapportino apre un rapportino normale", async()=>{
+    const g = "2026-12-20";
+    await a.page.evaluate(()=>window.mostraVista("home"));
+    await a.page.evaluate(g=>window.apriGiornoHome(g), g);
+    await a.page.waitForFunction(()=>document.querySelectorAll("#home-interventi .ag-sez").length === 4);
+    assert.equal(await a.page.textContent("#home-int-titolo"), "Lavori del 20/12/2026");
+    const val = id=>a.page.textContent("#" + id);
+    assert.equal(await val("st-interventi"), "3");        // 1 da eseguire + 1 eseguito + 1 non programmato
+    assert.equal(await val("st-firmati"), "2");           // eseguito + non programmato completato
+    assert.equal(await val("st-dafirmare"), "1");
+    assert.equal(await val("st-ore"), "1 ora");           // 15:00-16:00 dal rapportino del giorno
+    assert.match(await a.page.textContent("#home-interventi"), /Lavoro Fatto A Mano/);
+    assert.equal(await a.page.$('#vista-calgiorno button:has-text("foglio giornaliero")'), null, "niente pulsante del foglio vecchio");
+    await foto(a.page, "home");
+    await a.page.click("#home-nuovo-rapportino");
+    await a.page.waitForSelector("#vista-rapportino:not(.nascosto)");
+    assert.equal(await a.page.inputValue("#rf-cliente"), "");
+    assert.ok(await a.page.isVisible("#rf-telefono"), "rapportino nuovo (con telefono e anagrafica)");
+  });
+
   await prova("12. compatibilita': rapportino di prima senza cliente_id/telefono; database senza le colonne nuove", async()=>{
     const id = uuid();
     DB.rapportini.set(id, { id, autore_id: UTENTI.admin.id, data: "2026-09-01", cliente: "Vecchio Cliente", indirizzo: "Via Antica 1", tipologia: "", attivita: "x",
