@@ -8,13 +8,13 @@
 import { puo } from "../core/permessi.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
-import { elencoAllegati, elencoRapportini, minutiTra, nomeOperaio, operaiAttivi, rapportiniCompletatiDelGiorno, scaricaFoto } from "../services/api-lavori.js";
+import { elencoAllegati, elencoRapportini, nomeOperaio, operaiAttivi, rapportiniCompletatiDelGiorno, scaricaFoto } from "../services/api-lavori.js";
 import { elencoCoda } from "../services/sinc-rapportini.js";
 import { blobInDataUrl } from "../services/immagini.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
-import { esc, oreTesto } from "../utils/formatters.js";
+import { esc } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
 
 const $ = id=>document.getElementById(id);
@@ -53,7 +53,8 @@ function schedaPDF(r, foto){
     tecnici: operai.map(o=>o.nome).filter((x, i, a)=>x && a.indexOf(x) === i).join(" / "), operai,
   };
 }
-const minutiRapportino = r=>(r.rapportino_operai || []).reduce((t, o)=>t + minutiTra(ora(o.dalle), ora(o.alle)), 0);
+// come nel PDF: tecnico e intervallo segnato (dalle-alle), senza il totale delle ore
+const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
 // ordine: ora dell'intervento, poi primo orario dei tecnici, poi completamento
 const chiaveOrdine = r=>(r.interventi && r.interventi.ora ? ora(r.interventi.ora) : "") ||
   (r.rapportino_operai || []).map(o=>ora(o.dalle)).filter(Boolean).sort()[0] || "99:99";
@@ -100,19 +101,18 @@ export async function preparaPDFGiornata(btn){
     const dati = {
       tecnici: tecnici.join(" / "),
       operai: schede.length === 1 ? schede[0].operai : [],
-      spese: [], mostraOrario: true, clienti: schede,
+      spese: [], mostraOrario: true, soloIntervalli: true, clienti: schede,   // solo dalle-alle, mai le ore
       ...(schede.length === 1 ? { riferimento: "RAP-" + iso.replace(/-/g, "") + "-" + String(completati[0].id).replace(/-/g, "").slice(0, 4).toUpperCase() } : {}),
     };
     const chi = autore && puo("rapportini.consulta") ? "_" + nomeOperaio(autore).replace(/[^\w]+/g, "_").slice(0, 30) : "";
     preparato = { iso, dati, nome: "Rapportini_" + iso + chi + ".pdf" };
-    const totale = completati.reduce((t, r)=>t + minutiRapportino(r), 0);
     $("rg-esito").innerHTML = '<div class="ai-sez-tit">Nel PDF (' + completati.length + (completati.length === 1 ? " rapportino" : " rapportini") + ')</div>' +
       '<div class="card cli-elenco">' + completati.map((r, i)=>'<div class="st-rap" style="cursor:default"><span class="cli-testi">' +
         '<span class="cli-nome" style="display:block">' + (i + 1) + '. ' + esc(r.cliente) + '</span>' +
-        '<span class="cli-ind" style="display:block;white-space:normal">' + esc([r.indirizzo, schede[i].tecnici, oreTesto(minutiRapportino(r))].filter(Boolean).join(" · ")) + '</span>' +
+        '<span class="cli-ind" style="display:block;white-space:normal">' + esc([r.indirizzo, orariScheda(schede[i])].filter(Boolean).join(" · ")) + '</span>' +
         (schede[i].foto.length ? '<span class="cli-ind" style="display:block">' + icona("image", "i-sm") + ' ' + schede[i].foto.length + ' foto</span>' : '') +
         '</span><span class="badge ok">' + icona("check") + 'Completato</span></div>').join("") + '</div>' +
-      '<p class="nota" style="padding:6px 2px 0">Ore totali dei tecnici: <b>' + oreTesto(totale) + '</b></p>' + elencoEsclusi;
+      elencoEsclusi;
     messaggio((mancanti ? mancanti + (mancanti === 1 ? " foto non disponibile verrà saltata. " : " foto non disponibili verranno saltate. ") : "") +
       (fotoNonLette ? "Foto non lette per " + fotoNonLette + " rapportini. " : "") + "Pronto: tocca «Condividi PDF».", mancanti || fotoNonLette ? "att" : "");
     $("rg-condividi").classList.remove("nascosto");

@@ -502,6 +502,9 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   (`c.tecnici ?? d.tecnici`), e con "solo ore per cliente" le ore della scheda sono il tempo sul posto dei
   suoi operai. Le stampe del foglio giornaliero restano identiche (le schede non hanno quei campi).
 - Operaio: filtro autore = sé stesso; admin e company: tutti o un operaio (autore del rapportino).
+- Orari senza ore: `dati.soloIntervalli` (PDF del rapportino e della giornata) → `conOrePerCliente` non
+  applica "solo ore per cliente"; `datiGenerali({ senzaOre })` stampa solo l'intervallo (niente colonna ORE,
+  niente "(2h 30m)"), salta chi non ha orario. Il foglio giornaliero della vecchia app non cambia.
 - Test: `tests/e2e/pdf-giornata.e2e.mjs` (PDF generato con jsPDF 2.5.1 e letto: contenuto, formato,
   esclusi, filtri, operaio, offline).
 

@@ -254,7 +254,11 @@ tocca **Prepara il PDF**, poi **Condividi PDF** (stampa, mail, salva).
   restano fuori e sono elencati sotto "Non inclusi".
 - Impaginazione del foglio giornaliero: un rapportino = A4; più rapportini = due A5 per foglio A4
   orizzontale con "TAGLIA QUI". Ogni scheda ha i propri tecnici e orari, attività, materiali, foto e
-  firma; il telefono del cliente accanto all'indirizzo. Vale la spunta "Nelle stampe solo le ore per cliente".
+  firma; il telefono del cliente accanto all'indirizzo.
+- **Orari, non ore**: nei PDF dei rapportini (singolo e della giornata) si stampa per ogni tecnico solo
+  l'intervallo segnato ("08:00–10:30", "dalle 14:00", "fino alle 17:00"); chi non l'ha segnato compare
+  solo tra i tecnici. Mai il totale delle ore, anche con "Nelle stampe solo le ore per cliente" attiva
+  (che resta valida per il foglio giornaliero e i report).
 - L'operaio stampa i propri rapportini. Serve la connessione (dati e foto dal server, con i permessi
   dell'utente). Due passi perché su iPhone la condivisione deve partire subito dal tocco.
 

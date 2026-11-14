@@ -619,7 +619,8 @@ export async function pdfRapportino(btn){
     tecnici: ore.map(o=>nomeOperaio(o.operaio_id)).join(" / "),
     operai: ore.map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: o.dalle, alle: o.alle })),
     spese: [],
-    mostraOrario: true,                    // le ore di ogni tecnico del rapportino compaiono nel PDF
+    mostraOrario: true,                    // l'orario di ogni tecnico del rapportino compare nel PDF
+    soloIntervalli: true,                  // solo dalle-alle segnati, mai il totale delle ore
     // riferimento leggibile del rapportino: data + prime 4 cifre del suo identificativo (nessun numero progressivo nei dati)
     riferimento: "RAP-" + String(r.data || "").replace(/-/g, "") + "-" + String(corrente.id || "").replace(/-/g, "").slice(0, 4).toUpperCase(),
     clienti: [{ id: corrente.id, nome: r.cliente, indirizzo: r.indirizzo, fasce: [], fatturare: "", importo: 0, tipologia: r.tipologia,

@@ -27,10 +27,14 @@ const statiCliente = c=>[c.urgente ? "URGENZA" : "", c.stato === "Da ultimare" ?
 const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : "",
   c.oreLavoro ? "Ore di lavoro: " + oreTesto(c.oreLavoro) : ""].filter(Boolean);
 // spunta "solo ore per cliente": niente orario dei tecnici; per ogni cliente le ore di lavoro (tempo sul posto)
-const conOrePerCliente = d=>!orePerCliente() ? d
+// I PDF dei rapportini (dati.soloIntervalli) stampano solo l'intervallo segnato (dalle-alle), mai il totale
+// delle ore: l'opzione non si applica a loro.
+const conOrePerCliente = d=>!orePerCliente() || d.soloIntervalli ? d
   : { ...d, soloOreCliente: true, tecnici: d.tecnici || (d.operai || []).map(o=>o.nome).filter(Boolean).join(" / "),
       clienti: d.clienti.map(c=>({ ...c, oreLavoro: c.operai ? (minutiSulPosto(c.operai) || null) : minutiCliente(c, d) })) };
 const oreOperaio = op=>contoOreOperaio(op, "").trim().replace(/^\(|\)$/g, "");
+// "08:00–10:30", "dalle 08:00", "fino alle 10:30"
+const intervallo = op=>op.dalle && op.alle ? op.dalle + "–" + op.alle : op.dalle ? "dalle " + op.dalle : op.alle ? "fino alle " + op.alle : "";
 const nuovoDoc = ()=>{ const { jsPDF } = window.jspdf; return new jsPDF({unit:"mm", format:"a4"}); };
 
 // misure e corpi del testo per i due formati (nella colonna il testo resta leggibile: minimo 8,5 pt)
@@ -197,8 +201,10 @@ function impaginatore(doc, s, cornice, yIniziale){
 
   // riquadro dei dati: data, riferimento, tecnici e orario di ciascun tecnico
   // (pagina: griglia con tabella degli orari; colonna: due righe compatte)
-  im.datiGenerali = ({ data, riferimento, tecnici, operai, escludi, orari })=>{
+  // senzaOre: solo l'intervallo di chi l'ha segnato (niente colonna ORE, nessun "—" per chi non l'ha)
+  im.datiGenerali = ({ data, riferimento, tecnici, operai, escludi, orari, senzaOre })=>{
     const y0 = im.y;
+    if(senzaOre) operai = (operai || []).filter(op=>op.dalle || op.alle);
     if(s === STILI.pagina){
       stileTesto(doc, 10.5);
       const tec = tecnici ? doc.splitTextToSize(tecnici, CW - 92) : ["—"];
@@ -227,14 +233,14 @@ function impaginatore(doc, s, cornice, yIniziale){
         doc.text("ORARIO DEI TECNICI" + (escludi ? "  (GIORNATA ESCLUSA DAL MONTE ORE)" : ""), X0 + 5, y, {charSpace: 0.2});
         doc.text("DALLE", X0 + 82, y, {charSpace: 0.2});
         doc.text("ALLE", X0 + 106, y, {charSpace: 0.2});
-        doc.text("ORE", X1 - 5, y, {align:"right"});
+        if(!senzaOre) doc.text("ORE", X1 - 5, y, {align:"right"});
         y += 6;
         righeOrario.forEach(({ nome, op }, k)=>{
           stileTesto(doc, 9.5);
           doc.text(nome, X0 + 5, y);
           doc.text(op.dalle || "—", X0 + 82, y);
           doc.text(op.alle || "—", X0 + 106, y);
-          const ore = oreOperaio(op);
+          const ore = senzaOre ? "" : oreOperaio(op);
           if(ore){ stileTesto(doc, 9.5, "bold"); doc.text(ore, X1 - 5, y, {align:"right"}); }
           y += nome.length * 4.6 + 1.2;
           if(k < righeOrario.length - 1){ coloreLinea(doc, [230,233,236]); doc.setLineWidth(0.2); doc.line(X0 + 5, y - 3.6, X1 - 5, y - 3.6); }
@@ -245,8 +251,8 @@ function impaginatore(doc, s, cornice, yIniziale){
       stileTesto(doc, 9);
       const tec = tecnici ? doc.splitTextToSize(tecnici, CW - 60) : ["—"];
       const or = orari && operai.length
-        ? doc.splitTextToSize(operai.map(op=>op.nome + "  " + (op.dalle || "—") + "–" + (op.alle || "—") +
-            (oreOperaio(op) ? " (" + oreOperaio(op) + ")" : "")).join("     "), CW - 22) : [];
+        ? doc.splitTextToSize(operai.map(op=>op.nome + "  " + (senzaOre ? intervallo(op)
+            : (op.dalle || "—") + "–" + (op.alle || "—") + (oreOperaio(op) ? " (" + oreOperaio(op) + ")" : ""))).join("     "), CW - 22) : [];
       const alt = 3 + tec.length * 4.3 + (or.length ? or.length * 4.1 + 1 : 0) + 1.5;
       coloreRiempimento(doc, COLORI.sfondo);
       doc.roundedRect(X0, y0 - 4, CW, alt, 1.2, 1.2, "F");
@@ -370,7 +376,7 @@ function rapportinoSingolo(d, iso){
   const data = dataIt(iso);
   const rif = d.riferimento || riferimentoGiornata(data);
   const { doc, im } = documentoPagina(TITOLO_RAPPORTINO, { riferimento: rif, data });
-  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: !d.soloOreCliente });
+  im.datiGenerali({ data, riferimento: rif, tecnici: d.tecnici, operai: d.operai, escludi: d.escludi, orari: !d.soloOreCliente, senzaOre: !!d.soloIntervalli });
   const c = d.clienti[0];
   if(c) im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   else { stileTesto(doc, 10.5, "normal", COLORI.grigio); doc.text("Nessun lavoro cliente registrato per questo giorno.", 18, im.y); }
@@ -438,7 +444,7 @@ function multiCliente(d, iso){
     // i dati generali in ogni colonna: dopo il taglio ogni rapportino e' completo
     const haOrario = !d.soloOreCliente && (d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle);
     // scheda con i propri tecnici e orari (es. rapportini di interventi diversi nella stessa giornata)
-    im.datiGenerali({ data, riferimento: cliente.rif, tecnici: c.tecnici ?? d.tecnici, operai: c.operai ?? d.operai, orari: haOrario });
+    im.datiGenerali({ data, riferimento: cliente.rif, tecnici: c.tecnici ?? d.tecnici, operai: c.operai ?? d.operai, orari: haOrario, senzaOre: !!d.soloIntervalli });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
   // numerazione delle pagine nel piede di ogni colonna

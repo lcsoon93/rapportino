@@ -43,7 +43,8 @@ function nuovoSupabase(ruolo, immagini){
     versione: 2, aggiornato_il: GIORNO + "T18:00:00Z", rapportino_operai: [], interventi: null, ...extra });
   const completati = [
     R("r0000000-0000-4000-8000-000000000002", { autore_id: UTENTI.anna.id, cliente: "Condominio Verdi", indirizzo: "Via Monza 3", attivita: "Sostituzione valvola",
-      rapportino_operai: [{ operaio_id: UTENTI.anna.id, dalle: "14:00:00", alle: "16:30:00" }], completato_il: GIORNO + "T16:40:00Z", firmatario: "VERDI" }),
+      rapportino_operai: [{ operaio_id: UTENTI.anna.id, dalle: "14:00:00", alle: null }, { operaio_id: UTENTI.admin.id, dalle: null, alle: null }],
+      completato_il: GIORNO + "T16:40:00Z", firmatario: "VERDI" }),
     R("r0000000-0000-4000-8000-000000000001", { autore_id: UTENTI.worker.id, cliente: "Rossi Srl", indirizzo: "Via Roma 10", telefono: "02 1234", attivita: "Pulizia bruciatore",
       materiali: [{ a: "Ugello 0.6", q: "1" }], firma: immagini.firma, firmatario: "ROSSI", completato_il: GIORNO + "T11:00:00Z",
       rapportino_operai: [{ operaio_id: UTENTI.worker.id, dalle: "08:00:00", alle: "10:30:00" }], interventi: { id: "i1", ora: "08:00:00", cliente: "Rossi Srl" } }),
@@ -71,6 +72,7 @@ function nuovoSupabase(ruolo, immagini){
       if(autore) elenco = elenco.filter(r=>r.autore_id === autore);
       return json(route, elenco);
     }
+    if(p === "/rest/v1/impostazioni" && m === "GET") return json(route, [{ chiave: "ore_per_cliente", valore: true }]);
     if(p === "/rest/v1/allegati" && m === "GET"){
       const rid = (q.get("rapportino_id") || "").replace(/^eq\./, "");
       return json(route, rid === completati[1].id ? [{ id: "a1", tipo: "foto", nome: "quadro.jpg", percorso: rid + "/a1.jpg", larghezza: 64, altezza: 48 }] : []);
@@ -161,7 +163,9 @@ try{
     assert.match(esito, /Non inclusi/);
     assert.match(esito, /Bozza Spa — in bozza: non completato/);
     assert.match(esito, /Sospeso Snc — completato sul telefono ma non ancora inviato/);
-    assert.match(esito, /Ore totali dei tecnici: 5 ore/);
+    assert.match(esito, /Mario Bianchi 08:00–10:30/);
+    assert.match(esito, /Anna Verdi dalle 14:00, Luca Admin(?! \d)/);
+    assert.doesNotMatch(esito, /\d+h|\d+ ore/, "a schermo niente totale delle ore");
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(2\)/);
     const q = a.sb.stato.query.find(s=>/stato=eq.completato/.test(s));
     assert.ok(q && /data=eq.2026-11-13/.test(q) && !/autore_id=eq/.test(q), "admin senza filtro: tutti gli operai");
@@ -171,8 +175,11 @@ try{
   await prova("PDF: due rapportini in un file, ognuno con i propri tecnici e orari; esclusi assenti", async()=>{
     const { nome, testo } = await scaricaPDF(a.page);
     assert.equal(nome, "Rapportini_2026-11-13.pdf");
-    for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Ugello 0.6", "Mario Bianchi", "Anna Verdi", "08:00", "10:30", "14:00", "16:30", "TAGLIA QUI", "Tel. 02 1234"])
+    for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Ugello 0.6", "Mario Bianchi", "Anna Verdi", "Luca Admin",
+      "08:00", "10:30", "dalle 14:00", "ORARIO", "TAGLIA QUI", "Tel. 02 1234"])
       assert.ok(testo.includes(t), "manca nel PDF: " + t);
+    // solo gli intervalli segnati: nessun totale di ore (anche con "solo ore per cliente" attiva)
+    assert.ok(!/\(\d+h[ \d]*m?\)|\(\d+ ore\)|Ore di lavoro|2h 30m/.test(testo), "nessun totale di ore nel PDF");
     assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "nel PDF solo i completati");
     assert.ok((testo.match(/\/Subtype \/Image/g) || []).length >= 2, "foto e firma nel PDF");
     assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
@@ -189,6 +196,11 @@ try{
     assert.equal(nome, "Rapportini_2026-11-13_Anna_Verdi.pdf");
     assert.ok(testo.includes("Condominio Verdi") && !testo.includes("Rossi Srl"));
     assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
+    assert.ok(!/\(ORE\)|Ore di lavoro|2h 30m/.test(testo), "A4: niente colonna ORE");
+    const volte = t=>(testo.match(new RegExp("\\(" + t + "\\)", "g")) || []).length;
+    assert.equal(volte("Anna Verdi"), 1, "Anna nella tabella degli orari");
+    assert.ok(testo.includes("Anna Verdi / Luca Admin"), "entrambi tra i tecnici");
+    assert.equal(volte("Luca Admin"), 0, "chi non ha segnato l'orario non compare nella tabella degli orari");
   });
 
   await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
@@ -219,6 +231,7 @@ try{
     assert.deepEqual(nomi, ["1. Rossi Srl"]);
     const { testo } = await scaricaPDF(w.page);
     assert.ok(testo.includes("Rossi Srl") && !testo.includes("Condominio Verdi"));
+    assert.ok(testo.includes("08:00") && testo.includes("10:30") && !/\(ORE\)|Ore di lavoro|2h 30m/.test(testo), "rapportino A4: orario si', ore no");
   });
   assert.deepEqual(w.errori, [], w.errori.join("; "));
   assert.equal(a.esterne.concat(w.esterne).filter(u=>/supabase|groq/.test(u)).length, 0);
