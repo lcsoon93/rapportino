@@ -283,7 +283,7 @@
           </button>
         </div>
         <div class="home-azioni">
-          <button type="button" class="btn btn-secondario" id="btn-pdf-home" onclick="inviaPDF(this)"><svg class="i"><use href="#i-send"/></svg><span>Invia PDF</span></button>
+          <button type="button" class="btn btn-secondario" id="btn-pdf-home" onclick="apriPDFGiornata()"><svg class="i"><use href="#i-send"/></svg><span>Invia PDF</span></button>
           <button type="button" class="btn btn-secondario" onclick="mostraVista('giorno')"><svg class="i"><use href="#i-file"/></svg><span>Apri giornata</span></button>
         </div>
       </div>
@@ -601,7 +601,7 @@
         <div class="gruppo" data-permesso="pdf">
           <div class="gruppo-tit">Documenti</div>
           <div class="card">
-            <button type="button" class="voce" onclick="inviaPDF(this)"><span class="v-ic"><svg class="i"><use href="#i-send"/></svg></span><span class="v-testi"><span class="v-tit">Invia PDF della giornata</span><span class="v-sub">Con firme, foto e spese</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="apriPDFGiornata()"><span class="v-ic"><svg class="i"><use href="#i-send"/></svg></span><span class="v-testi"><span class="v-tit">Invia PDF della giornata</span><span class="v-sub">Rapportini completati e foglio giornaliero, con firme e foto</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="inviaTesto()"><span class="v-ic azzurro"><svg class="i"><use href="#i-mail"/></svg></span><span class="v-testi"><span class="v-tit">Invia testo della giornata</span><span class="v-sub">Rapporto in una mail</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="vaiASezione('m-opzioni')"><span class="v-ic azzurro"><svg class="i"><use href="#i-printer"/></svg></span><span class="v-testi"><span class="v-tit">Opzioni del PDF</span><span class="v-sub">Foglio unico, ore in più, ore totali</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>

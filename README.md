@@ -247,8 +247,11 @@ funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga t
 
 ## PDF della giornata (rapportini completati)
 
-Rapportini → "PDF della giornata": scegli il giorno (admin e company anche l'operaio, altrimenti tutti),
+Rapportini → "PDF della giornata" (oppure Altro → "Invia PDF della giornata" e "Invia PDF" in Home, che
+aprono questa scheda già preparata sul giorno del foglio giornaliero): scegli il giorno (admin e company anche l'operaio, altrimenti tutti),
 tocca **Prepara il PDF**, poi **Condividi PDF** (stampa, mail, salva).
+- Comprende anche le schede compilate del foglio giornaliero della vecchia app per quel giorno (con i
+  tecnici e gli orari della giornata), solo senza filtro operaio.
 - Nel PDF solo i rapportini **completati** sul server, in ordine di orario (ora dell'intervento o primo
   orario dei tecnici). Bozze e rapportini rimasti sul telefono (non inviati, anche se completati offline)
   restano fuori e sono elencati sotto "Non inclusi".

@@ -25,7 +25,7 @@ import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUt
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
 import { azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico } from "../modules/storico.js";
 import { aiAssistente, aiControlloRapportino, aiFotoRapportino, aiPreparaIntervento, aiRicercaStorico, aiSuggerimentiRapportino, aiTestoRapportino, chiudiPannelloAI } from "../modules/assistente-ai.js";
-import { azzeraPDFGiornata, condividiPDFGiornata, preparaPDFGiornata } from "../modules/stampa-giornata.js";
+import { apriPDFGiornata, azzeraPDFGiornata, condividiPDFGiornata, preparaPDFGiornata } from "../modules/stampa-giornata.js";
 import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
 
 Object.assign(window, {
@@ -53,6 +53,6 @@ Object.assign(window, {
   disegnaRapporti, pdfRapporto, spostaMeseRapporti,
   annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal,
-  azzeraPDFGiornata, condividiPDFGiornata, preparaPDFGiornata,
+  apriPDFGiornata, azzeraPDFGiornata, condividiPDFGiornata, preparaPDFGiornata,
   aiAssistente, aiControlloRapportino, aiFotoRapportino, aiPreparaIntervento, aiRicercaStorico, aiSuggerimentiRapportino, aiTestoRapportino, chiudiPannelloAI
 });

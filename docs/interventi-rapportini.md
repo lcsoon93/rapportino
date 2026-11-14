@@ -502,6 +502,11 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
   (`c.tecnici ?? d.tecnici`), e con "solo ore per cliente" le ore della scheda sono il tempo sul posto dei
   suoi operai. Le stampe del foglio giornaliero restano identiche (le schede non hanno quei campi).
 - Operaio: filtro autore = sé stesso; admin e company: tutti o un operaio (autore del rapportino).
+- Foglio giornaliero della vecchia app: con "Tutti" si aggiungono le schede compilate (`schedaCompilata`)
+  del giorno dall'archivio sul telefono, con tecnici/orari della giornata e le relative spese; tutte le
+  schede in ordine di orario. Altro → "Invia PDF della giornata" e "Invia PDF" in Home chiamano
+  `apriPDFGiornata()` (giorno del foglio giornaliero, PDF già preparato); il pulsante PDF nella barra del
+  foglio giornaliero resta quello di prima.
 - Orari senza ore: `dati.soloIntervalli` (PDF del rapportino e della giornata) → `conOrePerCliente` non
   applica "solo ore per cliente"; `datiGenerali({ senzaOre })` stampa solo l'intervallo (niente colonna ORE,
   niente "(2h 30m)"), salta chi non ha orario. Il foglio giornaliero della vecchia app non cambia.

@@ -203,6 +203,27 @@ try{
     assert.equal(volte("Luca Admin"), 0, "chi non ha segnato l'orario non compare nella tabella degli orari");
   });
 
+  await prova("Altro -> Invia PDF della giornata: rapportini completati + schede compilate del foglio giornaliero", async()=>{
+    await a.page.evaluate(giorno=>import("./js/core/storage.js").then(m=>{
+      const db = m.leggiDB();
+      db[giorno] = { tecnici: "Luca Admin", escludi: false, spese: [], operai: [{ nome: "Luca Admin", dalle: "11:00", alle: "12:30" }],
+        clienti: [{ id: "v1", nome: "Foglio Vecchio Snc", indirizzo: "Via Antica 2", fasce: [{ d: "11:00", a: "12:30" }], dettagli: "Verifica caldaia", materiali: [], foto: [], firma: "", firmatario: "", stato: "Completato" },
+                  { id: "v2", nome: "Scheda Vuota", indirizzo: "", fasce: [], dettagli: "", materiali: [], foto: [], firma: "", firmatario: "" }] };
+      m.scriviDB(db);
+    }), GIORNO);
+    await a.page.evaluate(giorno=>{ document.getElementById("data").value = giorno; window.mostraVista("altro"); }, GIORNO);
+    await a.page.click('#vista-altro .voce:has-text("Invia PDF della giornata")');
+    await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
+    assert.equal(await a.page.inputValue("#rg-data"), GIORNO);
+    const nomi = await a.page.$$eval("#rg-esito .cli-elenco .cli-nome", e=>e.map(x=>x.textContent));
+    assert.deepEqual(nomi, ["1. Rossi Srl", "2. Foglio Vecchio Snc", "3. Condominio Verdi"], "in ordine di orario, senza la scheda vuota");
+    assert.match(await a.page.textContent("#rg-esito"), /Foglio giornaliero/);
+    const { testo } = await scaricaPDF(a.page);
+    for(const t of ["Rossi Srl", "Foglio Vecchio Snc", "Verifica caldaia", "Condominio Verdi", "11:00", "12:30"]) assert.ok(testo.includes(t), "manca: " + t);
+    assert.ok(!testo.includes("Scheda Vuota") && !testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"));
+    assert.ok(!/Ore di lavoro|2h 30m|1h 30m/.test(testo), "nessun totale di ore");
+  });
+
   await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
     await a.page.selectOption("#rg-operaio", "");
     await a.page.fill("#rg-data", "2026-11-10");
