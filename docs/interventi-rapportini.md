@@ -491,6 +491,20 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
 - Corretto "Disattiva": `client.rpc(...)` di supabase-js non ha `.catch` (errore su iPhone);
   ora `await` dentro `try` (`disiscriviSulServer`). Test E2E: Attiva/Disattiva con iscrizione finta stile iOS.
 
+## PDF della giornata (Fase K)
+
+- `js/modules/stampa-giornata.js`: `preparaPDFGiornata` legge con `rapportiniCompletatiDelGiorno(data,
+  autore)` (api-lavori: `stato = completato`, con la firma) le schede del giorno, scarica le foto
+  (`elencoAllegati` + `scaricaFoto`, foto mancanti saltate e contate), confronta con le bozze del server e
+  con la coda del telefono (`elencoCoda`) per elencare gli esclusi; `condividiPDFGiornata` genera il PDF
+  dal tocco con `generaPDFPerCliente` e `condividi`.
+- `pdf/giornata.js`: nella stampa a due colonne ogni scheda può avere `tecnici` e `operai` propri
+  (`c.tecnici ?? d.tecnici`), e con "solo ore per cliente" le ore della scheda sono il tempo sul posto dei
+  suoi operai. Le stampe del foglio giornaliero restano identiche (le schede non hanno quei campi).
+- Operaio: filtro autore = sé stesso; admin e company: tutti o un operaio (autore del rapportino).
+- Test: `tests/e2e/pdf-giornata.e2e.mjs` (PDF generato con jsPDF 2.5.1 e letto: contenuto, formato,
+  esclusi, filtri, operaio, offline).
+
 ## Anagrafica clienti (Fase J)
 
 Migrazione `20261116090000_anagrafica_clienti.sql` (rollback in `supabase/rollback/`):

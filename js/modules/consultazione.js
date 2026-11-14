@@ -13,6 +13,7 @@ import { icona } from "../utils/dom.js";
 import { puo } from "../core/permessi.js";
 import { elencoRapportini, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
 import { voceRapportino } from "./lavoro.js";
+import { inizializzaPDFGiornata } from "./stampa-giornata.js";
 
 const $ = id=>document.getElementById(id);
 const BADGE = {
@@ -73,5 +74,5 @@ export function pdfRapporto(btn, giorno){
   inviaPDF(btn);
 }
 
-registraVista("rapporti", ()=>{ disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
+registraVista("rapporti", ()=>{ inizializzaPDFGiornata(); disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
 su("sincronizzato", ()=>{ if(vistaCorrente === "rapporti" && puo("giornate.consulta")) disegnaGiornate(); });

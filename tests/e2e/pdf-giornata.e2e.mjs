@@ -1,0 +1,232 @@
+// PDF della giornata (Rapportini -> "PDF della giornata"): solo i rapportini COMPLETATI del giorno.
+// Playwright + Chromium con un finto Supabase; il PDF e' generato davvero con jsPDF 2.5.1 (stessa
+// versione dell'app) e poi letto per controllarne il contenuto. Nessuna richiesta esterna reale.
+// jsPDF: JSPDF=<percorso di jspdf.umd.min.js> (es. npm i jspdf@2.5.1 in una cartella temporanea).
+// Esecuzione: JSPDF=... node tests/e2e/pdf-giornata.e2e.mjs
+import { createRequire } from "node:module";
+import http from "node:http";
+import fs from "node:fs";
+import path from "node:path";
+import assert from "node:assert/strict";
+
+const require = createRequire(import.meta.url);
+const { chromium } = require("playwright");
+const RADICE = path.resolve(path.dirname(new URL(import.meta.url).pathname), "../..");
+const JSPDF = process.env.JSPDF;
+if(!JSPDF || !fs.existsSync(JSPDF)){ console.error("Serve JSPDF=<percorso di jspdf.umd.min.js 2.5.1>"); process.exit(2); }
+const TIPI = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".json": "application/json", ".webmanifest": "application/manifest+json" };
+function avviaServer(){
+  const srv = http.createServer((req, res)=>{
+    const p = decodeURIComponent(new URL(req.url, "http://x").pathname);
+    const file = path.join(RADICE, p.endsWith("/") ? p + "index.html" : p);
+    if(!file.startsWith(RADICE) || !fs.existsSync(file) || fs.statSync(file).isDirectory()){ res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "Content-Type": TIPI[path.extname(file)] || "application/octet-stream", "Cache-Control": "no-store" });
+    fs.createReadStream(file).pipe(res);
+  });
+  return new Promise(ok=>srv.listen(0, "127.0.0.1", ()=>ok(srv)));
+}
+
+const GIORNO = "2026-11-13";
+const UTENTI = {
+  admin:  { id: "b0000000-0000-4000-8000-000000000001", username: "luca", nome: "Luca Admin", cognome: "", ruolo: "admin", ruoli: ["admin", "worker"] },
+  worker: { id: "b0000000-0000-4000-8000-000000000002", username: "mario", nome: "Mario Bianchi", cognome: "", ruolo: "worker", ruoli: ["worker"] },
+  anna:   { id: "b0000000-0000-4000-8000-000000000003", nome: "Anna Verdi" },
+};
+const b64u = o=>Buffer.from(JSON.stringify(o)).toString("base64url");
+const jwt = id=>b64u({ alg: "HS256", typ: "JWT" }) + "." + b64u({ sub: id, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 }) + ".x";
+
+function nuovoSupabase(ruolo, immagini){
+  const u = UTENTI[ruolo];
+  const stato = { query: [] };
+  const R = (id, extra)=>({ id, intervento_id: null, data: GIORNO, cliente: "", indirizzo: "", telefono: "", tipologia: "Manutenzione ordinaria",
+    attivita: "", materiali: [], note: "", esito: "Completato", firma: "", firmatario: "", stato: "completato", completato_il: GIORNO + "T18:00:00Z",
+    versione: 2, aggiornato_il: GIORNO + "T18:00:00Z", rapportino_operai: [], interventi: null, ...extra });
+  const completati = [
+    R("r0000000-0000-4000-8000-000000000002", { autore_id: UTENTI.anna.id, cliente: "Condominio Verdi", indirizzo: "Via Monza 3", attivita: "Sostituzione valvola",
+      rapportino_operai: [{ operaio_id: UTENTI.anna.id, dalle: "14:00:00", alle: "16:30:00" }], completato_il: GIORNO + "T16:40:00Z", firmatario: "VERDI" }),
+    R("r0000000-0000-4000-8000-000000000001", { autore_id: UTENTI.worker.id, cliente: "Rossi Srl", indirizzo: "Via Roma 10", telefono: "02 1234", attivita: "Pulizia bruciatore",
+      materiali: [{ a: "Ugello 0.6", q: "1" }], firma: immagini.firma, firmatario: "ROSSI", completato_il: GIORNO + "T11:00:00Z",
+      rapportino_operai: [{ operaio_id: UTENTI.worker.id, dalle: "08:00:00", alle: "10:30:00" }], interventi: { id: "i1", ora: "08:00:00", cliente: "Rossi Srl" } }),
+  ];
+  const bozza = R("r0000000-0000-4000-8000-000000000009", { autore_id: UTENTI.worker.id, cliente: "Bozza Spa", stato: "bozza", completato_il: null });
+  const json = (route, corpo, status = 200)=>route.fulfill({ status, contentType: "application/json", headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-expose-headers": "content-range" }, body: JSON.stringify(corpo) });
+  async function gestisci(route){
+    const req = route.request(), url = new URL(req.url()), m = req.method(), p = url.pathname, q = url.searchParams;
+    if(m === "OPTIONS") return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" } });
+    if(p === "/functions/v1/accesso") return json(route, { sessione: { access_token: jwt(u.id), refresh_token: "r", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: "bearer", user: { id: u.id } } });
+    if(p === "/auth/v1/user") return json(route, { id: u.id, aud: "authenticated", role: "authenticated" });
+    if(p.startsWith("/auth/v1/") || p.startsWith("/functions/v1/")) return json(route, { ok: true });
+    if(p.startsWith("/storage/v1/object/")) return route.fulfill({ status: 200, contentType: "image/jpeg", headers: { "access-control-allow-origin": "*" }, body: immagini.jpeg });
+    if(p === "/rest/v1/profili"){ const prof = { ...u, attivo: true, deve_cambiare_password: false }; return json(route, /object/.test(req.headers()["accept"] || "") ? prof : [prof]); }
+    if(p === "/rest/v1/rpc/operai_attivi" || p === "/rest/v1/rpc/nomi_utenti")
+      return json(route, [UTENTI.worker, UTENTI.anna, UTENTI.admin].map(x=>({ id: x.id, username: x.username || "anna", nome: x.nome, attivo: true })));
+    if(p === "/rest/v1/rapportini" && m === "GET"){
+      stato.query.push(url.search);
+      const autore = (q.get("autore_id") || "").replace(/^eq\./, "");
+      const st = (q.get("stato") || "").replace(/^eq\./, "");
+      const filtroData = q.getAll("data").find(x=>/^(eq|gte)\./.test(x)) || "";
+      const giorno = filtroData.replace(/^(eq|gte)\./, "");
+      let elenco = st === "completato" ? completati : st === "bozza" ? [bozza] : [];
+      if(giorno && giorno !== GIORNO) elenco = [];
+      if(autore) elenco = elenco.filter(r=>r.autore_id === autore);
+      return json(route, elenco);
+    }
+    if(p === "/rest/v1/allegati" && m === "GET"){
+      const rid = (q.get("rapportino_id") || "").replace(/^eq\./, "");
+      return json(route, rid === completati[1].id ? [{ id: "a1", tipo: "foto", nome: "quadro.jpg", percorso: rid + "/a1.jpg", larghezza: 64, altezza: 48 }] : []);
+    }
+    if(p.startsWith("/rest/v1/")){
+      if(m !== "GET" && m !== "HEAD") return json(route, [], 201);
+      if(/object/.test(req.headers()["accept"] || "")) return json(route, null, 406);
+      return json(route, []);
+    }
+    return json(route, {}, 404);
+  }
+  return { stato, gestisci };
+}
+
+async function apri(browser, base, ruolo, immagini){
+  const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  const sb = nuovoSupabase(ruolo, immagini);
+  const esterne = [];
+  await ctx.route(/^https?:\/\//, route=>{
+    const url = route.request().url();
+    if(url.startsWith(base)) return route.continue();
+    if(/\.supabase\.co\//.test(url)) return sb.gestisci(route);
+    if(/cdnjs\.cloudflare\.com\/ajax\/libs\/jspdf\/2\.5\.1\//.test(url)) return route.fulfill({ status: 200, contentType: "text/javascript", body: fs.readFileSync(JSPDF) });
+    esterne.push(url);
+    return route.fulfill({ status: 204, body: "" });
+  });
+  const page = await ctx.newPage();
+  const errori = [];
+  page.on("pageerror", e=>errori.push(String(e)));
+  page.on("dialog", d=>d.accept());
+  await page.goto(base + "/index.html");
+  await page.fill("#acc-username", UTENTI[ruolo].username);
+  await page.fill("#acc-password", "password-di-prova");
+  await page.click("#acc-invia");
+  await page.waitForFunction(()=>document.body.dataset.ruolo && document.body.dataset.ruolo !== "", null, { timeout: 15000 });
+  return { ctx, page, sb, errori, esterne };
+}
+// rapportino rimasto sul telefono (completato offline, non ancora confermato dal server)
+const metteSospeso = (page, autore)=>page.evaluate(({ autore, giorno })=>new Promise(ok=>{
+  const r = indexedDB.open("rapportino-foto", 2);
+  r.onsuccess = ()=>{ const tx = r.result.transaction("bozze", "readwrite");
+    tx.objectStore("bozze").put({ id: "s0000000-0000-4000-8000-000000000001", autore, rapportino: { data: giorno, cliente: "Sospeso Snc" }, ore: [],
+      stato: "in_attesa", completa: true, salvato: false, testoDaInviare: true, modificato: new Date().toISOString() });
+    tx.oncomplete = ()=>ok(true); };
+}), { autore, giorno: GIORNO });
+let scaricati = 0;
+async function scaricaPDF(page){
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 20000 }), page.click("#rg-condividi")]);
+  const file = await dl.path();
+  if(process.env.SCREENSHOT) fs.copyFileSync(file, path.join(process.env.SCREENSHOT, (++scaricati) + "-" + dl.suggestedFilename()));
+  return { nome: dl.suggestedFilename(), testo: fs.readFileSync(file).toString("latin1") };
+}
+const risultati = [];
+async function prova(nome, fn){
+  try{ await fn(); risultati.push(["ok", nome]); console.log("ok   -", nome); }
+  catch(e){ risultati.push(["FAIL", nome]); console.log("FAIL -", nome, "\n      ", e && String(e.message).split("\n").slice(0, 4).join(" | ")); }
+}
+
+const srv = await avviaServer();
+const base = "http://127.0.0.1:" + srv.address().port;
+const browser = await chromium.launch();
+try{
+  // immagini vere (JPEG della foto, PNG della firma) generate dal browser
+  const p0 = await browser.newPage();
+  const immagini = await p0.evaluate(()=>{
+    const c = document.createElement("canvas"); c.width = 64; c.height = 48;
+    const g = c.getContext("2d"); g.fillStyle = "#c33"; g.fillRect(0, 0, 64, 48);
+    const jpeg = c.toDataURL("image/jpeg", 0.8);
+    g.clearRect(0, 0, 64, 48); g.strokeStyle = "#000"; g.beginPath(); g.moveTo(4, 40); g.lineTo(60, 8); g.stroke();
+    return { jpeg, firma: c.toDataURL("image/png") };
+  });
+  immagini.jpeg = Buffer.from(immagini.jpeg.split(",")[1], "base64");
+  await p0.close();
+
+  // ======================= admin: tutti gli operai
+  const a = await apri(browser, base, "admin", immagini);
+  await metteSospeso(a.page, UTENTI.admin.id);
+  await a.page.evaluate(()=>window.mostraVista("rapporti"));
+  await a.page.waitForSelector("#rg-prepara");
+
+  await prova("prepara: solo i completati, in ordine di orario; bozza e sospeso elencati come esclusi", async()=>{
+    await a.page.fill("#rg-data", GIORNO);
+    await a.page.click("#rg-prepara");
+    await a.page.waitForSelector("#rg-condividi:not(.nascosto)", { timeout: 15000 });
+    const nomi = await a.page.$$eval("#rg-esito .cli-elenco .cli-nome", e=>e.map(x=>x.textContent));
+    assert.deepEqual(nomi, ["1. Rossi Srl", "2. Condominio Verdi"]);
+    const esito = await a.page.textContent("#rg-esito");
+    assert.match(esito, /Non inclusi/);
+    assert.match(esito, /Bozza Spa — in bozza: non completato/);
+    assert.match(esito, /Sospeso Snc — completato sul telefono ma non ancora inviato/);
+    assert.match(esito, /Ore totali dei tecnici: 5 ore/);
+    assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(2\)/);
+    const q = a.sb.stato.query.find(s=>/stato=eq.completato/.test(s));
+    assert.ok(q && /data=eq.2026-11-13/.test(q) && !/autore_id=eq/.test(q), "admin senza filtro: tutti gli operai");
+    if(process.env.SCREENSHOT) await a.page.screenshot({ path: path.join(process.env.SCREENSHOT, "pdf-giornata.png") });
+  });
+
+  await prova("PDF: due rapportini in un file, ognuno con i propri tecnici e orari; esclusi assenti", async()=>{
+    const { nome, testo } = await scaricaPDF(a.page);
+    assert.equal(nome, "Rapportini_2026-11-13.pdf");
+    for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Ugello 0.6", "Mario Bianchi", "Anna Verdi", "08:00", "10:30", "14:00", "16:30", "TAGLIA QUI", "Tel. 02 1234"])
+      assert.ok(testo.includes(t), "manca nel PDF: " + t);
+    assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "nel PDF solo i completati");
+    assert.ok((testo.match(/\/Subtype \/Image/g) || []).length >= 2, "foto e firma nel PDF");
+    assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
+  });
+
+  await prova("filtro operaio: un solo rapportino = rapportino A4 di quell'operaio", async()=>{
+    await a.page.selectOption("#rg-operaio", UTENTI.anna.id);
+    assert.ok(await a.page.isHidden("#rg-condividi"), "cambiando filtro si prepara di nuovo");
+    await a.page.click("#rg-prepara");
+    await a.page.waitForSelector("#rg-condividi:not(.nascosto)");
+    const q = a.sb.stato.query.filter(s=>/stato=eq.completato/.test(s)).at(-1);
+    assert.match(q, /autore_id=eq.b0000000-0000-4000-8000-000000000003/);
+    const { nome, testo } = await scaricaPDF(a.page);
+    assert.equal(nome, "Rapportini_2026-11-13_Anna_Verdi.pdf");
+    assert.ok(testo.includes("Condominio Verdi") && !testo.includes("Rossi Srl"));
+    assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
+  });
+
+  await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
+    await a.page.selectOption("#rg-operaio", "");
+    await a.page.fill("#rg-data", "2026-11-10");
+    await a.page.click("#rg-prepara");
+    await a.page.waitForFunction(()=>/Nessun rapportino completato il 10\/11\/2026/.test(document.getElementById("rg-msg").textContent));
+    assert.ok(await a.page.isHidden("#rg-condividi"));
+    await a.ctx.setOffline(true);
+    await a.page.click("#rg-prepara");
+    assert.match(await a.page.textContent("#rg-msg"), /Serve la connessione/);
+    await a.ctx.setOffline(false);
+  });
+  assert.deepEqual(a.errori, [], a.errori.join("; "));
+  await a.ctx.close();
+
+  // ======================= operaio: solo i propri
+  const w = await apri(browser, base, "worker", immagini);
+  await prova("operaio: nessun filtro operaio, solo i propri rapportini completati", async()=>{
+    await w.page.evaluate(()=>window.mostraVista("rapporti"));
+    assert.ok(await w.page.$eval("#rg-operaio", el=>el.closest("[data-permesso]").classList.contains("vietato")));
+    await w.page.fill("#rg-data", GIORNO);
+    await w.page.click("#rg-prepara");
+    await w.page.waitForSelector("#rg-condividi:not(.nascosto)");
+    const q = w.sb.stato.query.find(s=>/stato=eq.completato/.test(s));
+    assert.match(q, /autore_id=eq.b0000000-0000-4000-8000-000000000002/);
+    const nomi = await w.page.$$eval("#rg-esito .cli-elenco .cli-nome", e=>e.map(x=>x.textContent));
+    assert.deepEqual(nomi, ["1. Rossi Srl"]);
+    const { testo } = await scaricaPDF(w.page);
+    assert.ok(testo.includes("Rossi Srl") && !testo.includes("Condominio Verdi"));
+  });
+  assert.deepEqual(w.errori, [], w.errori.join("; "));
+  assert.equal(a.esterne.concat(w.esterne).filter(u=>/supabase|groq/.test(u)).length, 0);
+  await w.ctx.close();
+}finally{
+  await browser.close();
+  srv.close();
+}
+const falliti = risultati.filter(r=>r[0] !== "ok");
+console.log("\n" + (risultati.length - falliti.length) + "/" + risultati.length + " test superati");
+process.exit(falliti.length ? 1 : 0);

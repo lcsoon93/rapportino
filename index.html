@@ -829,6 +829,20 @@
   <!-- ================= RAPPORTINI COMPILATI (company e admin) ================= -->
   <section id="vista-rapporti" class="nascosto">
     <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Rapportini degli operai e giornate, con PDF</div></div></div>
+    <div class="modulo rg-box">
+      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>PDF della giornata</div>
+      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del giorno in un solo PDF, con firme e foto. Bozze e rapportini non ancora inviati restano fuori (vengono elencati).</p>
+      <div class="due">
+        <div><label for="rg-data">Giorno</label><input type="date" id="rg-data" onchange="azzeraPDFGiornata()"></div>
+        <div data-permesso="rapportini.consulta"><label for="rg-operaio">Operaio</label><select id="rg-operaio" onchange="azzeraPDFGiornata()"><option value="">Tutti</option></select></div>
+      </div>
+      <div class="ai-pulsanti">
+        <button type="button" class="btn btn-secondario" id="rg-prepara" onclick="preparaPDFGiornata(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF</span></button>
+        <button type="button" class="btn btn-primario nascosto" id="rg-condividi" onclick="condividiPDFGiornata(this)"><svg class="i"><use href="#i-send"/></svg><span>Condividi PDF</span></button>
+      </div>
+      <div class="msg-info" id="rg-msg" role="status" aria-live="polite"></div>
+      <div id="rg-esito"></div>
+    </div>
     <div class="periodo">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
       <input type="month" id="rap-mese" onchange="disegnaRapporti()" aria-label="Mese">

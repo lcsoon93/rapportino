@@ -184,6 +184,15 @@ export async function storicoRapportini({ dal, al, interventi = [] }){
   }
   return delPeriodo.concat(collegati.filter(r=>!visti.has(r.id)));
 }
+// PDF della giornata: SOLO i rapportini completati (confermati dal server) di un giorno, con la firma;
+// autore facoltativo (un operaio). Ordine: ora dell'intervento, poi completamento.
+export async function rapportiniCompletatiDelGiorno(data, autore){
+  return leggiConRipiego(async campi=>{
+    let q = client.from("rapportini").select(campi(CAMPI_RAPPORTINO)).eq("data", data).eq("stato", "completato");
+    if(autore) q = q.eq("autore_id", autore);
+    return q.order("completato_il", { ascending: true });
+  });
+}
 export async function leggiRapportino(id){
   return leggiConRipiego(campi=>client.from("rapportini").select(campi(CAMPI_RAPPORTINO)).eq("id", id).maybeSingle());
 }

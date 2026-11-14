@@ -45,6 +45,7 @@ js/
     clienti.js             sezione Clienti: anagrafica permanente (elenco, ricerca, scheda, modifica, archivio,
                            importazione dallo storico) + ricerca nei rapporti della vecchia app
     scelta-cliente.js      campo cliente con suggerimenti dall'anagrafica (rapportino e intervento)
+    stampa-giornata.js     "PDF della giornata": i rapportini completati di un giorno in un solo PDF
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
     accesso.js             schermate di login (password o PIN), cambio password e PIN di accesso
@@ -243,6 +244,19 @@ l'errore resta, il secret `VAPID_PUBLIC_KEY` non coincide con `js/core/config.js
 Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functions `VAPID_PUBLIC_KEY`
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
 funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
+
+## PDF della giornata (rapportini completati)
+
+Rapportini → "PDF della giornata": scegli il giorno (admin e company anche l'operaio, altrimenti tutti),
+tocca **Prepara il PDF**, poi **Condividi PDF** (stampa, mail, salva).
+- Nel PDF solo i rapportini **completati** sul server, in ordine di orario (ora dell'intervento o primo
+  orario dei tecnici). Bozze e rapportini rimasti sul telefono (non inviati, anche se completati offline)
+  restano fuori e sono elencati sotto "Non inclusi".
+- Impaginazione del foglio giornaliero: un rapportino = A4; più rapportini = due A5 per foglio A4
+  orizzontale con "TAGLIA QUI". Ogni scheda ha i propri tecnici e orari, attività, materiali, foto e
+  firma; il telefono del cliente accanto all'indirizzo. Vale la spunta "Nelle stampe solo le ore per cliente".
+- L'operaio stampa i propri rapportini. Serve la connessione (dati e foto dal server, con i permessi
+  dell'utente). Due passi perché su iPhone la condivisione deve partire subito dal tocco.
 
 ## Anagrafica clienti
 

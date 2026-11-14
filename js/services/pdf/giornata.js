@@ -10,7 +10,7 @@
 // del cliente "(segue)". Testi e tabelle si spezzano riga per riga; un titolo non resta mai da solo
 // in fondo; foto con proporzioni reali (ridotte se non entrano per poco); firma con l'ultima foto.
 import { dataIt } from "../../utils/dates.js";
-import { minutiCliente, totaleImporti, totaleSpese } from "../calculations.js";
+import { minutiCliente, minutiSulPosto, totaleImporti, totaleSpese } from "../calculations.js";
 import { rigaOrarioCliente } from "../../modules/report.js";
 import { contoOreOperaio, orePerCliente } from "../../core/preferenze.js";
 import { euro, oreTesto } from "../../utils/formatters.js";
@@ -29,7 +29,7 @@ const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : ""
 // spunta "solo ore per cliente": niente orario dei tecnici; per ogni cliente le ore di lavoro (tempo sul posto)
 const conOrePerCliente = d=>!orePerCliente() ? d
   : { ...d, soloOreCliente: true, tecnici: d.tecnici || (d.operai || []).map(o=>o.nome).filter(Boolean).join(" / "),
-      clienti: d.clienti.map(c=>({ ...c, oreLavoro: minutiCliente(c, d) })) };
+      clienti: d.clienti.map(c=>({ ...c, oreLavoro: c.operai ? (minutiSulPosto(c.operai) || null) : minutiCliente(c, d) })) };
 const oreOperaio = op=>contoOreOperaio(op, "").trim().replace(/^\(|\)$/g, "");
 const nuovoDoc = ()=>{ const { jsPDF } = window.jspdf; return new jsPDF({unit:"mm", format:"a4"}); };
 
@@ -437,7 +437,8 @@ function multiCliente(d, iso){
     im.leggiCornice();
     // i dati generali in ogni colonna: dopo il taglio ogni rapportino e' completo
     const haOrario = !d.soloOreCliente && (d.mostraOrario || (c.fasce && c.fasce.some(f=>f.d || f.a)) || c.dalle || c.alle);
-    im.datiGenerali({ data, riferimento: cliente.rif, tecnici: d.tecnici, operai: d.operai, orari: haOrario });
+    // scheda con i propri tecnici e orari (es. rapportini di interventi diversi nella stessa giornata)
+    im.datiGenerali({ data, riferimento: cliente.rif, tecnici: c.tecnici ?? d.tecnici, operai: c.operai ?? d.operai, orari: haOrario });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
   // numerazione delle pagine nel piede di ogni colonna
