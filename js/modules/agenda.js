@@ -18,6 +18,8 @@ import { PRIORITA, STATO_INTERVENTO, STATO_RAPPORTINO, apriModuloIntervento, ora
 import { rapportinoPerIntervento } from "./modulo-rapportino.js";
 import { apriGiorno } from "./rapportini.js";
 import { voceRapportino } from "./lavoro.js";
+import { leggiDB } from "../core/storage.js";
+import { schedaCompilata, statoScheda } from "../services/stato-schede.js";
 
 const $ = id=>document.getElementById(id);
 const CALENDARIO = ["calgiorno", "sett", "mese"];
@@ -217,7 +219,30 @@ export async function lavoriDelGiorno(iso){
     nonProgrammati: autonomi ? autonomi.filter(r=>!r.intervento_id) : [],
     rapportini: autonomi || [],                // tutti i rapportini del giorno (per le ore di lavoro)
     rapportiniNonLetti: autonomi === null,
+    foglio: foglioDelGiorno(iso),
   };
+}
+// lavori registrati nel foglio giornaliero della vecchia app per quel giorno (archivio sul telefono,
+// sincronizzato con la tabella "rapporti"): restano visibili accanto a interventi e rapportini
+function foglioDelGiorno(iso){
+  const g = leggiDB()[iso];
+  const schede = ((g && g.clienti) || []).filter(c=>c && String(c.nome || "").trim() && c.nome !== "(senza nome)");
+  return { schede, operai: (g && g.operai) || [], tecnici: (g && g.tecnici) || "" };
+}
+const BADGE_FOGLIO = {
+  firmata: '<span class="badge ok">' + icona("check") + 'Firmato</span>',
+  compilata: '<span class="badge att">' + icona("pen") + 'Da firmare</span>',
+  dafare: '<span class="badge neutro">Da compilare</span>',
+};
+function rigaFoglio(c, iso){
+  const fasce = (c.fasce && c.fasce.length ? c.fasce : [{ d: c.dalle, a: c.alle }]).filter(f=>f && (f.d || f.a));
+  const orario = fasce.map(f=>f.d && f.a ? f.d + "–" + f.a : f.d ? "dalle " + f.d : "fino alle " + f.a).join(" / ");
+  const dentro = '<span class="cli-testi"><span class="cli-nome" style="display:block">' + esc(c.nome) + '</span>' +
+    '<span class="cli-ind" style="display:block;white-space:normal">' + esc([c.indirizzo, orario].filter(Boolean).join(" · ")) + '</span>' +
+    '<span class="int-badge" style="margin-top:4px">' + BADGE_FOGLIO[statoScheda(c)] + (c.stato === "Da ultimare" ? '<span class="badge neutro">Da ultimare</span>' : '') + '</span></span>';
+  return puo("vista.giorno")
+    ? '<button type="button" class="cli-riga" onclick="apriGiorno(\'' + iso + '\')">' + dentro + icona("chev-r", "chev") + '</button>'
+    : '<div class="cli-riga">' + dentro + '</div>';
 }
 export function htmlLavoriGiorno(g, iso){
   const sezione = (titolo, n, html)=>'<div class="ag-sez"><div class="gruppo-tit">' + esc(titolo) + ' <span class="ag-sez-n">' + n + '</span></div>' + html + '</div>';
@@ -226,11 +251,15 @@ export function htmlLavoriGiorno(g, iso){
   if(g.eseguiti.length) html += sezione("Eseguiti", g.eseguiti.length, elencoRighe(g.eseguiti, false));
   if(g.nonProgrammati.length) html += sezione("Lavori non programmati", g.nonProgrammati.length,
     '<div class="card cli-elenco">' + g.nonProgrammati.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>');
+  if(g.foglio.schede.length) html += sezione("Foglio giornaliero", g.foglio.schede.length,
+    '<div class="card cli-elenco">' + g.foglio.schede.map(c=>rigaFoglio(c, iso)).join("") + '</div>');
   if(g.annullati.length) html += sezione("Annullati", g.annullati.length, elencoRighe(g.annullati, false));
   if(g.rapportiniNonLetti) html += '<div class="card nota">Lavori non programmati non disponibili (rete).</div>';
   return html || '<div class="card nota">Nessun intervento o lavoro il ' + esc(dataIt(iso)) + '.</div>';
 }
-export const contaLavori = g=>g.daEseguire.length + g.eseguiti.length + g.nonProgrammati.length;
+export const contaLavori = g=>g.daEseguire.length + g.eseguiti.length + g.nonProgrammati.length + g.foglio.schede.length;
+// eseguiti: interventi completati, lavori non programmati completati, schede compilate del foglio giornaliero
+export const contaEseguiti = g=>g.eseguiti.length + g.nonProgrammati.filter(r=>r.stato === "completato").length + g.foglio.schede.filter(schedaCompilata).length;
 
 export async function disegnaGiornoCal(){
   if(!$("cg-data").value) $("cg-data").value = oggiIso();

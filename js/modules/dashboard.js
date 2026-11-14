@@ -13,7 +13,7 @@ import { apriFirmaOverlay } from "../services/signature.js";
 import { aggiornaSelectSpese } from "./spese.js";
 import { su } from "../core/eventi.js";
 import { contaRapportini, interventiPeriodo, operaiAttivi } from "../services/api-lavori.js";
-import { attivo, contaLavori, elencoRighe, htmlLavoriGiorno, lavoriDelGiorno, messaggioErrore } from "./agenda.js";
+import { attivo, contaEseguiti, contaLavori, elencoRighe, htmlLavoriGiorno, lavoriDelGiorno, messaggioErrore } from "./agenda.js";
 import { bozzeLocali } from "./modulo-rapportino.js";
 
 // ---- home ----
@@ -44,11 +44,13 @@ export async function disegnaHome(){
     return;
   }
   if(n !== giroHome) return;
+  // orari dei rapportini del giorno e, se quel giorno ha schede, quelli degli operai del foglio giornaliero
   const intervalli = g.rapportini.flatMap(r=>(r.rapportino_operai || []).map(o=>({ dalle: String(o.dalle || "").slice(0, 5), alle: String(o.alle || "").slice(0, 5) })))
+    .concat(g.foglio.schede.length ? g.foglio.operai.map(o=>({ dalle: String(o.dalle || "").slice(0, 5), alle: String(o.alle || "").slice(0, 5) })) : [])
     .filter(o=>o.dalle && o.alle);
   document.getElementById("st-interventi").textContent = contaLavori(g);
   document.getElementById("st-ore").textContent = oreTesto(intervalli.length ? minutiSulPosto(intervalli) : 0);
-  document.getElementById("st-firmati").textContent = g.eseguiti.length + g.nonProgrammati.filter(r=>r.stato === "completato").length;
+  document.getElementById("st-firmati").textContent = contaEseguiti(g);
   document.getElementById("st-dafirmare").textContent = g.daEseguire.length;
   cont.innerHTML = htmlLavoriGiorno(g, iso);
 }

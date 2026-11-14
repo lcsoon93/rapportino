@@ -498,6 +498,9 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
 `intervento_id` (`elencoRapportini`, RLS) come "Lavori non programmati" (`voceRapportino`). Se i rapportini
 non si leggono (rete) gli interventi restano visibili. Home → "Apri giornata" chiama
 `apriGiornoCal(home-data)` invece di aprire il foglio giornaliero.
+`lavoriDelGiorno(iso)` comprende anche `foglio` (schede con nome del foglio giornaliero di quel giorno,
+dall'archivio sul telefono = tabella `rapporti`): sezione "Foglio giornaliero", conteggiate nei Lavori, le
+compilate tra gli Eseguiti, e i loro orari (operai della giornata) nelle Ore di lavoro.
 `lavoriDelGiorno(iso)` / `htmlLavoriGiorno(g, iso)` / `contaLavori(g)` sono condivise con la Home:
 `dashboard.js` `disegnaHome` usa i dati nuovi (Lavori, Ore di lavoro = `minutiSulPosto` sugli orari dei
 rapportini del giorno, Eseguiti = interventi completati + lavori non programmati completati, Da eseguire).

@@ -516,6 +516,32 @@ try{
     assert.ok(await a.page.isVisible("#rf-telefono"), "rapportino nuovo (con telefono e anagrafica)");
   });
 
+  await prova("lavori del foglio giornaliero (vecchia app) visibili in Home e in Apri giornata", async()=>{
+    const g = "2026-11-10";
+    await a.page.evaluate(g=>import("./js/core/storage.js").then(m=>{
+      const db = m.leggiDB();
+      db[g] = { tecnici: "Luca / Francesco", escludi: false, spese: [], operai: [{ nome: "Luca", dalle: "08:00", alle: "17:00" }, { nome: "Francesco", dalle: "08:00", alle: "17:00" }],
+        clienti: [{ id: "x1", nome: "Sapori Sociali", indirizzo: "Via Benedetto Cozzolino", fasce: [{ d: "08:00", a: "12:00" }], dettagli: "Manutenzione", materiali: [], foto: [], firma: "data:image/png;base64,iVBORw0KGgo=", firmatario: "X" },
+                  { id: "x2", nome: "Francesco via cimglia", indirizzo: "Via Cimaglia", fasce: [], dettagli: "Verifica", materiali: [], foto: [], firma: "", firmatario: "" }] };
+      m.scriviDB(db);
+    }), g);
+    await a.page.evaluate(()=>window.mostraVista("home"));
+    await a.page.evaluate(g=>window.apriGiornoHome(g), g);
+    await a.page.waitForFunction(()=>/Foglio giornaliero/.test(document.getElementById("home-interventi").textContent));
+    const t = await a.page.textContent("#home-interventi");
+    assert.match(t, /Sapori Sociali/); assert.match(t, /Via Benedetto Cozzolino · 08:00–12:00/); assert.match(t, /Francesco via cimglia/);
+    assert.match(t, /Firmato/); assert.match(t, /Da firmare/);
+    assert.equal(await a.page.textContent("#st-interventi"), "2");
+    assert.equal(await a.page.textContent("#st-firmati"), "2");
+    assert.equal(await a.page.textContent("#st-ore"), "9 ore");
+    await a.page.click("#btn-giornata-home");
+    await a.page.waitForFunction(()=>/Foglio giornaliero/.test(document.getElementById("cg-elenco").textContent));
+    assert.match(await a.page.textContent("#cg-elenco"), /Sapori Sociali/);
+    await a.page.click('#cg-elenco .cli-riga:has-text("Sapori Sociali")');
+    await a.page.waitForSelector("#vista-giorno:not(.nascosto)");
+    assert.equal(await a.page.inputValue("#data"), g);
+  });
+
   await prova("12. compatibilita': rapportino di prima senza cliente_id/telefono; database senza le colonne nuove", async()=>{
     const id = uuid();
     DB.rapportini.set(id, { id, autore_id: UTENTI.admin.id, data: "2026-09-01", cliente: "Vecchio Cliente", indirizzo: "Via Antica 1", tipologia: "", attivita: "x",
