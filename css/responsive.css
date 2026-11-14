@@ -56,3 +56,30 @@
   .btn-primario:hover,.voce:hover,.cli-riga:hover{filter:none}
   .voce:hover,.cli-riga:hover{background:var(--sfondo)}
 }
+/* ================= computer: schermo largo (da 1200 px) ================= */
+@media (min-width: 1200px){
+  :root{--rail-w:224px}
+  /* menu laterale con le voci per esteso */
+  .navbar{padding:calc(24px + env(safe-area-inset-top,0px)) 12px 20px}
+  .navbar .nav-in{gap:4px}
+  .nav-btn{flex-direction:row;justify-content:flex-start;height:48px;gap:10px;padding:0 8px;font-size:15px;border-radius:12px}
+  .nav-btn .nav-pill{width:40px;height:34px}
+  .nav-btn:hover{background:var(--sfondo)}
+  .app-top,.colonna{max-width:1320px}
+  /* elenchi di schede: due colonne */
+  #int-elenco,#st-elenco{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 18px;align-items:start}
+  #anag-elenco .cli-elenco{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+  #anag-elenco .cli-elenco .cli-riga:nth-child(odd){border-right:1px solid var(--bordo)}
+  #vista-cerca{max-width:1080px}
+  /* rapportino: cliente e attivita' a sinistra, ore / foto / firma a destra */
+  #rap-form{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);grid-template-rows:auto auto auto 1fr;gap:0 24px;align-items:start}
+  #rap-form > .modulo:first-child{grid-column:1;grid-row:1 / span 4}
+  #rap-form > .modulo:not(:first-child){grid-column:2}
+  /* intervento: il modulo resta leggibile, non a tutta larghezza */
+  #int-form{max-width:900px}
+  /* PDF della giornata e filtri dei rapportini affiancati all'elenco */
+  #vista-rapporti .rg-box{max-width:900px}
+}
+@media (min-width: 1600px){
+  #int-elenco,#st-elenco{grid-template-columns:repeat(3,minmax(0,1fr))}
+}

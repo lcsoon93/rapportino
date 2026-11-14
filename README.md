@@ -245,6 +245,18 @@ Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functi
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
 funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
 
+## Computer (desktop)
+
+L'app si usa anche dal browser del computer (stesso indirizzo, stesso accesso):
+- da 960 px menu laterale; da 1200 px menu con le voci per esteso, contenuto più largo, rapportino su due
+  colonne (cliente e attività a sinistra; ore, foto e firma a destra), interventi, storico e clienti a
+  griglia (tre colonne da 1600 px). Sul telefono non cambia nulla.
+- **PDF = stampa**: sul computer (mouse o trackpad, nessuno schermo touch) ogni pulsante PDF apre la
+  finestra di stampa del browser con il PDF (da lì anche "Salva come PDF"); le etichette diventano
+  "Stampa PDF". Safari su Mac apre il PDF in una nuova scheda (poi Cmd+P). Sul telefono resta la
+  condivisione. Unico punto: `condividi()` / `stampaPDF()` in `js/services/condivisione.js`,
+  riconoscimento in `js/utils/dispositivo.js`.
+
 ## Giornata: interventi e lavori del giorno
 
 Home → "Apri giornata" (e Calendario → Giorno) mostra il lavoro del giorno scelto, diviso in:

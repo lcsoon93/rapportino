@@ -21,6 +21,7 @@ import { sincronizza } from "../services/sync.js";
 import { oggiIso } from "../utils/dates.js";
 import { avviaSincronizzazione, fermaSincronizzazione } from "../services/sinc-rapportini.js";
 import { avviaAnagrafica } from "../services/clienti-archivio.js";
+import { etichetteDispositivo } from "../utils/dispositivo.js";
 // moduli che si registrano da soli (viste, eventi, pad della firma)
 import "../modules/dashboard.js";
 import "../modules/calendario.js";
@@ -35,6 +36,7 @@ import "../modules/utenti.js";
 import "../services/signature.js";
 
 document.getElementById("logoimg").src = LOGO_B64;
+etichetteDispositivo();                          // sul computer: "Stampa PDF" al posto di "Invia PDF"
 document.querySelectorAll(".logo-dinamico").forEach(img=>{ img.src = LOGO_B64; });
 const oggi = oggiIso();     // data locale (toISOString dava il giorno prima tra mezzanotte e le 2)
 document.getElementById("data").value = oggi;

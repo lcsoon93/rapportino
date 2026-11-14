@@ -20,6 +20,7 @@ import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc } from "../utils/formatters.js";
+import { sulComputer } from "../utils/dispositivo.js";
 import { icona } from "../utils/dom.js";
 
 const $ = id=>document.getElementById(id);
@@ -136,9 +137,9 @@ export async function preparaPDFGiornata(btn){
         '</span>' + (c.foglio ? '<span class="badge neutro">Foglio giornaliero</span>' : '<span class="badge ok">' + icona("check") + 'Completato</span>') + '</div>').join("") + '</div>' +
       elencoEsclusi;
     messaggio((mancanti ? mancanti + (mancanti === 1 ? " foto non disponibile verrà saltata. " : " foto non disponibili verranno saltate. ") : "") +
-      (fotoNonLette ? "Foto non lette per " + fotoNonLette + " rapportini. " : "") + "Pronto: tocca «Condividi PDF».", mancanti || fotoNonLette ? "att" : "");
+      (fotoNonLette ? "Foto non lette per " + fotoNonLette + " rapportini. " : "") + (sulComputer() ? "Pronto: clicca «Stampa PDF»." : "Pronto: tocca «Condividi PDF»."), mancanti || fotoNonLette ? "att" : "");
     $("rg-condividi").classList.remove("nascosto");
-    $("rg-condividi").querySelector("span").textContent = "Condividi PDF (" + tutte.length + ")";
+    $("rg-condividi").querySelector("span").textContent = (sulComputer() ? "Stampa PDF (" : "Condividi PDF (") + tutte.length + ")";
   }catch(e){
     messaggio(e.message, "err");
   }finally{ btn.disabled = false; btn.classList.remove("in-corso"); }

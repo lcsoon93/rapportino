@@ -88,7 +88,24 @@ function nuovoSupabase(ruolo, immagini){
 }
 
 async function apri(browser, base, ruolo, immagini){
-  const ctx = await browser.newContext({ serviceWorkers: "block", viewport: { width: 390, height: 844 }, acceptDownloads: true });
+  // telefono (touch): i PDF si condividono/scaricano; "computer" = mouse: finestra di stampa
+  const telefono = ruolo !== "computer";
+  const ctx = await browser.newContext({ serviceWorkers: "block", acceptDownloads: true,
+    ...(telefono ? { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } : { viewport: { width: 1440, height: 900 } }) });
+  if(!telefono){
+    // in headless l'anteprima di stampa non esiste (print() farebbe cadere la pagina): si intercetta e si
+    // conta la richiesta di stampa della cornice, senza aprire la stampa vera
+    await ctx.addInitScript(()=>{
+      window.__stampe = 0;
+      const d = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, "contentWindow");
+      Object.defineProperty(HTMLIFrameElement.prototype, "contentWindow", { configurable: true, get(){
+        const w = d.get.call(this);
+        if(!w || !this.classList.contains("cornice-stampa")) return w;
+        return { focus(){}, print(){ window.__stampe++; } };
+      } });
+    });
+    ruolo = "admin";
+  }
   const sb = nuovoSupabase(ruolo, immagini);
   const esterne = [];
   await ctx.route(/^https?:\/\//, route=>{
@@ -237,6 +254,42 @@ try{
   });
   assert.deepEqual(a.errori, [], a.errori.join("; "));
   await a.ctx.close();
+
+  // ======================= computer: stampa invece di condivisione
+  // Chromium completo (con il visualizzatore PDF, come Chrome sul computer): quello headless leggero
+  // non ha il visualizzatore e scaricherebbe qualsiasi PDF aperto in una cornice
+  const browserPC = await chromium.launch({ channel: "chromium" });
+  const pc = await apri(browserPC, base, "computer", immagini);
+  await prova("computer: 'Stampa PDF' apre la finestra di stampa del browser con il PDF (niente download)", async()=>{
+    // la finestra di stampa in headless non si vede: si verifica che il PDF vero sia nella cornice di
+    // stampa e che non venga scaricato ne' condiviso
+    await pc.page.evaluate(()=>window.mostraVista("home"));
+    assert.equal((await pc.page.textContent("#btn-pdf-home")).trim(), "Stampa PDF");
+    await pc.page.evaluate(()=>window.mostraVista("altro"));
+    assert.ok(await pc.page.isVisible('#vista-altro .voce:has-text("Stampa PDF della giornata")'));
+    await pc.page.evaluate(()=>window.mostraVista("rapporti"));
+    await pc.page.fill("#rg-data", GIORNO);
+    await pc.page.click("#rg-prepara");
+    await pc.page.waitForSelector("#rg-condividi:not(.nascosto)");
+    assert.match(await pc.page.textContent("#rg-condividi"), /Stampa PDF \(2\)/);
+    let scaricato = false;
+    pc.page.on("download", ()=>{ scaricato = true; });
+    await pc.page.click("#rg-condividi");
+    await pc.page.waitForSelector("iframe.cornice-stampa", { state: "attached" });
+    const inizio = await pc.page.evaluate(async()=>{
+      const f = document.querySelector("iframe.cornice-stampa");
+      const b = await (await fetch(f.src)).arrayBuffer();
+      return new TextDecoder("latin1").decode(new Uint8Array(b).slice(0, 5));
+    });
+    assert.equal(inizio, "%PDF-");
+    await pc.page.waitForFunction(()=>window.__stampe >= 1, null, { timeout: 10000 });
+    assert.equal(await pc.page.evaluate(()=>window.__stampe), 1, "una richiesta di stampa");
+    assert.equal(scaricato, false, "sul computer nessun download");
+    assert.match(await pc.page.textContent("#rg-condividi"), /Stampa PDF/, "il pulsante torna disponibile");
+  });
+  assert.deepEqual(pc.errori, [], pc.errori.join("; "));
+  await pc.ctx.close();
+  await browserPC.close();
 
   // ======================= operaio: solo i propri
   const w = await apri(browser, base, "worker", immagini);

@@ -14,5 +14,9 @@ Controllo dei tipi delle Edge Functions (facoltativo, serve Deno): `cd supabase/
 Niente `package.json` alla radice: Deno (e quindi `supabase functions deploy`) lo userebbe per
 risolvere gli import `npm:` delle Edge Functions.
 
+Nel test del PDF della giornata i contesti "telefono" hanno `isMobile`/`hasTouch` (condivisione o
+download); il contesto "computer" usa `chromium.launch({ channel: "chromium" })`, che ha il visualizzatore
+PDF, e intercetta la richiesta di stampa della cornice (in headless l'anteprima di stampa non esiste).
+
 Nel test E2E il service worker è bloccato (`serviceWorkers: "block"`), altrimenti scavalcherebbe le
 regole di Playwright. In WebKit va usato lo stesso contesto; in questo ambiente è installato solo Chromium.
