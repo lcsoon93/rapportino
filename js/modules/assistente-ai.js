@@ -343,7 +343,7 @@ function disegnaModelli(r){
   esito('<div class="info-riga"><span>Testo</span><b>' + esc(r.configurati.testo) + '</b></div><div class="info-riga"><span>Riserva</span><b>' + esc(r.configurati.riserva) + '</b></div>' +
     '<div class="info-riga"><span>Visione (foto)</span><b>' + esc(r.configurati.visione) + '</b></div>' +
     '<p class="nota ai-fonte">Modelli attivi sull\'account Groq: ' + esc(r.disponibili.join(", ") || "nessuno") + '</p>',
-    r.mancanti.length ? "Non disponibili su Groq: " + r.mancanti.join(", ") + ". Imposta un altro modello nei secret (vedi README)." : "Tutti i modelli configurati sono disponibili.",
+    r.mancanti.length ? "Non disponibili su Groq: " + r.mancanti.join(", ") + ". Imposta un altro modello nei secret (vedi docs/tecnico.md)." : "Tutti i modelli configurati sono disponibili.",
     r.mancanti.length ? "err" : "");
 }
 

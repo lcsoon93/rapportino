@@ -4,7 +4,7 @@
 > Non descrive lo stato attuale: da allora sono state aggiunte le migrazioni 20261108–20261113, la Edge
 > Function `pin`, il doppio ruolo admin + operaio, il PIN di accesso e il recupero dell'accesso con
 > password temporanea di 72 ore; le giornate in produzione sono 52 (non 51). La sequenza di rilascio
-> del §10 non va più seguita. Stato e procedura aggiornati: `README.md` ("Accesso, ruoli e sicurezza",
+> del §10 non va più seguita. Stato e procedura aggiornati: `docs/tecnico.md` ("Accesso, ruoli e sicurezza",
 > "Supabase: messa in produzione") e `docs/interventi-rapportini.md`.
 > Nota di sicurezza ancora valida: i codici iniziali di Luca e comphas (6 cifre) restano le loro password
 > finché non le cambiano; è consigliata una password di almeno 10 caratteri (Altro → Cambia password).

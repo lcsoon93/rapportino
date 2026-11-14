@@ -3,640 +3,163 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Interventi - Backoffice</title>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<!-- Libreria per generare i PDF -->
+<title>Ricerca rapportini · COMP.HAS</title>
+<link rel="icon" type="image/png" sizes="192x192" href="./assets/icone/icona-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link rel="stylesheet" href="./css/variables.css">
 <style>
-  :root {
-    --primario: #2FA189;
-    --sfondo: #F2F3F4;
-    --testo: #1C1F23;
-    --bordo: #C9CDD2;
-    --bianco: #FFFFFF;
-    --avviso: #C97B3D;
+  /* Ricerca dal computer: stessi colori dell'app (css/variables.css), impaginazione per schermi larghi. */
+  *{box-sizing:border-box}
+  [hidden]{display:none!important}
+  body{margin:0;background:var(--sfondo);color:var(--testo);font:15px/1.45 var(--font)}
+  .barra{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:var(--s3);padding:var(--s3) var(--s6);background:var(--superficie);border-bottom:1px solid var(--bordo)}
+  .barra h1{margin:0;font-size:18px;flex:1;min-width:0}
+  .barra a{color:var(--azzurro);font-weight:600;text-decoration:none}
+  .utente{color:var(--testo-2);font-size:14px}
+  main{max-width:1320px;margin:0 auto;padding:var(--s6)}
+  .btn{font:inherit;font-weight:600;min-height:40px;padding:0 var(--s4);border-radius:var(--r-btn);border:1px solid var(--bordo-forte);background:var(--superficie);color:var(--testo);cursor:pointer}
+  .btn:hover{border-color:var(--brand)}
+  .btn:disabled{opacity:.45;cursor:default;border-color:var(--bordo-forte)}
+  .btn-pri{background:var(--brand);border-color:var(--brand);color:#fff}
+  .btn-pri:hover{background:var(--brand-scuro)}
+  .btn-sec{background:var(--pervinca-chiaro);border-color:var(--pervinca-chiaro);color:var(--pervinca-scuro)}
+  :focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+  .card{background:var(--superficie);border:1px solid var(--bordo);border-radius:var(--r-card);box-shadow:var(--ombra-1);padding:var(--s5)}
+  .stato{font-size:13px;color:var(--testo-2)}
+  .stato[data-tipo=ok]{color:var(--ok-testo)} .stato[data-tipo=err]{color:var(--err-testo)}
+  input,select{font:inherit;min-height:40px;padding:0 var(--s3);border:1px solid var(--bordo-forte);border-radius:var(--r-campo);background:var(--superficie);color:var(--testo)}
+  /* accesso */
+  .accesso{max-width:380px;margin:10vh auto;display:flex;flex-direction:column;gap:var(--s3)}
+  .accesso h2{margin:0 0 var(--s2)}
+  .accesso label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--testo-2)}
+  .errore{color:var(--err-testo);font-size:14px;min-height:1em;margin:0}
+  /* riepilogo */
+  .testata{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s4)}
+  .testata h2{margin:0;font-size:20px;flex:1;min-width:200px}
+  .testata h2::first-letter{text-transform:uppercase}
+  .riepilogo{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:var(--s3);margin-bottom:var(--s5)}
+  .stat{background:var(--superficie);border:1px solid var(--bordo);border-radius:var(--r-card);padding:var(--s4)}
+  .stat-t{font-size:12px;text-transform:uppercase;letter-spacing:.04em;font-weight:700;color:var(--testo-2)}
+  .stat-v{font-size:24px;font-weight:700;color:var(--brand);margin:4px 0 2px}
+  .stat-s{font-size:12.5px;color:var(--testo-2)}
+  /* filtri e azioni */
+  .filtri{display:grid;grid-template-columns:minmax(220px,2fr) repeat(3,minmax(150px,1fr)) auto;gap:var(--s3);margin-bottom:var(--s4)}
+  .azioni{display:flex;align-items:center;gap:var(--s3);flex-wrap:wrap;margin-bottom:var(--s3)}
+  .azioni .info{flex:1;min-width:200px;color:var(--testo-2);font-size:14px}
+  /* risultati */
+  #risultati{display:grid;grid-template-columns:1fr 1fr;gap:var(--s3)}
+  .voce{display:flex;gap:var(--s3);align-items:flex-start;background:var(--superficie);border:1px solid var(--bordo);border-left:4px solid var(--brand);border-radius:14px;padding:var(--s4);cursor:pointer;min-width:0}
+  .voce:hover{box-shadow:var(--ombra-2)}
+  .chk{width:20px;height:20px;min-height:0;margin-top:2px;accent-color:var(--brand);cursor:pointer;flex:none}
+  .voce-corpo{flex:1;min-width:0}
+  .voce-top{display:flex;align-items:center;gap:var(--s2);flex-wrap:wrap}
+  .voce-cliente{font-size:16px;flex:1;min-width:120px;overflow-wrap:anywhere}
+  .voce-data{font-weight:600;font-size:13px;color:var(--brand-scuro);background:var(--brand-chiaro);padding:2px 8px;border-radius:6px}
+  .voce-riga{font-size:13.5px;color:var(--testo-2);margin-top:4px;overflow-wrap:anywhere}
+  .voce-testo{color:var(--testo)}
+  .badge{display:inline-flex;align-items:center;font-size:12px;font-weight:600;padding:2px 8px;border-radius:999px}
+  .badge.ok{background:var(--ok-chiaro);color:var(--ok-testo)}
+  .badge.att{background:var(--att-chiaro);color:var(--att-testo)}
+  .badge.err{background:var(--err-chiaro);color:var(--err-testo)}
+  .badge.neutro{background:var(--neutro-chiaro);color:var(--neutro-stato)}
+  .vuoto{grid-column:1/-1;text-align:center;color:var(--testo-2);padding:var(--s8)}
+  .vuoto .btn{margin-top:var(--s3)}
+  /* dettaglio */
+  dialog{border:0;border-radius:var(--r-card);padding:0;width:min(720px,calc(100vw - 32px));max-height:90vh;box-shadow:var(--ombra-3)}
+  dialog::backdrop{background:rgba(23,32,51,.45)}
+  .det{padding:var(--s6);overflow:auto;max-height:calc(90vh - 72px)}
+  .det h2{margin:0 0 var(--s2);padding-right:40px}
+  .det h3{font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--pervinca-scuro);margin:var(--s5) 0 var(--s2)}
+  .campi{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:var(--s3);margin-top:var(--s4);padding:var(--s3);background:var(--sfondo);border-radius:12px}
+  .campo-t{font-size:11px;text-transform:uppercase;font-weight:700;color:var(--testo-2)}
+  .campo-v{overflow-wrap:anywhere}
+  .testo{white-space:pre-wrap;margin:0}
+  .nota{color:var(--testo-2);font-style:italic;margin:0}
+  .materiali{list-style:none;margin:0;padding:0}
+  .materiali li{display:flex;justify-content:space-between;gap:var(--s3);padding:6px 0;border-bottom:1px solid var(--bordo)}
+  .det-azioni{display:flex;gap:var(--s3);justify-content:flex-end;padding:var(--s4) var(--s6);border-top:1px solid var(--bordo)}
+  .chiudi{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:0;background:var(--sfondo);font-size:20px;cursor:pointer}
+  @media (max-width:900px){
+    .filtri{grid-template-columns:1fr 1fr}
+    #risultati{grid-template-columns:1fr}
+    main{padding:var(--s4)}
+    .barra{padding:var(--s3) var(--s4)}
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body {
-    font-family: 'IBM Plex Sans', sans-serif;
-    background-color: var(--sfondo);
-    color: var(--testo);
-    padding: 30px;
-  }
-  .container { max-width: 1000px; margin: 0 auto; }
-  
-  header {
-    margin-bottom: 20px;
-    display: flex; justify-content: space-between; align-items: center;
-  }
-  h1 { font-size: 24px; color: #22262B; }
-  .loader { font-size: 14px; color: #5A6068; font-weight: 500;}
-
-  /* 1. Dashboard Statistiche */
-  .stats-header {
-    display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;
-  }
-  .stats-header h2 { font-size: 18px; color: #5A6068; }
-  .filtro-mese {
-    padding: 8px 12px; font-size: 16px; border: 1.5px solid var(--primario);
-    border-radius: 6px; font-family: inherit; color: var(--testo);
-    background: var(--bianco); outline: none; cursor: pointer;
-  }
-
-  .stats-grid {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;
-    margin-bottom: 30px;
-  }
-  .stat-card {
-    background: var(--bianco); padding: 20px; border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-top: 4px solid #8C97C4;
-  }
-  .stat-titolo { font-size: 12px; text-transform: uppercase; color: #5A6068; font-weight: 700; margin-bottom: 8px;}
-  .stat-valore { font-size: 24px; font-weight: 700; color: var(--primario); }
-
-  /* Barra di Ricerca */
-  .search-box {
-    display: flex; flex-wrap: wrap; gap: 10px;
-    background: var(--bianco); padding: 20px; border-radius: 10px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05); margin-bottom: 20px;
-  }
-  .search-box input[type="text"], .search-box select, .search-box input[type="date"] {
-    flex: 1; min-width: 150px; padding: 12px 16px; font-size: 15px;
-    border: 1.5px solid var(--bordo); border-radius: 6px; font-family: inherit; color: var(--testo);
-  }
-  .search-box input:focus, .search-box select:focus { outline: none; border-color: var(--primario); }
-  
-  .btn-primario, .btn-secondario, .btn-terziario {
-    padding: 12px 20px; font-size: 15px; font-weight: 600; color: var(--bianco);
-    border: none; border-radius: 6px; cursor: pointer; transition: 0.2s;
-  }
-  .btn-primario { background-color: var(--primario); }
-  .btn-primario:hover { background-color: #24826e; }
-  .btn-secondario { background-color: #8C97C4; }
-  .btn-secondario:hover { background-color: #717baa; }
-  .btn-terziario { background-color: var(--avviso); }
-  .btn-terziario:hover { background-color: #a86530; }
-  
-  .azioni-barra { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap:10px; }
-  
-  /* Risultati */
-  .card {
-    background: var(--bianco); border-radius: 10px; padding: 20px; margin-bottom: 15px;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05); border-left: 5px solid var(--primario);
-    cursor: pointer; transition: 0.1s; position: relative;
-  }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-  .card-header { display: flex; justify-content: space-between; margin-bottom: 10px; border-bottom: 1px solid var(--sfondo); padding-bottom: 10px; }
-  .data-badge { background: #E8F5F2; color: var(--primario); padding: 4px 10px; border-radius: 4px; font-weight: 600; font-size: 13px; height: fit-content; }
-  
-  .cliente-nome { font-weight: 700; font-size: 17px; display: flex; align-items: center; gap: 10px;}
-  .chk-export { width: 20px; height: 20px; accent-color: var(--primario); cursor: pointer; }
-  .badge { color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; text-transform: uppercase; font-weight:600; letter-spacing: 0.5px;}
-  .bg-urgente { background: #B3413A; }
-  
-  .cliente-indirizzo { font-size: 13px; color: #5A6068; margin-top: 4px; }
-  .cliente-dettagli-prev { font-size: 13px; color: #5A6068; margin-top: 6px; font-style: italic; line-height: 1.4;}
-  .nessun-risultato { text-align: center; color: #5A6068; padding: 40px; font-size: 16px; }
-
-  /* Finestra Modale */
-  .modal-overlay {
-    display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
-    background: rgba(0,0,0,0.6); z-index: 100; align-items: center; justify-content: center;
-    padding: 20px; backdrop-filter: blur(3px);
-  }
-  .modal-content {
-    background: var(--bianco); padding: 30px; border-radius: 12px;
-    max-width: 650px; width: 100%; max-height: 90vh; overflow-y: auto; position: relative;
-  }
-  .modal-close {
-    position: absolute; top: 20px; right: 20px; background: #F2F3F4; color: #5A6068;
-    border: none; border-radius: 50%; width: 32px; height: 32px;
-    font-size: 18px; cursor: pointer;
-  }
-  .modal-azioni { display: flex; gap: 10px; margin-top: 20px; border-top: 1px solid var(--sfondo); padding-top: 20px; }
-  
-  .riga-dati { display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 15px; padding: 12px; background: #FAFAFA; border-radius: 8px; border: 1px solid #E8EAED;}
-  .dato-box { flex: 1; min-width: 120px; }
-  .dato-etichetta { font-size: 11px; text-transform: uppercase; color: #8C97C4; font-weight: 700; margin-bottom: 4px; }
-  .dato-valore { font-size: 15px; font-weight: 500; }
-  
-  .sezione { margin-bottom: 15px; }
-  .sezione-titolo { font-size: 12px; text-transform: uppercase; font-weight: 700; color: #8C97C4; margin-bottom: 5px; }
-  .materiale-lista { list-style-type: none; }
-  .materiale-lista li { font-size: 14px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
 </style>
 </head>
 <body>
+<header class="barra">
+  <h1>Ricerca rapportini</h1>
+  <span id="utente" class="utente"></span>
+  <a href="./index.html">Apri l'app</a>
+  <button type="button" id="btn-esci" class="btn" hidden>Esci</button>
+</header>
 
-<div class="container">
-  <header>
-    <h1>Dashboard Operativa</h1>
-    <div id="stato-db" class="loader">Inizializzazione in corso...</div>
-  </header>
+<main>
+  <p id="stato-db" class="stato" role="status">Avvio…</p>
 
-  <!-- Selettore Mese per le Statistiche -->
-  <div class="stats-header">
-    <h2>Riepilogo Mese</h2>
-    <input type="month" id="filtro-mese" class="filtro-mese" onchange="cambioMese()">
-  </div>
+  <section id="schermo-accesso" hidden>
+    <form id="form-accesso" class="card accesso">
+      <h2>Accedi</h2>
+      <label>Nome utente<input id="acc-username" autocomplete="username" required></label>
+      <label>Password<input id="acc-password" type="password" autocomplete="current-password" required></label>
+      <p id="acc-errore" class="errore" role="alert"></p>
+      <button id="acc-invia" class="btn btn-pri">Accedi</button>
+    </form>
+  </section>
 
-  <div class="stats-grid">
-    <div class="stat-card">
-      <div class="stat-titolo">Interventi (Mese)</div>
-      <div class="stat-valore" id="stat-interventi">0</div>
+  <section id="schermo-negato" class="card" hidden>
+    <p id="negato-testo"></p>
+    <a class="btn btn-pri" href="./index.html" style="display:inline-flex;align-items:center;text-decoration:none">Apri l'app</a>
+  </section>
+
+  <section id="schermo-ricerca" hidden>
+    <div class="testata">
+      <h2 id="titolo-periodo"></h2>
+      <label class="stato" for="filtro-mese">Mese</label>
+      <input type="month" id="filtro-mese">
+      <button type="button" id="btn-storico" class="btn btn-sec">Tutto lo storico</button>
+      <button type="button" id="btn-aggiorna" class="btn">Aggiorna</button>
     </div>
-    <div class="stat-card">
-      <div class="stat-titolo">Spese Anticipate (Mese)</div>
-      <div class="stat-valore" id="stat-spese">€ 0,00</div>
+    <div id="riepilogo" class="riepilogo"></div>
+
+    <div class="card filtri">
+      <input type="search" id="cerca-input" placeholder="Cerca cliente, indirizzo, lavoro, materiale…" aria-label="Cerca">
+      <input type="date" id="cerca-data" aria-label="Giorno">
+      <select id="cerca-operaio" aria-label="Operaio"><option value="">Tutti gli operai</option></select>
+      <select id="cerca-stato" aria-label="Stato">
+        <option value="">Tutti</option>
+        <option value="completato">Rapportini completati</option>
+        <option value="bozza">Rapportini in bozza</option>
+        <option value="foglio">Foglio giornaliero</option>
+      </select>
+      <button type="button" id="btn-reset" class="btn">Azzera</button>
     </div>
-  </div>
 
-  <!-- Barra Ricerca e Filtri -->
-  <div class="search-box">
-    <input type="text" id="cerca-input" placeholder="Cerca cliente, indirizzo, dettaglio..." onkeyup="seInvio(event)">
-    <input type="date" id="cerca-data" title="Giorno esatto">
-    <select id="cerca-tecnico">
-      <option value="">Tutti i tecnici</option>
-    </select>
-    <button class="btn-primario" onclick="eseguiRicerca()">Cerca</button>
-    <button class="btn-secondario" onclick="pulisciRicerca()">Reset</button>
-    <button class="btn-terziario" id="btn-storico" onclick="scaricaTuttoStorico()" title="Scarica tutti gli anni per cercare nell'intero storico">Scarica tutto lo storico</button>
-  </div>
-
-  <div class="azioni-barra">
-    <div id="info-risultati" style="color: #5A6068; font-size: 14px;"></div>
-    <div style="display:flex; gap: 10px; flex-wrap: wrap;">
-      <button id="btn-select-all" class="btn-secondario" style="display:none;" onclick="toggleSelezionaTutti()">Seleziona Tutti</button>
-      
-      <!-- NUOVO PULSANTE EXCEL -->
-      <button id="btn-export-csv" class="btn-primario" style="display:none; background-color: #2FA189;" onclick="esportaExcelCSV()">Esporta in Excel (CSV)</button>
-      
-      <button id="btn-export" class="btn-primario" style="display:none; background-color: #8C97C4;" onclick="esportaMaterialiPDF()">Stampa PDF Materiali</button>
+    <div class="azioni">
+      <span id="info-risultati" class="info"></span>
+      <span id="conta-selezione" class="stato"></span>
+      <button type="button" id="btn-tutti" class="btn" hidden>Seleziona tutti</button>
+      <button type="button" id="btn-csv" class="btn btn-pri" disabled>Esporta materiali in Excel</button>
+      <button type="button" id="btn-pdf-materiali" class="btn btn-sec" disabled>Stampa PDF materiali</button>
     </div>
+    <div id="risultati"></div>
+  </section>
+</main>
+
+<dialog id="dettaglio" aria-labelledby="dettaglio-titolo">
+  <button type="button" id="btn-chiudi" class="chiudi" aria-label="Chiudi">&times;</button>
+  <div id="dettaglio-corpo" class="det"></div>
+  <div class="det-azioni">
+    <button type="button" id="btn-scarica-voce" class="btn">Scarica PDF</button>
+    <button type="button" id="btn-stampa-voce" class="btn btn-pri">Stampa PDF</button>
   </div>
+</dialog>
 
-  <div id="risultati"></div>
-</div>
-
-<!-- Modale Dettaglio -->
-<div id="modal-overlay" class="modal-overlay" onclick="chiudiSeFuori(event)">
-  <div class="modal-content">
-    <button class="modal-close" onclick="chiudiModale()">&times;</button>
-    <div id="modal-body"></div>
-  </div>
-</div>
-
-<script>
-// ==========================================
-// 1. INSERISCI QUI I DATI DI SUPABASE
-// ==========================================
-const SUPABASE_URL = "https://kdzgtvnimqvxfweomxdo.supabase.co"; 
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imtkemd0dm5pbXF2eGZ3ZW9teGRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0OTg3NzgsImV4cCI6MjEwNTA3NDc3OH0.bXPzy48u_NVmQ6AO5Z0hBRQpirR_6cDt8eUf6fPHXr8"; 
-
-let archivioCompleto = [];
-let risultatiCorrenti = [];
-let mesiCaricati = new Set();
-let storicoCompletoCaricato = false;
-let statoSelezioneTutti = false;
-
-// Funzioni di utilità
-function formattaData(iso) { const p = iso.split("-"); return `${p[2]}/${p[1]}/${p[0]}`; }
-function euro(n) { return "€ " + parseFloat(n).toFixed(2).replace('.', ','); }
-
-// ------------------------------------------
-// CARICAMENTO PIGRO (LAZY LOADING)
-// ------------------------------------------
-async function caricaDatiMese(meseISO) {
-  if (storicoCompletoCaricato || mesiCaricati.has(meseISO)) return;
-
-  const statoDb = document.getElementById('stato-db');
-  if (!SUPABASE_URL || SUPABASE_URL === "INSERISCI_URL_QUI") {
-    statoDb.innerHTML = "⚠️ Configura URL e KEY di Supabase"; statoDb.style.color = "#B3413A"; return;
-  }
-  
-  statoDb.innerHTML = "Scaricamento dati del mese...";
-  statoDb.style.color = "#5A6068";
-  
-  try {
-    const [yy, mm] = meseISO.split('-');
-    const primoGiorno = `${meseISO}-01`;
-    const ultimoGiorno = new Date(yy, mm, 0).toISOString().slice(0, 10);
-
-    const risposta = await fetch(`${SUPABASE_URL}/rest/v1/rapporti?select=data,dati&data=gte.${primoGiorno}&data=lte.${ultimoGiorno}`, {
-      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
-    });
-    
-    if (!risposta.ok) throw new Error("Errore di rete");
-    
-    const records = await risposta.json();
-    
-    const dataEsistenti = new Set(archivioCompleto.map(r => r.data));
-    records.forEach(r => {
-      if (!dataEsistenti.has(r.data)) archivioCompleto.push(r);
-    });
-    
-    archivioCompleto.sort((a, b) => b.data.localeCompare(a.data));
-    mesiCaricati.add(meseISO);
-    
-    statoDb.innerHTML = `✓ Connesso (Mesi in memoria: ${mesiCaricati.size})`;
-    statoDb.style.color = "var(--primario)";
-    
-    popolaFiltriEstrazioni();
-    
-  } catch(e) {
-    console.error(e);
-    statoDb.innerHTML = "❌ Errore di connessione al database";
-    statoDb.style.color = "#B3413A";
-  }
-}
-
-async function scaricaTuttoStorico() {
-  const statoDb = document.getElementById('stato-db');
-  statoDb.innerHTML = "Scaricamento intero archivio in corso. Potrebbe richiedere qualche secondo...";
-  statoDb.style.color = "var(--avviso)";
-  
-  try {
-    const risposta = await fetch(SUPABASE_URL + "/rest/v1/rapporti?select=data,dati", {
-      headers: { "apikey": SUPABASE_KEY, "Authorization": "Bearer " + SUPABASE_KEY }
-    });
-    if (!risposta.ok) throw new Error("Errore di rete");
-    
-    archivioCompleto = await risposta.json();
-    archivioCompleto.sort((a, b) => b.data.localeCompare(a.data)); 
-    
-    storicoCompletoCaricato = true;
-    document.getElementById("btn-storico").style.display = "none"; 
-    
-    statoDb.innerHTML = `✓ Intero storico caricato (${archivioCompleto.length} giornate)`;
-    statoDb.style.color = "var(--primario)";
-    
-    popolaFiltriEstrazioni();
-    eseguiRicerca();
-  } catch(e) {
-    statoDb.innerHTML = "❌ Errore durante il download dello storico";
-    statoDb.style.color = "#B3413A";
-  }
-}
-
-async function avvio() {
-  const oggi = new Date();
-  const meseCorrenteISO = oggi.toISOString().slice(0, 7);
-  document.getElementById("filtro-mese").value = meseCorrenteISO;
-  
-  await caricaDatiMese(meseCorrenteISO);
-  calcolaStatisticheMese();
-  eseguiRicerca();
-}
-
-function popolaFiltriEstrazioni() {
-  const selectTecnici = document.getElementById("cerca-tecnico");
-  const tecnicoSelezionato = selectTecnici.value; 
-  
-  const tecniciSet = new Set();
-  archivioCompleto.forEach(r => {
-    if (r.dati && r.dati.tecnici) tecniciSet.add(r.dati.tecnici.trim());
-  });
-  
-  selectTecnici.innerHTML = '<option value="">Tutti i tecnici</option>';
-  tecniciSet.forEach(t => {
-    const opt = document.createElement("option");
-    opt.value = t; opt.textContent = t;
-    selectTecnici.appendChild(opt);
-  });
-  
-  selectTecnici.value = tecnicoSelezionato; 
-}
-
-// ------------------------------------------
-// GESTIONE MESE E STATISTICHE
-// ------------------------------------------
-async function cambioMese() {
-  const meseSelezionato = document.getElementById("filtro-mese").value; 
-  await caricaDatiMese(meseSelezionato);
-  calcolaStatisticheMese();
-  eseguiRicerca();
-}
-
-function calcolaStatisticheMese() {
-  const meseSelezionato = document.getElementById("filtro-mese").value; 
-  let totInterventi = 0;
-  let totSpese = 0;
-
-  archivioCompleto.forEach(r => {
-    if (r.data.startsWith(meseSelezionato) && r.dati) {
-      if (r.dati.spese) {
-        r.dati.spese.forEach(s => totSpese += (+s.i || 0));
-      }
-      if (r.dati.clienti) {
-        totInterventi += r.dati.clienti.length;
-      }
-    }
-  });
-
-  document.getElementById("stat-interventi").textContent = totInterventi;
-  document.getElementById("stat-spese").textContent = euro(totSpese);
-}
-
-// ------------------------------------------
-// RICERCA E VISUALIZZAZIONE
-// ------------------------------------------
-function seInvio(event) { if (event.key === "Enter") eseguiRicerca(); }
-
-function pulisciRicerca() {
-  document.getElementById("cerca-input").value = "";
-  document.getElementById("cerca-data").value = "";
-  document.getElementById("cerca-tecnico").value = "";
-  eseguiRicerca();
-}
-
-function eseguiRicerca() {
-  const query = document.getElementById("cerca-input").value.trim().toLowerCase();
-  const dataQuery = document.getElementById("cerca-data").value; 
-  const tecnicoQuery = document.getElementById("cerca-tecnico").value;
-  const meseQuery = document.getElementById("filtro-mese").value;
-  
-  const contenitore = document.getElementById("risultati");
-  contenitore.innerHTML = "";
-  document.getElementById("info-risultati").innerHTML = "";
-  
-  // Resetta pulsanti e selezioni
-  document.getElementById("btn-export").style.display = "none";
-  document.getElementById("btn-export-csv").style.display = "none";
-  document.getElementById("btn-select-all").style.display = "none";
-  statoSelezioneTutti = false;
-  document.getElementById("btn-select-all").textContent = "Seleziona Tutti";
-  
-  risultatiCorrenti = [];
-
-  archivioCompleto.forEach((record, idxGiornata) => {
-    const dataIso = record.data;
-    const dati = record.dati;
-    if (!dati || !dati.clienti) return;
-
-    if (dataQuery && dataIso !== dataQuery) return;
-    if (!dataQuery && !dataIso.startsWith(meseQuery)) return;
-    if (tecnicoQuery && dati.tecnici !== tecnicoQuery) return;
-
-    dati.clienti.forEach((cliente, idxCliente) => {
-      if (query.length >= 2) {
-        const trovato = (cliente.nome && cliente.nome.toLowerCase().includes(query)) ||
-                        (cliente.indirizzo && cliente.indirizzo.toLowerCase().includes(query)) ||
-                        (cliente.dettagli && cliente.dettagli.toLowerCase().includes(query));
-        if(!trovato) return;
-      }
-      
-      risultatiCorrenti.push({
-        dataIso, datiGiorno: dati, cliente, idxGiornata, idxCliente
-      });
-    });
-  });
-
-  if (risultatiCorrenti.length === 0) {
-    let msg = `<div class="nessun-risultato">Nessun intervento trovato per i filtri e il mese selezionato.</div>`;
-    if (!storicoCompletoCaricato && query.length >= 2) {
-      msg += `<div style="text-align:center; margin-top:-20px;"><button class="btn-terziario" onclick="scaricaTuttoStorico()">Vuoi cercare in tutto l'archivio?</button></div>`;
-    }
-    contenitore.innerHTML = msg;
-  } else {
-    document.getElementById("info-risultati").innerHTML = `Trovati ${risultatiCorrenti.length} interventi. Clicca le spunte per esportare i materiali.`;
-    document.getElementById("btn-export").style.display = "block";
-    document.getElementById("btn-export-csv").style.display = "block";
-    document.getElementById("btn-select-all").style.display = "block";
-
-    risultatiCorrenti.forEach((item, index) => {
-      const c = item.cliente;
-      const card = document.createElement('div');
-      card.className = 'card';
-      card.setAttribute('onclick', `apriModale(${index})`);
-      
-      let badgeHtml = c.urgente ? '<span class="badge bg-urgente">Urgente</span> ' : '';
-      
-      let shortDesc = "";
-      if (c.dettagli) {
-        shortDesc = c.dettagli.length > 90 ? c.dettagli.substring(0, 90) + "..." : c.dettagli;
-      }
-
-      card.innerHTML = `
-        <div class="card-header">
-          <div class="cliente-nome">
-            <!-- CASELLE GIA' ESISTENTI! -->
-            <input type="checkbox" class="chk-export" value="${index}" title="Seleziona per esportare materiali" onclick="event.stopPropagation()"> 
-            ${c.nome || "(Senza nome)"} ${badgeHtml}
-          </div>
-          <div class="data-badge">${formattaData(item.dataIso)}</div>
-        </div>
-        ${c.indirizzo ? `<div class="cliente-indirizzo" style="margin-left:30px;">📍 ${c.indirizzo}</div>` : ''}
-        ${shortDesc ? `<div class="cliente-dettagli-prev" style="margin-left:30px;">📝 ${shortDesc}</div>` : ''}
-      `;
-      contenitore.appendChild(card);
-    });
-  }
-}
-
-function toggleSelezionaTutti() {
-  const checkboxes = document.querySelectorAll('.chk-export');
-  statoSelezioneTutti = !statoSelezioneTutti;
-  
-  checkboxes.forEach(chk => {
-    chk.checked = statoSelezioneTutti;
-  });
-  
-  const btn = document.getElementById('btn-select-all');
-  btn.textContent = statoSelezioneTutti ? "Deseleziona Tutti" : "Seleziona Tutti";
-}
-
-// ------------------------------------------
-// MODALE
-// ------------------------------------------
-function apriModale(index) {
-  const item = risultatiCorrenti[index];
-  const c = item.cliente;
-  const body = document.getElementById("modal-body");
-  
-  let html = `
-    <h2 style="margin-bottom: 5px; display: flex; align-items: center; gap: 10px;">
-      ${c.nome || "Senza nome"} 
-      ${c.urgente ? '<span class="badge bg-urgente" style="font-size:12px; padding:3px 8px;">Urgente</span>' : ''}
-    </h2>
-    <div style="color:#5A6068; margin-bottom:20px; font-size:14px;">📍 ${c.indirizzo || "Indirizzo mancante"}</div>
-    
-    <div class="riga-dati">
-      <div class="dato-box"><div class="dato-etichetta">Data</div><div class="dato-valore">${formattaData(item.dataIso)}</div></div>
-      <div class="dato-box"><div class="dato-etichetta">Tecnici</div><div class="dato-valore">${item.datiGiorno.tecnici || "Non specificati"}</div></div>
-      ${c.importo ? `<div class="dato-box"><div class="dato-etichetta">Da Fatturare</div><div class="dato-valore" style="font-weight:700;">${euro(c.importo)}</div></div>` : ''}
-    </div>
-    
-    <div class="sezione"><div class="sezione-titolo">Lavoro Eseguito</div><div style="white-space: pre-wrap; font-size: 14px;">${c.dettagli || "-"}</div></div>
-  `;
-
-  if (c.materiali && c.materiali.length > 0) {
-    html += `<div class="sezione"><div class="sezione-titolo">Materiale Utilizzato</div><ul class="materiale-lista">
-             ${c.materiali.map(m => `<li>${m.a} <span style="float:right; color:#5A6068;">${m.q || ''}</span></li>`).join('')}
-             </ul></div>`;
-  }
-
-  html += `
-    <div class="modal-azioni">
-      <button class="btn-primario" onclick="generaPDFIntervento(${index})">Scarica PDF Intervento</button>
-    </div>
-  `;
-
-  body.innerHTML = html;
-  document.getElementById("modal-overlay").style.display = "flex";
-}
-
-function chiudiModale() { document.getElementById("modal-overlay").style.display = "none"; }
-function chiudiSeFuori(event) { if (event.target.id === 'modal-overlay') chiudiModale(); }
-
-
-// PDF Singolo Intervento
-function generaPDFIntervento(index) {
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:"mm", format:"a4"});
-  const item = risultatiCorrenti[index];
-  const c = item.cliente;
-  let y = 20;
-
-  doc.setFont("helvetica","bold"); doc.setFontSize(14);
-  doc.text("SCHEDA INTERVENTO", 105, y, {align: "center"});
-  y += 15;
-
-  doc.setFontSize(11); doc.setFont("helvetica","normal");
-  doc.text(`Data: ${formattaData(item.dataIso)}`, 20, y);
-  doc.text(`Tecnici: ${item.datiGiorno.tecnici || "-"}`, 120, y);
-  y += 10;
-  
-  doc.setFont("helvetica","bold");
-  doc.text(`Cliente: ${c.nome || "Senza nome"}`, 20, y);
-  doc.setFont("helvetica","normal");
-  y += 6;
-  if(c.indirizzo) { doc.text(`Indirizzo: ${c.indirizzo}`, 20, y); y += 6; }
-  
-  y += 5;
-  doc.setFont("helvetica","bold"); doc.text("Lavoro Eseguito:", 20, y); y += 6;
-  doc.setFont("helvetica","normal");
-  if(c.dettagli) {
-    const righe = doc.splitTextToSize(c.dettagli, 170);
-    doc.text(righe, 20, y);
-    y += righe.length * 5 + 5;
-  } else { doc.text("-", 20, y); y += 10; }
-
-  if(c.materiali && c.materiali.length > 0) {
-    doc.setFont("helvetica","bold"); doc.text("Materiale Utilizzato:", 20, y); y += 6;
-    doc.setFont("helvetica","normal");
-    c.materiali.forEach(m => {
-      doc.text(`- ${m.a} ${m.q ? '('+m.q+')' : ''}`, 25, y);
-      y += 5;
-    });
-  }
-  
-  doc.save(`Intervento_${(c.nome || 'Cliente').replace(/\s+/g,'_')}_${item.dataIso}.pdf`);
-}
-
-// ------------------------------------------
-// NUOVO: ESPORTA MATERIALI IN EXCEL / CSV
-// ------------------------------------------
-function esportaExcelCSV() {
-  const checkboxes = document.querySelectorAll('.chk-export:checked');
-  if (checkboxes.length === 0) {
-    alert("Seleziona almeno un intervento spuntando le caselline a fianco del nome cliente.");
-    return;
-  }
-
-  // Aggiungiamo il BOM per fare in modo che Excel legga correttamente le lettere accentate
-  let csvContent = "\uFEFF"; 
-  // Intestazione colonne
-  csvContent += "Data;Cliente;Indirizzo;Articolo / Materiale Utilizzato;Quantità\n";
-
-  checkboxes.forEach(chk => {
-    const idx = chk.value;
-    const item = risultatiCorrenti[idx];
-    const c = item.cliente;
-    
-    // Prepariamo i dati generali (rimuoviamo eventuali punti e virgola per non rompere il file CSV)
-    const dataStr = formattaData(item.dataIso);
-    const clienteNome = (c.nome || "Senza nome").replace(/;/g, ",");
-    const indirizzo = (c.indirizzo || "").replace(/;/g, ",");
-
-    if (c.materiali && c.materiali.length > 0) {
-      // Se ci sono materiali, crea una riga per ogni materiale
-      c.materiali.forEach(m => {
-        const articolo = (m.a || "").replace(/;/g, ",");
-        const qta = (m.q || "").replace(/;/g, ",");
-        csvContent += `${dataStr};${clienteNome};${indirizzo};${articolo};${qta}\n`;
-      });
-    } else {
-      // Se non ci sono materiali, crea comunque la riga specificando "Nessun materiale"
-      csvContent += `${dataStr};${clienteNome};${indirizzo};Nessun materiale;\n`;
-    }
-  });
-
-  // Creazione e download del file
-  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.setAttribute("href", url);
-  
-  const mese = document.getElementById("filtro-mese").value;
-  link.setAttribute("download", `Export_Materiali_${mese}.csv`);
-  
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-}
-
-// ------------------------------------------
-// ESPORTA MATERIALI SELEZIONATI (PDF)
-// ------------------------------------------
-function esportaMaterialiPDF() {
-  const checkboxes = document.querySelectorAll('.chk-export:checked');
-  if (checkboxes.length === 0) {
-    alert("Seleziona almeno un intervento spuntando le caselline a fianco del nome cliente.");
-    return;
-  }
-
-  const { jsPDF } = window.jspdf;
-  const doc = new jsPDF({unit:"mm", format:"a4"});
-  let y = 20;
-
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text("REPORT MATERIALI SELEZIONATI", 105, y, {align: "center"});
-  y += 15;
-
-  checkboxes.forEach(chk => {
-    const idx = chk.value;
-    const item = risultatiCorrenti[idx];
-    const c = item.cliente;
-
-    doc.setFontSize(11);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${formattaData(item.dataIso)} - ${c.nome || "Senza Nome"}`, 20, y);
-    y += 6;
-
-    doc.setFont("helvetica", "normal");
-    if (c.materiali && c.materiali.length > 0) {
-      c.materiali.forEach(m => {
-        doc.text(`- ${m.a} ${m.q ? '('+m.q+')' : ''}`, 25, y);
-        y += 5;
-        if (y > 270) { doc.addPage(); y = 20; }
-      });
-    } else {
-      doc.setFont("helvetica", "italic");
-      doc.text("Nessun materiale segnato", 25, y);
-      doc.setFont("helvetica", "normal");
-      y += 5;
-    }
-    
-    y += 5;
-    if (y > 270) { doc.addPage(); y = 20; }
-  });
-
-  const mese = document.getElementById("filtro-mese").value;
-  doc.save(`Materiali_${mese}.pdf`);
-}
-
-avvio();
-</script>
+<script src="./js/vendor/supabase.js"></script>
+<script type="module" src="./js/modules/ricerca-computer.js"></script>
 </body>
 </html>

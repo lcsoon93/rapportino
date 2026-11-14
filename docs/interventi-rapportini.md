@@ -620,7 +620,7 @@ su Postgres 16 locale, limiti e RLS per ruolo).
 20261113, Edge Functions) è in produzione dal 7–8/11/2026 (PR #2); la Fase H è solo frontend (PR #3).
 I passi restano come riferimento per un nuovo progetto o per una ricostruzione: in quel caso eseguirli
 solo con autorizzazione. Le migrazioni applicate dal SQL Editor non compaiono nello storico della CLI:
-vedi il README ("Storico delle migrazioni") prima di usare `supabase db push`.
+vedi `docs/tecnico.md` ("Storico delle migrazioni") prima di usare `supabase db push`.
 
 1. Backup: dall'app Altro → Esporta backup; nel pannello Supabase, SQL Editor:
    `create schema if not exists backup;`
@@ -1534,3 +1534,12 @@ drop function if exists public.rapportino_del_percorso(text);
 -- il bucket resta (privato) con i file: eliminarlo solo dopo averli scaricati, dal pannello Storage
 commit;
 ```
+
+## Ricerca dal computer (`search.html`)
+
+Pagina per amministratore e ufficio, solo letture con la sessione dell'utente (RLS invariata, nessuna
+migrazione): rapportini (`rapportini` + `rapportino_operai` + intervento collegato), schede del foglio
+giornaliero (`rapporti`) e conteggio degli `interventi` del periodo. L'operaio vede "pagina riservata"
+e la pagina non legge dati. La vecchia versione usava la chiave anonima su `rapporti`, non più
+consentita: ora passa dall'accesso come l'app. Dettagli e file in `docs/tecnico.md` (sezione "Ricerca dal computer").
+
