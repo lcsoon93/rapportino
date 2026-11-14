@@ -491,6 +491,14 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
 - Corretto "Disattiva": `client.rpc(...)` di supabase-js non ha `.catch` (errore su iPhone);
   ora `await` dentro `try` (`disiscriviSulServer`). Test E2E: Attiva/Disattiva con iscrizione finta stile iOS.
 
+## Vista Giorno (Fase L)
+
+`agenda.js` `disegnaGiornoCal`: interventi del giorno (`interventiPeriodo`, come prima) divisi per stato
+(da eseguire = pianificato/in_corso, eseguiti = completato, annullati) + rapportini del giorno senza
+`intervento_id` (`elencoRapportini`, RLS) come "Lavori non programmati" (`voceRapportino`). Se i rapportini
+non si leggono (rete) gli interventi restano visibili. Home → "Apri giornata" chiama
+`apriGiornoCal(home-data)` invece di aprire il foglio giornaliero.
+
 ## PDF della giornata (Fase K)
 
 - `js/modules/stampa-giornata.js`: `preparaPDFGiornata` legge con `rapportiniCompletatiDelGiorno(data,

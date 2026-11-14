@@ -66,6 +66,11 @@ function nuovoSupabase(ruolo){
   const json = (route, corpo, status = 200)=>route.fulfill({ status, contentType: "application/json", headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-expose-headers": "content-range" }, body: JSON.stringify(corpo) });
   const oggetto = req=>/vnd\.pgrst\.object/.test(req.headers()["accept"] || "");
   const filtroId = url=>(url.searchParams.get("id") || "").replace(/^eq\./, "");
+  // filtri sulla data come PostgREST (eq / gte / lte)
+  const nelPeriodo = (url, d)=>url.searchParams.getAll("data").every(f=>{
+    const [op, v] = [f.slice(0, f.indexOf(".")), f.slice(f.indexOf(".") + 1)];
+    return op === "eq" ? d === v : op === "gte" ? d >= v : op === "lte" ? d <= v : true;
+  });
   return async function gestisci(route){
     const req = route.request(), url = new URL(req.url()), m = req.method(), p = url.pathname;
     if(m === "OPTIONS") return route.fulfill({ status: 200, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-allow-methods": "*" } });
@@ -107,7 +112,7 @@ function nuovoSupabase(ruolo){
       if(m === "GET"){
         if(DB.colonneMancanti && /cliente_id|telefono/.test(sel)) return json(route, { code: "42703", message: "column interventi.cliente_id does not exist" }, 400);
         const id = filtroId(url);
-        const elenco = [...DB.interventi.values()].filter(i=>!id || i.id === id).map(conInterventi);
+        const elenco = [...DB.interventi.values()].filter(i=>(!id || i.id === id) && nelPeriodo(url, i.data)).map(conInterventi);
         return json(route, oggetto(req) ? (elenco[0] || null) : elenco);
       }
       const b = corpo();
@@ -120,7 +125,7 @@ function nuovoSupabase(ruolo){
       const sel = url.searchParams.get("select") || "";
       if(DB.colonneMancanti && /cliente_id|telefono/.test(sel)) return json(route, { code: "42703", message: "column rapportini.cliente_id does not exist" }, 400);
       const id = filtroId(url);
-      const elenco = [...DB.rapportini.values()].filter(r=>!id || r.id === id).map(r=>({ ...r, rapportino_operai: r.rapportino_operai || [], interventi: null }));
+      const elenco = [...DB.rapportini.values()].filter(r=>(!id || r.id === id) && nelPeriodo(url, r.data)).map(r=>({ ...r, rapportino_operai: r.rapportino_operai || [], interventi: null }));
       return json(route, oggetto(req) ? (elenco[0] || null) : elenco);
     }
     if(p.startsWith("/rest/v1/")){
@@ -461,6 +466,34 @@ try{
     assert.equal(neri.telefono, "031111");
     assert.equal(neri.email, "neri@esempio.it");
     await a.page.click("#cli-chiudi");
+  });
+
+  await prova("Home -> Apri giornata: interventi da eseguire, eseguiti, annullati e lavori non programmati", async()=>{
+    const g = "2026-12-20";
+    const nuovo = (cliente, stato, ora)=>{ const i = { id: uuid(), data: g, ora, cliente, indirizzo: "", telefono: "", descrizione: "", priorita: "normale", tipologia: "", stato }; DB.interventi.set(i.id, i); };
+    nuovo("Programmato Fatto", "completato", "08:00:00"); nuovo("Programmato Da Fare", "pianificato", "10:00:00"); nuovo("Programmato Annullato", "annullato", "12:00:00");
+    const rid = uuid();
+    DB.rapportini.set(rid, { id: rid, intervento_id: null, autore_id: UTENTI.worker.id, data: g, cliente: "Lavoro Fatto A Mano", indirizzo: "", stato: "completato",
+      rapportino_operai: [{ operaio_id: UTENTI.worker.id, dalle: "15:00", alle: "16:00" }], aggiornato_il: g + "T16:00:00Z" });
+    const altro = uuid();
+    DB.rapportini.set(altro, { id: altro, intervento_id: null, autore_id: UTENTI.worker.id, data: "2026-12-21", cliente: "Altro Giorno", stato: "completato", rapportino_operai: [] });
+    await a.page.evaluate(()=>window.mostraVista("home"));
+    await a.page.evaluate(g=>{ document.getElementById("home-data").value = g; }, g);
+    await a.page.click("#btn-giornata-home");
+    await a.page.waitForSelector("#vista-calgiorno:not(.nascosto) .ag-sez");
+    await a.page.waitForFunction(()=>document.querySelectorAll("#cg-elenco .ag-sez").length === 4);
+    const sezioni = await a.page.$$eval("#cg-elenco .ag-sez", ss=>ss.map(x=>[x.querySelector(".gruppo-tit").textContent.replace(/\s+/g, " ").trim(), x.querySelector(".cli-elenco").textContent]));
+    assert.deepEqual(sezioni.map(x=>x[0]), ["Da eseguire 1", "Eseguiti 1", "Lavori non programmati 1", "Annullati 1"]);
+    assert.match(sezioni[0][1], /Programmato Da Fare/);
+    assert.match(sezioni[1][1], /Programmato Fatto/);
+    assert.match(sezioni[2][1], /Lavoro Fatto A Mano/);
+    assert.doesNotMatch(sezioni[2][1], /Altro Giorno/);
+    assert.match(sezioni[3][1], /Programmato Annullato/);
+    assert.equal(await a.page.textContent("#cg-conteggio"), "3 lavori");
+    await foto(a.page, "giornata");
+    // il lavoro non programmato si apre
+    await a.page.click('#cg-elenco .ag-sez:nth-child(3) .cli-riga');
+    await a.page.waitForFunction(()=>document.getElementById("rf-cliente").value === "Lavoro Fatto A Mano");
   });
 
   await prova("12. compatibilita': rapportino di prima senza cliente_id/telefono; database senza le colonne nuove", async()=>{

@@ -9,7 +9,7 @@ import { mostraVista, registraVista, vistaCorrente } from "../core/navigation.js
 import { puo } from "../core/permessi.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
-import { interventiPeriodo, invalidaInterventi, leggiIntervento, minutiTra, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
+import { elencoRapportini, interventiPeriodo, invalidaInterventi, leggiIntervento, minutiTra, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
 import { dataIt, dataLunga, giorniMese, giorniSettimana, isoDi, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { avanzamento } from "../services/avanzamento.js";
@@ -17,6 +17,7 @@ import { icona } from "../utils/dom.js";
 import { PRIORITA, STATO_INTERVENTO, STATO_RAPPORTINO, apriModuloIntervento, oraBreve } from "./gestione-interventi.js";
 import { rapportinoPerIntervento } from "./modulo-rapportino.js";
 import { apriGiorno } from "./rapportini.js";
+import { voceRapportino } from "./lavoro.js";
 
 const $ = id=>document.getElementById(id);
 const CALENDARIO = ["calgiorno", "sett", "mese"];
@@ -206,21 +207,37 @@ export async function disegnaGiornoCal(){
   $("cg-titolo").textContent = dataLunga(iso);
   $("cg-oggi").classList.toggle("nascosto", iso === oggiIso());
   stato($("cg-stato"), "Caricamento…");
-  let lista;
+  let lista, autonomi = null;
   try{
     const [dal, al] = meseDi(iso);
     await operaiAttivi().catch(()=>[]);
-    lista = (await interventiPeriodo(dal, al)).filter(i=>i.data === iso).sort(ordina);
+    [lista, autonomi] = await Promise.all([
+      interventiPeriodo(dal, al).then(l=>l.filter(i=>i.data === iso).sort(ordina)),
+      // lavori non programmati: rapportini del giorno senza intervento (quelli che RLS mostra all'utente)
+      elencoRapportini({ dal: iso, al: iso }).then(l=>l.filter(r=>!r.intervento_id)).catch(()=>null),
+    ]);
   }catch(e){
     if($("cg-data").value !== iso) return;
     stato($("cg-stato"), messaggioErrore(e), "err"); $("cg-elenco").innerHTML = ""; return;
   }
   if($("cg-data").value !== iso) return;          // nel frattempo si e' cambiato giorno
   stato($("cg-stato"), "");
-  const attivi = lista.filter(attivo).length;
-  $("cg-conteggio").textContent = attivi ? attivi + (attivi === 1 ? " intervento" : " interventi") : "";
-  $("cg-elenco").innerHTML = lista.length ? elencoRighe(lista, false)
-    : '<div class="card nota">Nessun intervento il ' + esc(dataIt(iso)) + '.</div>';
+  // interventi programmati divisi per stato + lavori non programmati
+  const daEseguire = lista.filter(i=>i.stato === "pianificato" || i.stato === "in_corso");
+  const eseguiti = lista.filter(i=>i.stato === "completato");
+  const annullati = lista.filter(i=>i.stato === "annullato");
+  const sezione = (titolo, n, html)=>'<div class="ag-sez"><div class="gruppo-tit">' + esc(titolo) + ' <span class="ag-sez-n">' + n + '</span></div>' + html + '</div>';
+  const nonProgrammati = autonomi || [];
+  const totale = daEseguire.length + eseguiti.length + nonProgrammati.length;
+  $("cg-conteggio").textContent = totale ? totale + (totale === 1 ? " lavoro" : " lavori") : "";
+  let html = "";
+  if(daEseguire.length) html += sezione("Da eseguire", daEseguire.length, elencoRighe(daEseguire, false));
+  if(eseguiti.length) html += sezione("Eseguiti", eseguiti.length, elencoRighe(eseguiti, false));
+  if(nonProgrammati.length) html += sezione("Lavori non programmati", nonProgrammati.length,
+    '<div class="card cli-elenco">' + nonProgrammati.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>');
+  if(annullati.length) html += sezione("Annullati", annullati.length, elencoRighe(annullati, false));
+  if(autonomi === null) html += '<div class="card nota">Lavori non programmati non disponibili (rete).</div>';
+  $("cg-elenco").innerHTML = html || '<div class="card nota">Nessun intervento o lavoro il ' + esc(dataIt(iso)) + '.</div>';
 }
 export function apriGiornoCal(iso){
   $("cg-data").value = iso || oggiIso();

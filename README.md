@@ -245,6 +245,14 @@ Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functi
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
 funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
 
+## Giornata: interventi e lavori del giorno
+
+Home → "Apri giornata" (e Calendario → Giorno) mostra il lavoro del giorno scelto, diviso in:
+**Da eseguire** (interventi pianificati o in corso), **Eseguiti** (completati), **Lavori non programmati**
+(rapportini creati senza intervento, di tutti gli operai per admin e company, i propri per l'operaio) e
+**Annullati**. Ogni voce apre il dettaglio dell'intervento o il rapportino. Il foglio giornaliero della
+vecchia app resta raggiungibile dal pulsante in fondo alla vista.
+
 ## PDF della giornata (rapportini completati)
 
 Rapportini → "PDF della giornata" (oppure Altro → "Invia PDF della giornata" e "Invia PDF" in Home, che

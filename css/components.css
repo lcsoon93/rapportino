@@ -842,3 +842,7 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .cs-stato .link-btn{min-height:32px;padding:2px 0;font-size:13.5px}
 .cs-collegato{display:inline-flex;align-items:center;gap:5px;color:var(--ok-testo);font-weight:600}
 .cs-collegato .i{width:14px;height:14px}
+/* vista Giorno: sezioni (da eseguire, eseguiti, non programmati, annullati) */
+.ag-sez + .ag-sez{margin-top:14px}
+.ag-sez .gruppo-tit{display:flex;align-items:center;gap:6px;margin:4px 2px 8px}
+.ag-sez-n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--sfondo);font-size:12px;color:var(--testo-2)}
