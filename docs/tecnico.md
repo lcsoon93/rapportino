@@ -271,8 +271,7 @@ browser, stessa sessione, nessun nuovo accesso). Sostituisce la vecchia dashboar
 - **Esportazione** delle voci spuntate: materiali in Excel (CSV con `;`, accenti corretti, celle che
   iniziano con `=`/`+`/`-`/`@` neutralizzate) e PDF dei materiali (stampa).
 - File: `search.html`, `js/modules/ricerca-computer.js` (pagina), `js/services/ricerca-logica.js`
-  (logica pura), `js/services/pdf/ricerca.js` (PDF). `ricerca.html` è una copia più vecchia della
-  dashboard precedente, non aggiornata.
+  (logica pura), `js/services/pdf/ricerca.js` (PDF). La vecchia copia `ricerca.html` è stata eliminata.
 
 ## Giornata: interventi e lavori del giorno
 
