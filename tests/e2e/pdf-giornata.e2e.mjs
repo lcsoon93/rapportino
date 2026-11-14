@@ -241,6 +241,17 @@ try{
     assert.ok(!/Ore di lavoro|2h 30m|1h 30m/.test(testo), "nessun totale di ore");
   });
 
+  await prova("Apri giornata -> 'Invia PDF' (telefono): PDF del giorno aperto, non di oggi", async()=>{
+    await a.page.evaluate(g=>window.apriGiornoCal(g), GIORNO);
+    await a.page.waitForSelector("#vista-calgiorno:not(.nascosto) #cg-pdf");
+    assert.equal((await a.page.textContent("#cg-pdf")).trim(), "Invia PDF");
+    await a.page.evaluate(()=>{ document.getElementById("rg-data").value = "2026-01-01"; });   // un altro giorno gia' scelto
+    await a.page.click("#cg-pdf");
+    await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
+    assert.equal(await a.page.inputValue("#rg-data"), GIORNO);
+    assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(3\)/);
+  });
+
   await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
     await a.page.selectOption("#rg-operaio", "");
     await a.page.fill("#rg-data", "2026-11-10");
@@ -265,6 +276,9 @@ try{
     // stampa e che non venga scaricato ne' condiviso
     await pc.page.evaluate(()=>window.mostraVista("home"));
     assert.equal((await pc.page.textContent("#btn-pdf-home")).trim(), "Stampa PDF");
+    await pc.page.evaluate(g=>window.apriGiornoCal(g), GIORNO);
+    await pc.page.waitForSelector("#vista-calgiorno:not(.nascosto) #cg-pdf");
+    assert.equal((await pc.page.textContent("#cg-pdf")).trim(), "Stampa PDF", "Apri giornata sul computer");
     await pc.page.evaluate(()=>window.mostraVista("altro"));
     assert.ok(await pc.page.isVisible('#vista-altro .voce:has-text("Stampa PDF della giornata")'));
     await pc.page.evaluate(()=>window.mostraVista("rapporti"));

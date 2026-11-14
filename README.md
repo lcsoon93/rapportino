@@ -15,7 +15,7 @@ Pubblicata con GitHub Pages: https://lcsoon93.github.io/rapportino/
 |---|---|---|
 | Interventi: crea, assegna agli operai, stato | Interventi, Calendario | admin, company |
 | Rapportini: bozza, ore dalle–alle, materiali, foto, firma, completa (anche senza rete) | Lavoro, Rapportino | operai, admin |
-| Giornata: da eseguire, eseguiti, non programmati, foglio giornaliero | Home → Apri giornata | tutti |
+| Giornata: da eseguire, eseguiti, non programmati, foglio giornaliero; pulsante "Invia PDF" (computer: "Stampa PDF") | Home → Apri giornata | tutti |
 | PDF della giornata (solo rapportini completati, orari e non totale ore) | Rapportini, Altro, Home | tutti |
 | Anagrafica clienti con omonimi, suggerimenti e uso offline | Clienti, campo Cliente | tutti (modifica admin/company) |
 | Storico e ricerca | Storico | admin, company |

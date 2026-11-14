@@ -647,6 +647,8 @@ button.stat:active{filter:brightness(.97)}
 .ag-riga .int-badge .badge{font-size:12px}
 .ag-titolo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 2px 12px}
 .ag-titolo h2{font-size:18px;font-weight:700;flex:1;min-width:0}
+#vista-calgiorno .ag-titolo h2{min-width:200px}
+#cg-pdf{margin-left:auto}
 .ag-conta{font-size:13px;color:var(--testo-2);font-weight:600}
 .ag-giorno{margin-bottom:10px}
 .ag-giorno-testa{display:flex;align-items:center;justify-content:space-between;width:100%;gap:10px;

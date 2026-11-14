@@ -151,10 +151,11 @@ export function condividiPDFGiornata(btn){
   return condividi(btn, ()=>generaPDFPerCliente(dati, iso), nome);
 }
 
-// "Invia PDF della giornata" (Altro, Home): il PDF della giornata del giorno aperto nel foglio giornaliero,
-// gia' preparato; poi basta toccare "Condividi PDF"
-export async function apriPDFGiornata(){
-  const iso = ($("data") && $("data").value) || oggiIso();
+// "Invia PDF della giornata" (Altro, Home, Apri giornata): il PDF del giorno indicato (da "Apri giornata")
+// oppure del giorno aperto nel foglio giornaliero, gia' preparato; poi basta toccare "Condividi PDF"
+// (sul computer "Stampa PDF")
+export async function apriPDFGiornata(giorno){
+  const iso = (/^\d{4}-\d{2}-\d{2}$/.test(giorno || "") && giorno) || ($("data") && $("data").value) || oggiIso();
   mostraVista("rapporti");
   $("rg-data").value = iso;
   $("rg-operaio").value = "";

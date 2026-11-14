@@ -280,6 +280,8 @@ Home → "Apri giornata" (e Calendario → Giorno) mostra il lavoro del giorno s
 (rapportini creati senza intervento, di tutti gli operai per admin e company, i propri per l'operaio),
 **Foglio giornaliero** (schede registrate quel giorno con il foglio della vecchia app: toccando si apre il
 foglio) e **Annullati**. Ogni voce apre il dettaglio dell'intervento o il rapportino.
+In alto, **Invia PDF** (sul computer **Stampa PDF**) prepara il PDF della giornata per il giorno aperto
+(stessa scheda di Rapportini → "PDF della giornata"; `apriPDFGiornata(giorno)`).
 
 La Home dell'admin usa gli stessi dati (non più il foglio giornaliero della vecchia app): "Riepilogo
 giornata" con Lavori, Ore di lavoro (dal primo inizio all'ultima fine degli orari segnati nei rapportini
@@ -290,7 +292,7 @@ Il foglio giornaliero della vecchia app resta solo in Altro → "Rapportino dell
 ## PDF della giornata (rapportini completati)
 
 Rapportini → "PDF della giornata" (oppure Altro → "Invia PDF della giornata" e "Invia PDF" in Home, che
-aprono questa scheda già preparata sul giorno del foglio giornaliero): scegli il giorno (admin e company anche l'operaio, altrimenti tutti),
+aprono questa scheda già preparata sul giorno del foglio giornaliero; "Invia PDF" in Apri giornata, sul giorno aperto): scegli il giorno (admin e company anche l'operaio, altrimenti tutti),
 tocca **Prepara il PDF**, poi **Condividi PDF** (stampa, mail, salva).
 - Comprende anche le schede compilate del foglio giornaliero della vecchia app per quel giorno (con i
   tecnici e gli orari della giornata), solo senza filtro operaio.

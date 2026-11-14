@@ -419,7 +419,8 @@
         <button type="button" class="freccia" onclick="spostaGiornoCal(1)" aria-label="Giorno successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
       </div>
       <div class="ag-titolo"><h2 id="cg-titolo"></h2><span id="cg-conteggio" class="ag-conta"></span>
-        <button type="button" class="mini nascosto" id="cg-oggi" onclick="apriGiornoCal('')">Oggi</button></div>
+        <button type="button" class="mini nascosto" id="cg-oggi" onclick="apriGiornoCal('')">Oggi</button>
+        <button type="button" class="btn btn-secondario" id="cg-pdf" style="min-height:40px;padding:6px 12px" onclick="apriPDFGiornata(document.getElementById('cg-data').value)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Invia PDF</span></button></div>
       <div class="msg-info nascosto" id="cg-stato" role="status" aria-live="polite"></div>
       <div id="cg-elenco"></div>
     </div>
