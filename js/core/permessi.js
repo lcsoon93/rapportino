@@ -13,6 +13,7 @@ const PERMESSI = {
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
     "backup.esporta", "backup.importa", "report", "pdf", "pdf.opzioni",
     "ai.rapportino", "ai.controllo", "ai.ricerca", "ai.assistente", "ai.predittiva", "ai.modelli",
+    "clienti.consulta", "clienti.crea", "clienti.gestisci", "clienti.elimina",
   ],
   company: [
     "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
@@ -20,12 +21,14 @@ const PERMESSI = {
     "vista.storico",                                         // Storico (consultazione)
     "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
     "ai.controllo", "ai.ricerca", "ai.assistente", "ai.predittiva",   // assistente AI (stessi permessi sul server)
+    "vista.cerca", "clienti.consulta", "clienti.crea", "clienti.gestisci",   // anagrafica: gestisce, non elimina
   ],
   worker: [
     "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
     "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario: solo gli interventi che le policy gli mostrano
     "rapportini.compila",
     "ai.rapportino", "ai.controllo", "ai.ricerca",                    // assistente nel rapportino; ricerca sui propri dati
+    "vista.cerca", "clienti.consulta", "clienti.crea",                // anagrafica: consulta e aggiunge dal rapportino
   ],
 };
 

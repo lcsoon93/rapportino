@@ -14,6 +14,14 @@ for f in $(cd "$W" && ls 20*.sql | sort); do psql_pg "-d $DB -f $W/$f" >/dev/nul
 psql_pg "-d $DB -c 'grant all on all tables in schema public to service_role'" >/dev/null
 psql_pg "-d $DB -t -f $W/limiti-ai.sql"
 psql_pg "-d $DB -t -f $W/rls-ai.sql"
+psql_pg "-d $DB -t -f $W/clienti.sql"
+# rollback dell'anagrafica e nuova applicazione (la migrazione e' ripetibile)
+cp supabase/rollback/20261116090000_anagrafica_clienti_rollback.sql "$W"/; chmod 644 "$W"/*.sql
+psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti_rollback.sql" >/dev/null
+psql_pg "-d $DB -t -c \"select 'rollback: ' || (case when to_regclass('public.clienti') is null and not exists (select 1 from information_schema.columns where table_name='rapportini' and column_name='cliente_id') then 'ok' else 'ERRORE' end)\""
+psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti.sql" >/dev/null
+echo " migrazione riapplicata due volte: ok"
 psql_pg "-c 'drop database $DB'" >/dev/null
 rm -rf "$W"
 echo "SQL: tutti i controlli superati"

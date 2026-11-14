@@ -7,6 +7,8 @@ import { dataIt, isoDi, oggiIso } from "../utils/dates.js";
 import { esc } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
 import { avanzamento } from "../services/avanzamento.js";
+import { collegaSceltaCliente } from "./scelta-cliente.js";
+import { sincronizzaClienti } from "../services/clienti-archivio.js";
 
 const $ = id=>document.getElementById(id);
 let inModifica = null;
@@ -31,6 +33,8 @@ export const STATO_RAPPORTINO = {
   completato: '<span class="badge ok">' + icona("check") + 'Completato</span>',
 };
 export const oraBreve = o=>o ? String(o).slice(0, 5) : "";
+// campo cliente con suggerimenti dall'anagrafica (indirizzo e telefono copiati, modificabili per l'intervento)
+const sceltaCliente = collegaSceltaCliente({ campo: $("int-cliente"), indirizzo: $("int-indirizzo"), telefono: $("int-telefono") });
 function messaggio(testo, tipo){ $("int-stato").textContent = testo || ""; $("int-stato").className = "msg-info" + (tipo ? " " + tipo : ""); }
 
 async function caricaOperai(){
@@ -73,6 +77,7 @@ function schedaIntervento(i){
         (i.descrizione ? '<div class="int-desc">' + esc(i.descrizione) + '</div>' : '') +
         '<div class="int-meta">' +
           (i.indirizzo ? '<span>' + icona("pin", "i-sm") + esc(i.indirizzo) + '</span>' : '') +
+          (i.telefono ? '<span>' + icona("phone", "i-sm") + esc(i.telefono) + '</span>' : '') +
           '<span>' + icona("users", "i-sm") + (assegnati.length ? esc(assegnati.join(", ")) : '<b style="color:var(--err-testo)">Nessun operaio</b>') + '</span>' +
           '<span>' + icona("file", "i-sm") + rapp.length + (rapp.length === 1 ? " rapportino" : " rapportini") + (rapp.length ? " (" + completati + " completat" + (completati === 1 ? "o" : "i") + ")" : "") + '</span>' +
           progresso +
@@ -100,7 +105,8 @@ export function spostaPeriodoInterventi(delta){
 }
 
 // ---------------------------------------------------------------- modulo
-export async function apriModuloIntervento(id){
+// id = intervento da modificare; cliente (facoltativo, nuovo intervento) = dati copiati da una scheda
+export async function apriModuloIntervento(id, cliente){
   inModifica = id || null;
   $("int-errore").textContent = "";
   await caricaOperai();
@@ -111,7 +117,9 @@ export async function apriModuloIntervento(id){
   interventoAperto = id ? i : null;
   $("int-form-titolo").textContent = id ? "Modifica intervento" : "Nuovo intervento";
   $("int-data").value = i.data; $("int-ora").value = oraBreve(i.ora);
-  $("int-cliente").value = i.cliente; $("int-indirizzo").value = i.indirizzo;
+  if(!id && cliente && cliente.cliente) Object.assign(i, cliente);
+  $("int-cliente").value = i.cliente; $("int-indirizzo").value = i.indirizzo; $("int-telefono").value = i.telefono || "";
+  sceltaCliente.imposta(i.cliente_id || null);
   $("int-descrizione").value = i.descrizione; $("int-priorita").value = i.priorita; $("int-tipologia").value = i.tipologia;
   const assegnati = new Set(avanzamento(i).attivi);
   $("int-operai").innerHTML = operai.length ? operai.map(o=>
@@ -121,7 +129,7 @@ export async function apriModuloIntervento(id){
   $("int-form").classList.remove("nascosto");
   $("int-nuovo").classList.add("nascosto");
   $("int-form").scrollIntoView({ block: "start" });
-  $("int-cliente").focus({ preventScroll: true });
+  if(!$("int-cliente").value) $("int-cliente").focus({ preventScroll: true });
 }
 export function chiudiModuloIntervento(){
   inModifica = null;
@@ -144,8 +152,11 @@ $("int-form").addEventListener("submit", async e=>{
   const btn = $("int-salva");
   btn.disabled = true; btn.classList.add("in-corso");
   try{
+    // una scheda cliente creata al volo (ancora sul telefono) va prima al server: cosi' il collegamento arriva
+    if(sceltaCliente.id()) await sincronizzaClienti().catch(()=>{});
     await salvaIntervento({ id: inModifica, data: $("int-data").value, ora: $("int-ora").value, cliente,
-      indirizzo: $("int-indirizzo").value.trim(), descrizione: $("int-descrizione").value.trim(),
+      indirizzo: $("int-indirizzo").value.trim(), telefono: $("int-telefono").value.trim(), cliente_id: sceltaCliente.id(),
+      descrizione: $("int-descrizione").value.trim(),
       priorita: $("int-priorita").value, tipologia: $("int-tipologia").value }, scelti);
     const nuovo = !inModifica;
     chiudiModuloIntervento();

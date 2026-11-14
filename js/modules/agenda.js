@@ -150,6 +150,7 @@ function disegnaDettaglio(i){
   const righe = [];
   righe.push('<div class="idt-riga">' + icona("cal") + '<span>' + esc(dataLunga(i.data)) + (i.ora ? ' · ore ' + esc(oraBreve(i.ora)) : '') + '</span></div>');
   if(i.indirizzo) righe.push('<div class="idt-riga">' + icona("pin") + '<span>' + esc(i.indirizzo) + '</span></div>');
+  if(i.telefono) righe.push('<div class="idt-riga">' + icona("phone") + '<a href="tel:' + esc(String(i.telefono).replace(/[^\d+]/g, "")) + '">' + esc(i.telefono) + '</a></div>');
   if(i.tipologia) righe.push('<div class="idt-riga">' + icona("sliders") + '<span>' + esc(i.tipologia) + '</span></div>');
   let html = '<div class="int-badge" style="margin:0 0 12px">' + STATO_INTERVENTO[i.stato] + (PRIORITA[i.priorita] || "") + '</div>' +
     righe.join("") +

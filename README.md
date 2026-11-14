@@ -42,7 +42,9 @@ js/
     spese.js               spese ed extra con scontrino
     calendario.js          viste settimana e mese (interventi + report giornate per l'admin), griglia del mese
     agenda.js              interventi in Home e Calendario: righe compatte, dettaglio intervento (stato per operaio), vista Giorno
-    clienti.js             anagrafica dai rapporti, ricerca, storico, suggerimenti nome/indirizzo
+    clienti.js             sezione Clienti: anagrafica permanente (elenco, ricerca, scheda, modifica, archivio,
+                           importazione dallo storico) + ricerca nei rapporti della vecchia app
+    scelta-cliente.js      campo cliente con suggerimenti dall'anagrafica (rapportino e intervento)
     report.js              aggregazione settimana/mese, monte ore, testi per mail
     altro.js               sezione Altro
     accesso.js             schermate di login (password o PIN), cambio password e PIN di accesso
@@ -67,6 +69,8 @@ js/
     unione.js              unione a tre vie delle modifiche concorrenti (scheda per scheda, campo per campo)
     backup.js              esporta / importa archivio JSON
     ai.js                  UNICO punto di accesso all'assistente AI (Edge Function "ai"): chiamate, limiti, errori, foto ridotte
+    clienti-logica.js      regole dell'anagrafica: ricerca, omonimi, unione delle modifiche, importazione
+    clienti-archivio.js    anagrafica sul telefono (IndexedDB), coda delle modifiche e sincronizzazione
     controlli.js           controllo automatico del rapportino (dati mancanti, ore, materiali, firma, foto), anche offline
     condivisione.js        invio PDF (condivisione Mail/Gmail) e testo (mailto)
     pdf/comune.js          intestazione, piè di pagina (con data e numerazione), misure firma, righe di dati con separatori
@@ -240,6 +244,48 @@ Configurazione (una volta): eseguire la migrazione; nei secret delle Edge Functi
 (la stessa di `js/core/config.js`), `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` (`mailto:...`); pubblicare la
 funzione `notifiche` (verify_jwt attivo). Cambiare la coppia di chiavi obbliga tutti a riattivare le notifiche.
 
+## Anagrafica clienti
+
+Rubrica permanente condivisa dagli utenti attivi del progetto (tabella `clienti`, migrazione
+`20261116090000_anagrafica_clienti.sql`). Ogni scheda: nome e cognome o ragione sociale (obbligatorio),
+indirizzo, telefono, email, partita IVA, note, archiviato, **ID univoco** (uuid).
+
+- **Omonimi**: il nome non è una chiave. Si possono creare più clienti con lo stesso nome, anche con lo
+  stesso indirizzo; nessun vincolo di unicità, nessuna scheda sovrascritta perché il nome coincide.
+  Elenco, ricerca e suggerimenti mostrano sempre nome + indirizzo (+ telefono); con più omonimi
+  l'app lo dice e chiede di scegliere la scheda giusta, senza mai scegliere da sola.
+- **Rapportino e intervento**: il campo Cliente suggerisce le schede mentre si scrive. Scegliendone una
+  si **copiano** nome, indirizzo e telefono nel documento e si salva `cliente_id`. I campi restano
+  modificabili per il singolo documento. Si può usare un cliente non in anagrafica o crearne uno al volo
+  ("Nuovo cliente" / "Aggiungi all'anagrafica") senza lasciare il documento. Nuovo campo **Telefono**
+  nell'intervento e nel rapportino (salvato, mostrato nel dettaglio, in "Il mio lavoro" e alla riapertura);
+  il rapportino nato da un intervento ne copia cliente, indirizzo, telefono e collegamento.
+- **Copia indipendente (snapshot)**: modificare la scheda non cambia i documenti già salvati; modificare
+  il documento non cambia la scheda. Solo il pulsante esplicito "Aggiorna la scheda" (admin e company)
+  copia indirizzo e telefono del documento nell'anagrafica, dopo conferma. Riscrivendo il nome nel
+  documento il collegamento si toglie.
+- **Permessi** (RLS): leggono tutti gli utenti attivi; creano tutti (l'operaio anche dal rapportino);
+  modificano e archiviano admin e company; elimina solo l'admin e solo senza documenti collegati
+  (altrimenti si archivia: gli archiviati spariscono dai suggerimenti, i documenti restano collegati).
+  Isolamento: un progetto Supabase = un'azienda; chi non ha un profilo attivo non vede nulla.
+- **Offline**: copia dell'anagrafica sul telefono (IndexedDB `rapportino-clienti`, per utente), ricerca e
+  suggerimenti offline, nuove schede e modifiche in coda con l'id generato sul telefono (`salva_cliente`
+  è idempotente: un reinvio non crea doppioni). Modifiche su una versione superata: unione campo per
+  campo; se lo stesso campo è cambiato da entrambi la scheda mostra il confronto e si sceglie
+  ("Tieni la mia" / "Tieni quella del server"). Le schede partono prima dei rapportini che le usano.
+  Gli interventi, come prima, si salvano solo con la rete.
+- **Dati esistenti**: rapportini e interventi di prima restano invariati (senza collegamento). In Clienti,
+  "Importa dallo storico" (admin e company) propone le coppie nome + indirizzo dei lavori senza scheda:
+  si creano solo quelle spuntate, i documenti non vengono modificati.
+
+Rilascio (in quest'ordine):
+1. SQL Editor: eseguire `supabase/migrations/20261116090000_anagrafica_clienti.sql` (solo aggiunte,
+   ripetibile; rollback in `supabase/rollback/`).
+2. Pubblicare il frontend (merge su `main`). Nessuna Edge Function da pubblicare.
+Se il frontend arriva prima della migrazione l'app funziona come prima: le letture e le scritture di
+interventi e rapportini riprovano senza i campi nuovi e la sezione Clienti avvisa che l'anagrafica non
+è ancora attiva.
+
 ## Assistente AI (Groq)
 
 Funzioni (tutte propongono, nessuna salva o modifica dati senza conferma dell'utente):
@@ -313,7 +359,8 @@ cinque Edge Functions pubblicate. La procedura serve per un progetto nuovo o per
    `20261107120000_utenti_ruoli` → `20261108090000_interventi_rapportini` →
    `20261109090000_interventi_piu_operai` → `20261110090000_allegati_storage` →
    `20261111090000_rapporti_privilegi` → `20261112090000_utenti_pin_ruoli` →
-   `20261113090000_recupero_accesso`.
+   `20261113090000_recupero_accesso` → `20261114090000_impostazioni` → `20261115090000_notifiche` →
+   `20261116090000_anagrafica_clienti`.
 3. Edge Functions **dopo** le migrazioni (leggono colonne e funzioni create da queste):
    `accesso`, `cambia-password`, `utenti`, `inizializza`, `pin`
    (`accesso` e `inizializza` con verify_jwt disattivato, le altre attivo: vedi `supabase/config.toml`).

@@ -5,7 +5,7 @@
 import { mostraVista } from "./navigation.js";
 import { attivaNotificheUI, disattivaNotificheUI, provaNotificaUI, vaiASezione } from "../modules/altro.js";
 import { disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana } from "../modules/calendario.js";
-import { apriCliente, eseguiRicerca, nuovoPerCliente } from "../modules/clienti.js";
+import { apriCliente, chiudiSchedaCliente, eseguiRicerca, importaClientiUI, nuovoClienteUI, nuovoPerCliente } from "../modules/clienti.js";
 import { apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino } from "../modules/dashboard.js";
 import { aggiungiCliente, aggiungiFascia, aggiungiMateriale, aggiungiUrgenza, gestisciFoto, riprendiLavoro, spostaCliente, togliCliente, togliFascia } from "../modules/interventi.js";
 import { aggiungiOperaio, togliOperaio } from "../modules/operai.js";
@@ -31,7 +31,7 @@ Object.assign(window, {
   mostraVista,
   vaiASezione, attivaNotificheUI, disattivaNotificheUI, provaNotificaUI,
   disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana,
-  apriCliente, eseguiRicerca, nuovoPerCliente,
+  apriCliente, chiudiSchedaCliente, eseguiRicerca, importaClientiUI, nuovoClienteUI, nuovoPerCliente,
   apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino,
   aggiungiCliente, aggiungiFascia, aggiungiMateriale, aggiungiUrgenza, gestisciFoto, riprendiLavoro, spostaCliente, togliCliente, togliFascia,
   aggiungiOperaio, togliOperaio,

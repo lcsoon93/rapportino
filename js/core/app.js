@@ -20,6 +20,7 @@ import { esportaBackup } from "../services/backup.js";
 import { sincronizza } from "../services/sync.js";
 import { oggiIso } from "../utils/dates.js";
 import { avviaSincronizzazione, fermaSincronizzazione } from "../services/sinc-rapportini.js";
+import { avviaAnagrafica } from "../services/clienti-archivio.js";
 // moduli che si registrano da soli (viste, eventi, pad della firma)
 import "../modules/dashboard.js";
 import "../modules/calendario.js";
@@ -93,6 +94,8 @@ async function entra(p){
   caricaGiornata(oggi);
   mostraVista(vistaIniziale());
   // notifiche: il telefono gia' iscritto resta collegato a questo utente; si inviano quelle in coda
+  // anagrafica clienti: invio delle schede rimaste sul telefono e copia aggiornata (anche offline)
+  avviaAnagrafica().catch(e=>console.warn("Anagrafica:", e.message));
   ricollegaNotifiche();
   inviaNotificheInCoda();
   apriDaLink(location.href);

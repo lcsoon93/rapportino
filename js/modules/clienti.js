@@ -1,4 +1,5 @@
-// Clienti: anagrafica ricavata dai rapporti, ricerca, storico, suggerimenti di completamento.
+// Clienti: anagrafica permanente (schede con id), ricerca, scheda, importazione; storico della vecchia app;
+// suggerimenti nome/indirizzo del foglio giornaliero della vecchia app.
 import { dataIt } from "../utils/dates.js";
 import { esc, euro, evidenzia, iniziali } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
@@ -6,6 +7,14 @@ import { registraVista } from "../core/navigation.js";
 import { icona } from "../utils/dom.js";
 import { nuovoRapportino } from "./dashboard.js";
 import { su } from "../core/eventi.js";
+import { mostraVista } from "../core/navigation.js";
+import { puo } from "../core/permessi.js";
+import { aggiornaClienti, archiviaCliente, elencoClienti, eliminaCliente, leggiCliente, risolviConflittoCliente, salvaCliente, scartaModifica, statoAnagrafica } from "../services/clienti-archivio.js";
+import { CAMPI_CLIENTE, candidatiImportazione, cercaClienti, datiPerDocumento, erroriCliente, etichettaCliente, omonimi } from "../services/clienti-logica.js";
+import { elencoInterventi, elencoRapportini } from "../services/api-lavori.js";
+import { registraSchedaCliente } from "./scelta-cliente.js";
+import { nuovoRapportinoAutonomo } from "./modulo-rapportino.js";
+import { apriModuloIntervento } from "./gestione-interventi.js";
 
 export function aggiornaClientiNoti(){
   const db = leggiDB();
@@ -104,75 +113,245 @@ document.addEventListener("focusout", e=>{
   }
 });
 window.addEventListener("resize", ()=>{ if(suggCampo) chiudiSuggerimenti(); });
-// anagrafica ricavata dai rapportini salvati (nessuna anagrafica separata, nessun id nuovo):
-// un cliente per nome, con l'indirizzo e la data dell'intervento piu' recente
-export function anagraficaClienti(){
-  const db = leggiDB();
-  const mappa = {};
-  Object.keys(db).sort().forEach(iso=>{
-    ((db[iso] && db[iso].clienti) || []).forEach(c=>{
-      if(!c.nome || c.nome === "(senza nome)") return;
-      const k = c.nome.trim().toLowerCase();
-      const v = mappa[k] || (mappa[k] = {nome: c.nome.trim(), indirizzo: "", n: 0, ultimo: ""});
-      v.n++;
-      v.ultimo = iso;
-      v.nome = c.nome.trim();
-      if(c.indirizzo) v.indirizzo = c.indirizzo;
-    });
-  });
-  return Object.values(mappa).sort((a,b)=>b.ultimo.localeCompare(a.ultimo) || a.nome.localeCompare(b.nome));
+// =====================================================================
+// ANAGRAFICA CLIENTI (tabella "clienti", copia sul telefono: services/clienti-archivio.js)
+// Ogni cliente e' una scheda con il suo id: il nome non e' univoco (omonimi ammessi, anche con lo
+// stesso indirizzo). Elenco e ricerca mostrano sempre nome + indirizzo.
+// =====================================================================
+const $ = id=>document.getElementById(id);
+let elencoAnagrafica = [];
+
+function badgeStato(c){
+  if(c._stato === "conflitto") return '<span class="badge err">Conflitto</span>';
+  if(c._stato === "errore") return '<span class="badge err">Non inviato</span>';
+  if(c._stato) return '<span class="badge neutro">Da inviare</span>';
+  return "";
 }
-export function rigaClienteHtml(v){
-  return '<button type="button" class="cli-riga" data-nome="' + esc(v.nome) + '" onclick="apriCliente(this.dataset.nome)">' +
-    '<span class="avatar" aria-hidden="true">' + esc(iniziali(v.nome)) + '</span>' +
+export function rigaClienteHtml(c){
+  return '<button type="button" class="cli-riga" data-cliente="' + esc(c.id) + '">' +
+    '<span class="avatar" aria-hidden="true">' + esc(iniziali(c.nome)) + '</span>' +
     '<span class="cli-testi">' +
-      '<span class="cli-nome" style="display:block">' + esc(v.nome) + '</span>' +
-      (v.indirizzo ? '<span class="cli-ind" style="display:block">' + esc(v.indirizzo) + '</span>' : '') +
-      '<span class="cli-info" style="display:block">' + v.n + (v.n === 1 ? " intervento" : " interventi") + ' · ultimo ' + dataIt(v.ultimo) + '</span>' +
+      '<span class="cli-nome" style="display:block">' + esc(c.nome) + '</span>' +
+      '<span class="cli-ind cli-ind-anag" style="display:block">' + icona("pin", "i-sm") + esc(c.indirizzo || "indirizzo non indicato") + '</span>' +
+      (c.telefono ? '<span class="cli-info" style="display:block">' + icona("phone", "i-sm") + esc(c.telefono) + '</span>' : '') +
+      ((c.archiviato || c._stato) ? '<span class="int-badge">' + (c.archiviato ? '<span class="badge neutro">Archiviato</span>' : '') + badgeStato(c) + '</span>' : '') +
     '</span>' + icona("chev-r", "chev") + '</button>';
 }
-export function apriCliente(nome){
-  const inp = document.getElementById("cerca-input");
-  inp.value = nome;
-  eseguiRicerca();
-  window.scrollTo(0, 0);
-}
-export function nuovoPerCliente(btn){
-  nuovoRapportino({nome: btn.dataset.nome, indirizzo: btn.dataset.indirizzo});
-}
-export function eseguiRicerca(){
-  const query = (document.getElementById("cerca-input").value || "").trim().toLowerCase();
-  const cont = document.getElementById("cerca-risultati");
-  cont.innerHTML = "";
-  const anagrafica = anagraficaClienti();
-
-  if(query.length < 2){
-    if(!anagrafica.length){
-      cont.innerHTML = '<div class="card vuoto"><div class="v-icona">' + icona("users", "i-lg") + '</div>' +
-        '<h3>Nessun cliente ancora</h3><p>I clienti compaiono qui dopo il primo rapportino.</p>' +
-        '<button type="button" class="btn btn-primario" onclick="nuovoRapportino()">' + icona("plus") + 'Nuovo rapportino</button></div>';
-      return;
-    }
-    cont.innerHTML = '<div class="elenco-nota">' + anagrafica.length + (anagrafica.length === 1 ? " cliente" : " clienti") +
-      ' · tocca per vedere lo storico</div>' +
-      '<div class="card cli-elenco">' + anagrafica.map(rigaClienteHtml).join("") + '</div>';
+function disegnaAnagrafica(query){
+  const box = $("anag-elenco");
+  const archiviati = $("anag-archiviati").checked;
+  const trovati = cercaClienti(elencoAnagrafica, query, { archiviati });
+  const attivi = elencoAnagrafica.filter(c=>!c.archiviato).length;
+  const msg = statoAnagrafica.attiva ? statoAnagrafica.errore : "L'anagrafica clienti non è ancora attiva sul server (migrazione 20261116090000).";
+  $("anag-msg").textContent = msg || "";
+  $("anag-msg").className = "msg-info" + (msg ? " att" : "");
+  if(!elencoAnagrafica.length){
+    box.innerHTML = '<div class="card vuoto"><div class="v-icona">' + icona("users", "i-lg") + '</div><h3>Anagrafica vuota</h3>' +
+      '<p>Aggiungi i clienti con «Nuovo cliente»' + (puo("clienti.gestisci") ? ' oppure importali dai lavori già registrati' : '') + '.</p></div>';
     return;
   }
+  const stessi = query ? omonimi(elencoAnagrafica, query, { archiviati }) : [];
+  box.innerHTML = '<div class="elenco-nota">' + (query ? trovati.length + (trovati.length === 1 ? " cliente trovato" : " clienti trovati") : attivi + (attivi === 1 ? " cliente" : " clienti")) +
+    (stessi.length > 1 ? ' · ' + stessi.length + ' con lo stesso nome: controlla l\'indirizzo' : '') + '</div>' +
+    (trovati.length ? '<div class="card cli-elenco">' + trovati.map(rigaClienteHtml).join("") + '</div>' : '<div class="ris-niente">Nessun cliente in anagrafica per "' + esc(query) + '"</div>');
+}
+export async function aggiornaVistaClienti(){
+  elencoAnagrafica = await elencoClienti();
+  disegnaAnagrafica($("cerca-input").value.trim());
+}
+export function eseguiRicerca(){
+  const query = ($("cerca-input").value || "").trim();
+  disegnaAnagrafica(query);
+  const cont = $("cerca-risultati");
+  cont.innerHTML = "";
+  if(query.length >= 2 && Object.keys(leggiDB()).length) storicoVecchio(query.toLowerCase(), cont);
+}
+document.getElementById("anag-elenco").addEventListener("click", e=>{
+  const b = e.target.closest("[data-cliente]");
+  if(b) apriSchedaCliente({ id: b.dataset.cliente });
+});
 
-  // cliente esatto: scheda con azione rapida
-  const esatto = anagrafica.find(v=>v.nome.toLowerCase() === query);
-  let testa = "";
-  if(esatto){
-    testa = '<div class="card cli-scheda"><div class="cs-top"><span class="avatar">' + esc(iniziali(esatto.nome)) + '</span>' +
-      '<div style="min-width:0"><h2>' + esc(esatto.nome) + '</h2>' +
-      (esatto.indirizzo ? '<div class="cs-ind">' + esc(esatto.indirizzo) + '</div>' : '') + '</div></div>' +
-      '<button type="button" class="btn btn-primario btn-blocco" data-nome="' + esc(esatto.nome) + '" data-indirizzo="' + esc(esatto.indirizzo) + '" onclick="nuovoPerCliente(this)">' +
-      icona("plus") + 'Nuovo rapportino per questo cliente</button></div>';
-  } else {
-    const simili = anagrafica.filter(v=>v.nome.toLowerCase().includes(query) || v.indirizzo.toLowerCase().includes(query)).slice(0, 8);
-    if(simili.length) testa = '<div class="elenco-nota">Clienti</div><div class="card cli-elenco" style="margin-bottom:16px">' + simili.map(rigaClienteHtml).join("") + '</div>';
+// ---------------------------------------------------------------- scheda (foglio)
+let schedaAperta = null;     // { id, onSalvato }
+let focusPrima = null;
+function msgScheda(t, tipo){ $("cli-msg").textContent = t || ""; $("cli-msg").className = "msg-info" + (tipo ? " " + tipo : ""); }
+function apriFoglio(titolo){
+  if($("cli-foglio").classList.contains("nascosto")) focusPrima = document.activeElement;
+  $("cli-titolo").textContent = titolo;
+  msgScheda("");
+  $("cli-foglio").classList.remove("nascosto");
+  document.body.classList.add("foglio-aperto");
+  $("cli-chiudi").focus({ preventScroll: true });
+}
+export function chiudiSchedaCliente(){
+  $("cli-foglio").classList.add("nascosto");
+  document.body.classList.remove("foglio-aperto");
+  schedaAperta = null;
+  if(focusPrima && document.contains(focusPrima)) focusPrima.focus({ preventScroll: true });
+  focusPrima = null;
+}
+const CAMPI_SCHEDA = [["nome", "Nome e cognome / ragione sociale"], ["indirizzo", "Indirizzo"], ["telefono", "Telefono"], ["email", "Email"], ["partita_iva", "Partita IVA"], ["note", "Note"]];
+
+// apertura: { id } = consulta una scheda; { nuovo: {nome, indirizzo, telefono}, onSalvato } = nuova scheda
+export async function apriSchedaCliente({ id, nuovo, onSalvato } = {}){
+  schedaAperta = { id: id || null, onSalvato: onSalvato || null };
+  if(!id) return moduloScheda(null, nuovo || {});
+  const c = await leggiCliente(id);
+  if(!c){ apriFoglio("Cliente"); $("cli-corpo").innerHTML = '<p class="nota">Scheda non disponibile.</p>'; $("cli-azioni").innerHTML = ""; return; }
+  apriFoglio(c.nome);
+  const riga = (ic, testo, link)=>testo ? '<div class="idt-riga">' + icona(ic) + (link ? '<a href="' + esc(link) + '">' + esc(testo) + '</a>' : '<span>' + esc(testo) + '</span>') + '</div>' : '';
+  $("cli-corpo").innerHTML =
+    (c.archiviato ? '<p class="msg-info att">Cliente archiviato: non compare nei suggerimenti.</p>' : '') +
+    riga("pin", c.indirizzo || "Indirizzo non indicato") +
+    riga("phone", c.telefono, c.telefono ? "tel:" + c.telefono.replace(/[^\d+]/g, "") : "") +
+    riga("mail", c.email, c.email ? "mailto:" + c.email : "") +
+    (c.partita_iva ? '<div class="idt-riga">' + icona("file") + '<span>P. IVA ' + esc(c.partita_iva) + '</span></div>' : '') +
+    (c.note ? '<div class="idt-desc"></div>' : '') +
+    '<p class="nota cli-id">ID scheda: ' + esc(c.id) + '</p>' +
+    (c._stato === "conflitto" ? conflittoHtml(c) : '') +
+    (c._stato === "errore" ? '<p class="msg-info err">Modifica non inviata: ' + esc(c._errore) + '</p>' : '') +
+    (c._stato && c._stato !== "conflitto" && c._stato !== "errore" ? '<p class="msg-info att">Salvato sul telefono: verrà inviato appena c\'è rete.</p>' : '');
+  if(c.note) $("cli-corpo").querySelector(".idt-desc").textContent = c.note;
+  const az = [];
+  if(puo("rapportini.compila")) az.push('<button type="button" class="btn btn-primario btn-blocco" data-az="rapportino">' + icona("plus") + 'Nuovo rapportino per questo cliente</button>');
+  if(puo("interventi.gestisci")) az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="intervento">' + icona("cal") + 'Nuovo intervento per questo cliente</button>');
+  if(puo("clienti.gestisci")){
+    az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="modifica">' + icona("pen") + 'Modifica</button>');
+    az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="archivia">' + (c.archiviato ? "Ripristina" : "Archivia") + '</button>');
   }
+  if(c._stato === "errore") az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="scarta">Scarta la modifica non inviata</button>');
+  if(puo("clienti.elimina") && c.versione) az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="elimina">' + icona("trash") + 'Elimina</button>');
+  $("cli-azioni").innerHTML = az.join("");
+  $("cli-azioni").onclick = async e=>{
+    const b = e.target.closest("[data-az]");
+    if(!b) return;
+    const a = b.dataset.az;
+    if(a === "modifica") return moduloScheda(c, c);
+    if(a === "rapportino"){ chiudiSchedaCliente(); return nuovoRapportinoPerCliente(c); }
+    if(a === "intervento"){ chiudiSchedaCliente(); return nuovoInterventoPerCliente(c); }
+    try{
+      if(a === "archivia"){
+        if(!c.archiviato && !confirm("Archiviare " + etichettaCliente(c) + "? Non comparirà nei suggerimenti; i documenti restano collegati.")) return;
+        await archiviaCliente(c, !c.archiviato);
+      }
+      if(a === "scarta"){ if(!confirm("Scartare la modifica non inviata?")) return; await scartaModifica(c.id); }
+      if(a === "elimina"){
+        if(!confirm("Eliminare definitivamente " + etichettaCliente(c) + "?\nSe ha interventi o rapportini collegati non si può: va archiviato.")) return;
+        await eliminaCliente(c.id); chiudiSchedaCliente(); return;
+      }
+      await apriSchedaCliente({ id: c.id });
+    }catch(err){ msgScheda(err.message, "err"); }
+  };
+}
+const ETICHETTE = Object.fromEntries(CAMPI_SCHEDA.concat([["archiviato", "Archiviato"]]));
+function conflittoHtml(c){
+  const s = c._server || {};
+  const righe = CAMPI_CLIENTE.filter(k=>String(c[k] ?? "") !== String(s[k] ?? ""))
+    .map(k=>'<div class="conf-riga"><span>' + esc(ETICHETTE[k]) + '</span><span>' + esc(String(c[k] ?? "—")) + '</span><span>' + esc(String(s[k] ?? "—")) + '</span></div>').join("");
+  return '<div class="card conf-box"><div class="gruppo-tit" style="margin:0 0 6px">Modificata da un altro utente nel frattempo</div>' +
+    '<div class="conf-tab"><div class="conf-riga conf-testa"><span>Campo</span><span>Tua modifica</span><span>Sul server</span></div>' + righe + '</div>' +
+    '<div class="due" style="margin-top:10px"><div><button type="button" class="btn btn-primario btn-blocco" data-conf="mia">Tieni la mia</button></div>' +
+    '<div><button type="button" class="btn btn-secondario btn-blocco" data-conf="server">Tieni quella del server</button></div></div></div>';
+}
+document.getElementById("cli-corpo").addEventListener("click", async e=>{
+  const b = e.target.closest("[data-conf]");
+  if(!b || !schedaAperta || !schedaAperta.id) return;
+  try{ await risolviConflittoCliente(schedaAperta.id, b.dataset.conf); await apriSchedaCliente({ id: schedaAperta.id }); }
+  catch(err){ msgScheda(err.message, "err"); }
+});
 
+// modulo di creazione / modifica (nessun controllo di unicita' sul nome: gli omonimi sono ammessi)
+function moduloScheda(base, valori){
+  apriFoglio(base ? "Modifica cliente" : "Nuovo cliente");
+  $("cli-corpo").innerHTML = '<form id="cli-form" novalidate>' + CAMPI_SCHEDA.map(([k, et])=>
+    '<div class="campo"><label for="cli-' + k + '">' + esc(et) + (k === "nome" ? " *" : "") + '</label>' +
+    (k === "note" ? '<textarea id="cli-note" rows="3" maxlength="2000"></textarea>'
+      : '<input id="cli-' + k + '" type="' + (k === "telefono" ? "tel" : k === "email" ? "email" : "text") + '" autocomplete="off"' +
+        (k === "telefono" ? ' inputmode="tel"' : '') + ' maxlength="' + ({ nome: 200, indirizzo: 300, telefono: 60, email: 200, partita_iva: 30 })[k] + '">') + '</div>').join("") +
+    '<div class="msg-info att nascosto" id="cli-omonimi"></div></form>';
+  CAMPI_SCHEDA.forEach(([k])=>{ $("cli-" + k).value = (valori && valori[k]) || ""; });
+  const avvisaOmonimi = ()=>{
+    const stessi = omonimi(elencoAnagrafica, $("cli-nome").value, { archiviati: true }).filter(x=>!base || x.id !== base.id);
+    $("cli-omonimi").classList.toggle("nascosto", !stessi.length);
+    $("cli-omonimi").textContent = stessi.length ? "Esistono già " + stessi.length + (stessi.length === 1 ? " cliente" : " clienti") + " con questo nome: " +
+      stessi.slice(0, 4).map(x=>x.indirizzo || "indirizzo non indicato").join("; ") + ". Puoi comunque creare una scheda distinta." : "";
+  };
+  $("cli-nome").addEventListener("input", avvisaOmonimi);
+  elencoClienti().then(l=>{ elencoAnagrafica = l; avvisaOmonimi(); });
+  $("cli-azioni").innerHTML = '<button type="button" class="btn btn-primario btn-blocco" id="cli-salva">' + icona("check") + 'Salva</button>' +
+    '<button type="button" class="btn btn-secondario btn-blocco" id="cli-annulla">Annulla</button>';
+  $("cli-azioni").onclick = async e=>{
+    if(e.target.closest("#cli-annulla")) return base ? apriSchedaCliente({ id: base.id, onSalvato: schedaAperta && schedaAperta.onSalvato }) : chiudiSchedaCliente();
+    if(!e.target.closest("#cli-salva")) return;
+    const dati = Object.fromEntries(CAMPI_SCHEDA.map(([k])=>[k, $("cli-" + k).value]));
+    if(base) dati.archiviato = base.archiviato;
+    const errori = erroriCliente(dati);
+    if(errori.length){ msgScheda(errori.join(" "), "err"); return; }
+    $("cli-salva").disabled = true;
+    try{
+      const salvato = await salvaCliente(dati, base);
+      const dopo = schedaAperta && schedaAperta.onSalvato;
+      elencoAnagrafica = await elencoClienti();
+      if(dopo){ chiudiSchedaCliente(); dopo(salvato); return; }
+      await apriSchedaCliente({ id: salvato.id });
+      msgScheda(navigator.onLine === false ? "Salvato sul telefono: verrà inviato appena c'è rete." : "Cliente salvato.");
+    }catch(err){ msgScheda(err.message, "err"); }
+    finally{ const b = $("cli-salva"); if(b) b.disabled = false; }
+  };
+  $("cli-nome").focus({ preventScroll: true });
+}
+export function nuovoClienteUI(){
+  apriSchedaCliente({ nuovo: { nome: $("cerca-input").value.trim() } });
+}
+document.addEventListener("keydown", e=>{ if(e.key === "Escape" && !$("cli-foglio").classList.contains("nascosto")) chiudiSchedaCliente(); });
+document.getElementById("cli-foglio").addEventListener("click", e=>{ if(e.target.closest("[data-cli-chiudi]")) chiudiSchedaCliente(); });
+registraSchedaCliente(apriSchedaCliente);
+
+// ---------------------------------------------------------------- importazione dallo storico (esplicita)
+// Coppie nome + indirizzo di interventi, rapportini e giornate della vecchia app che non hanno ancora una
+// scheda con lo stesso nome e lo stesso indirizzo. Si creano SOLO quelle spuntate; i documenti esistenti
+// non vengono modificati ne' collegati.
+export async function importaClientiUI(btn){
+  btn.disabled = true;
+  try{
+    const da = new Date(); da.setFullYear(da.getFullYear() - 3);
+    const dal = da.toISOString().slice(0, 10);
+    const [interventi, rapportini] = await Promise.all([elencoInterventi({ dal }).catch(()=>[]), elencoRapportini({ dal }).catch(()=>[])]);
+    const vecchi = [];
+    Object.entries(leggiDB()).forEach(([iso, g])=>((g && g.clienti) || []).forEach(c=>vecchi.push({ cliente: c.nome, indirizzo: c.indirizzo, data: iso })));
+    const candidati = candidatiImportazione([...interventi, ...rapportini, ...vecchi], await elencoClienti());
+    apriFoglio("Importa dallo storico");
+    if(!candidati.length){ $("cli-corpo").innerHTML = '<p class="nota">Nessun nuovo cliente da importare: ogni nome e indirizzo dei lavori ha già una scheda.</p>'; $("cli-azioni").innerHTML = ""; return; }
+    $("cli-corpo").innerHTML = '<p class="nota" style="padding:0 0 8px">Spunta i clienti da aggiungere all\'anagrafica. Nomi uguali con indirizzi diversi restano schede distinte. I documenti già salvati non cambiano.</p>' +
+      candidati.map((c, i)=>'<label class="check"><input type="checkbox" data-imp="' + i + '"><span><b>' + esc(c.nome) + '</b><br><small>' + esc(c.indirizzo || "indirizzo non indicato") +
+        ' · ' + c.volte + (c.volte === 1 ? " lavoro" : " lavori") + (c.ultimo ? ", ultimo " + esc(dataIt(c.ultimo)) : "") + '</small></span></label>').join("");
+    $("cli-azioni").innerHTML = '<button type="button" class="btn btn-primario btn-blocco" id="cli-importa">Aggiungi i selezionati</button>';
+    $("cli-azioni").onclick = async e=>{
+      if(!e.target.closest("#cli-importa")) return;
+      const scelti = [...$("cli-corpo").querySelectorAll("[data-imp]:checked")].map(x=>candidati[+x.dataset.imp]);
+      if(!scelti.length){ msgScheda("Spunta almeno un cliente.", "err"); return; }
+      for(const c of scelti) await salvaCliente({ nome: c.nome, indirizzo: c.indirizzo, telefono: c.telefono }, null);
+      chiudiSchedaCliente();
+      await aggiornaVistaClienti();
+    };
+  }catch(err){ alert(err.message); }
+  finally{ btn.disabled = false; }
+}
+
+// ---------------------------------------------------------------- nuovi documenti per un cliente
+export async function nuovoRapportinoPerCliente(c){
+  await nuovoRapportinoAutonomo(datiPerDocumento(c));
+}
+export async function nuovoInterventoPerCliente(c){
+  mostraVista("interventi");
+  await apriModuloIntervento(null, datiPerDocumento(c));
+}
+// compatibilita' con i pulsanti esistenti
+export function apriCliente(nome){ $("cerca-input").value = nome; eseguiRicerca(); window.scrollTo(0, 0); }
+export function nuovoPerCliente(btn){ nuovoRapportino({ nome: btn.dataset.nome, indirizzo: btn.dataset.indirizzo }); }
+
+// ---------------------------------------------------------------- vecchia app: ricerca nelle giornate
+function storicoVecchio(query, cont){
   const db = leggiDB();
   const corrispondenze = [];
 
@@ -189,7 +368,7 @@ export function eseguiRicerca(){
   });
 
   if(corrispondenze.length === 0){
-    cont.innerHTML = testa + '<div class="ris-niente">Nessun intervento per "' + esc(query) + '"</div>';
+    cont.innerHTML = '<div class="ris-niente">Nessun lavoro della vecchia app per "' + esc(query) + '"</div>';
     return;
   }
 
@@ -250,13 +429,14 @@ export function eseguiRicerca(){
     cont.appendChild(card);
   });
 
-  cont.insertAdjacentHTML("afterbegin", testa +
+  cont.insertAdjacentHTML("afterbegin",
     '<div class="elenco-nota">' +
     corrispondenze.length + ' giorn' + (corrispondenze.length === 1 ? "o" : "i") + ' trovat' +
     (corrispondenze.length === 1 ? "o" : "i") + '</div>');
 }
 
-registraVista("cerca", eseguiRicerca);
+registraVista("cerca", ()=>{ eseguiRicerca(); aggiornaClienti().then(l=>{ elencoAnagrafica = l; disegnaAnagrafica($("cerca-input").value.trim()); }); });
+su("clienti-aggiornati", ()=>{ if(!$("vista-cerca").classList.contains("nascosto")) aggiornaVistaClienti(); });
 su("vista-cambiata", chiudiSuggerimenti);
 su("giornata-salvata", aggiornaClientiNoti);
 su("archivio-aggiornato", origine=>{ if(origine === "importazione") aggiornaClientiNoti(); });

@@ -5,9 +5,9 @@ sono finti (server) oppure serviti da un finto Supabase dentro Playwright (brows
 
 | Comando | Cosa prova | Requisiti |
 |---|---|---|
-| `node --test tests/unit/controlli.test.mjs` e `node --experimental-strip-types --test tests/server/ai.test.mts` | controllo automatico del rapportino (`tests/unit/`) e assistente AI lato server (`tests/server/`: permessi per ruolo, limiti, errori di Groq, risposte non valide, filtri della ricerca, predittiva, nessuna chiave nelle risposte o nei log) | Node 22 o successivo (usa `--experimental-strip-types` per importare i file `.ts` delle Edge Functions) |
-| `node tests/e2e/ai.e2e.mjs` | app nel browser con l'assistente: anteprima, conferma, Annulla, errori API, offline, foto, permessi dei tre ruoli, testi scappati, nessuna richiesta a Groq/Supabase veri | Playwright con Chromium già installato (`require('playwright')`) |
-| `bash tests/sql/esegui.sh` | migrazioni su Postgres 16 locale + limiti dell'assistente (`limite_tentativi`) + RLS per ruolo sulle letture usate dall'assistente | `pg_ctlcluster 16 main start`, utente `postgres` |
+| `node --test tests/unit/controlli.test.mjs tests/unit/clienti.test.mjs` e `node --experimental-strip-types --test tests/server/ai.test.mts` | controllo automatico del rapportino (`tests/unit/`) e assistente AI lato server (`tests/server/`: permessi per ruolo, limiti, errori di Groq, risposte non valide, filtri della ricerca, predittiva, nessuna chiave nelle risposte o nei log) | Node 22 o successivo (usa `--experimental-strip-types` per importare i file `.ts` delle Edge Functions) |
+| `node tests/e2e/ai.e2e.mjs` e `node tests/e2e/clienti.e2e.mjs` | app nel browser con l'assistente: anteprima, conferma, Annulla, errori API, offline, foto, permessi dei tre ruoli, testi scappati, nessuna richiesta a Groq/Supabase veri; anagrafica clienti: omonimi, autocompletamento in rapportino e intervento, telefono, snapshot, offline e sincronizzazione senza doppioni, conflitti, permessi, compatibilità | Playwright con Chromium già installato (`require('playwright')`) |
+| `bash tests/sql/esegui.sh` | migrazioni su Postgres 16 locale + limiti dell'assistente + RLS per ruolo + anagrafica clienti (`tests/sql/clienti.sql`) + rollback e riapplicazione della migrazione clienti | `pg_ctlcluster 16 main start`, utente `postgres` |
 
 Controllo dei tipi delle Edge Functions (facoltativo, serve Deno): `cd supabase/functions && deno check */index.ts`.
 

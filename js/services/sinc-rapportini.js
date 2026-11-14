@@ -20,6 +20,7 @@ import { client, profilo } from "../core/sessione.js";
 import { puo } from "../core/permessi.js";
 import { emetti } from "../core/eventi.js";
 import { caricaFotoStorage, registraAllegato, rimuoviFotoStorage, salvaRapportino } from "./api-lavori.js";
+import { sincronizzaClienti } from "./clienti-archivio.js";
 import { bozzeDi, fotoDelRapportino, importaDaLocalStorage, leggiBozza, metti, salvaBozza, togli, togliBozza, tutteLeFoto } from "./coda-locale.js";
 
 export const MAX_TENTATIVI = 8;                       // poi l'invio automatico si sospende ("Riprova")
@@ -28,10 +29,13 @@ const ORE_INVIATI = 24;
 const ora = ()=>new Date().toISOString();
 
 // ---------------------------------------------------------------- confronto dei contenuti
-const CAMPI = ["data", "cliente", "indirizzo", "tipologia", "attivita", "note", "esito", "firma", "firmatario"];
+const CAMPI = ["data", "cliente", "indirizzo", "telefono", "cliente_id", "tipologia", "attivita", "note", "esito", "firma", "firmatario"];
 export function stessoContenuto(mio, oreMie, srv, oreSrv){
   if(!mio || !srv) return false;
-  if(CAMPI.some(c=>String(mio[c] ?? "") !== String(srv[c] ?? ""))) return false;
+  // telefono e cliente_id solo se il server li ha (migrazione 20261116090000); un collegamento svuotato
+  // dal server (scheda cliente non ancora arrivata) non e' una modifica di qualcun altro
+  const daConfrontare = c=>c === "cliente_id" ? !!srv.cliente_id : c === "telefono" ? "telefono" in srv : true;
+  if(CAMPI.some(c=>daConfrontare(c) && String(mio[c] ?? "") !== String(srv[c] ?? ""))) return false;
   if((mio.intervento_id || null) !== (srv.intervento_id || null)) return false;
   if(JSON.stringify(mio.materiali || []) !== JSON.stringify(srv.materiali || [])) return false;
   const norma = l=>JSON.stringify((l || []).map(o=>[o.operaio_id, String(o.dalle || "").slice(0, 5), String(o.alle || "").slice(0, 5)])
@@ -120,6 +124,8 @@ async function inviaTesto(rec, completa, sovrascrivi){
   const precedente = rec.ultimoInvio || null;
   rec.ultimoInvio = { rapportino: payload, ore: rec.ore };
   await aggiornaRecord(rec, {});                       // ricordato PRIMA di inviare (sopravvive a una chiusura)
+  // prima le schede clienti create offline: cosi' il collegamento cliente_id arriva con il rapportino
+  if(payload.cliente_id) await sincronizzaClienti().catch(()=>{});
   let r = await salvaRapportino(payload, rec.ore, completa);
   if(r.esito !== "conflitto") return { ok: true, rapportino: r.rapportino };
   const srv = r.rapportino;

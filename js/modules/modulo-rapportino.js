@@ -20,6 +20,7 @@ import { elencoCoda, inviaRapportino, segnaApertoNelModulo, segnaModificaNelModu
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { controllaRapportino, elencoTesto } from "../services/controlli.js";
+import { collegaSceltaCliente } from "./scelta-cliente.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
@@ -38,6 +39,9 @@ function messaggio(testo, tipo){ $("rap-msg").textContent = testo || ""; $("rap-
 const nuovoId = ()=>crypto.randomUUID();
 const modificabile = ()=>!!corrente && corrente.stato === "bozza" && puo("rapportini.compila") &&
   (corrente.autore_id === (profilo && profilo.id) || puo("rapportini.riapri"));
+
+// campo cliente con suggerimenti dall'anagrafica: copia nome/indirizzo/telefono e ricorda l'id della scheda
+const sceltaCliente = collegaSceltaCliente({ campo: $("rf-cliente"), indirizzo: $("rf-indirizzo"), telefono: $("rf-telefono"), onCambio: ()=>cambiato() });
 
 // ---------------------------------------------------------------- righe materiale e ore
 export function aggiungiMaterialeRapportino(m){
@@ -86,6 +90,7 @@ function leggiModulo(){
     rapportino: {
       id: corrente.id, versione: corrente.salvato ? corrente.versione : null, intervento_id: corrente.intervento_id || null,
       data: $("rf-data").value, cliente: $("rf-cliente").value.trim(), indirizzo: $("rf-indirizzo").value.trim(),
+      telefono: $("rf-telefono").value.trim(), cliente_id: sceltaCliente.id(),
       tipologia: $("rf-tipologia").value, attivita: $("rf-attivita").value.trim(), note: $("rf-note").value.trim(),
       esito: $("rf-esito").value,
       materiali: [...document.querySelectorAll("#rf-materiali .mat-riga")].map(r=>({ a: r.querySelector(".m-art").value.trim(), q: r.querySelector(".m-qta").value.trim() })).filter(m=>m.a),
@@ -98,7 +103,8 @@ function leggiModulo(){
 }
 function riempiModulo(r, ore){
   $("rf-data").value = r.data || oggiIso();
-  $("rf-cliente").value = r.cliente || ""; $("rf-indirizzo").value = r.indirizzo || "";
+  $("rf-cliente").value = r.cliente || ""; $("rf-indirizzo").value = r.indirizzo || ""; $("rf-telefono").value = r.telefono || "";
+  sceltaCliente.imposta(r.cliente_id || null);
   $("rf-tipologia").value = r.tipologia || ""; $("rf-attivita").value = r.attivita || ""; $("rf-note").value = r.note || "";
   $("rf-esito").value = r.esito || "Completato"; $("rf-firmatario").value = r.firmatario || "";
   $("rf-materiali").innerHTML = ""; (r.materiali || []).forEach(m=>aggiungiMaterialeRapportino(m));
@@ -187,6 +193,7 @@ function aggiornaStatoUI(){
   $("rap-form").classList.toggle("sola-lettura", !scrivibile);
   $("rap-form").querySelectorAll("input, textarea, select").forEach(el=>{ el.disabled = !scrivibile; });
   document.querySelectorAll(".rf-solo-bozza").forEach(el=>el.classList.toggle("nascosto", !scrivibile));
+  sceltaCliente.aggiorna();
   $("rf-riapri").classList.toggle("nascosto", !(corrente && corrente.stato === "completato" && puo("rapportini.riapri")));
   $("rf-pdf").classList.toggle("nascosto", !corrente || !corrente.salvato);
   const stato = corrente.salvato ? STATO_RAPPORTINO[corrente.stato] : '<span class="badge neutro">Non ancora inviato</span>';
@@ -267,7 +274,7 @@ $("rap-form").addEventListener("change", cambiato);
 su("firma-cambiata", scheda=>{ if(scheda && scheda.id === "rf-firma-box") cambiato(); });
 
 // ---------------------------------------------------------------- conflitto
-const ETICHETTE = { data: "Data", cliente: "Cliente", indirizzo: "Indirizzo", tipologia: "Tipologia", attivita: "Attività svolte",
+const ETICHETTE = { data: "Data", cliente: "Cliente", indirizzo: "Indirizzo", telefono: "Telefono", tipologia: "Tipologia", attivita: "Attività svolte",
   note: "Note", esito: "Esito", firmatario: "Firmatario" };
 function oreBreve(ore){
   return (ore || []).map(o=>nomeOperaio(o.operaio_id) + " " + String(o.dalle || "").slice(0, 5) + "–" + String(o.alle || "").slice(0, 5)).join(", ") || "—";
@@ -387,19 +394,22 @@ export async function rapportinoPerIntervento(interventoId){
     await prepara();
     corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: interventoId, intervento: i, stato: "bozza", autore_id: profilo.id };
     segnaApertoNelModulo(corrente.id);
-    riempiModulo({ data: i.data > oggiIso() ? i.data : oggiIso(), cliente: i.cliente, indirizzo: i.indirizzo, tipologia: i.tipologia }, null);
+    // dati del cliente copiati dall'intervento (snapshot): il rapportino resta collegato alla stessa scheda
+    riempiModulo({ data: i.data > oggiIso() ? i.data : oggiIso(), cliente: i.cliente, indirizzo: i.indirizzo, telefono: i.telefono || "",
+      cliente_id: i.cliente_id || null, tipologia: i.tipologia }, null);
     sporco = false;
     aggiornaStatoUI();
   }catch(e){ alert(e.message); }
 }
-export async function nuovoRapportinoAutonomo(){
+// cliente (facoltativo): dati della scheda scelta dall'anagrafica { cliente_id, cliente, indirizzo, telefono }
+export async function nuovoRapportinoAutonomo(cliente){
   await prepara();
   corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: null, intervento: null, stato: "bozza", autore_id: profilo.id };
   segnaApertoNelModulo(corrente.id);
-  riempiModulo({ data: oggiIso() }, null);
+  riempiModulo({ data: oggiIso(), ...(cliente && cliente.cliente ? cliente : {}) }, null);
   sporco = false;
   aggiornaStatoUI();
-  $("rf-cliente").focus({ preventScroll: true });
+  if(!(cliente && cliente.cliente)) $("rf-cliente").focus({ preventScroll: true });
 }
 export function chiudiRapportino(){
   if(sporco && modificabile() && !confirm("Ci sono modifiche non ancora inviate al server: restano sul telefono e verranno inviate in automatico. Uscire?")) return;

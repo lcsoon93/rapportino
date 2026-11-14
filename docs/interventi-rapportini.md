@@ -491,6 +491,43 @@ cliente (dati, attività, materiali, importo, spese, fotografie, note, firma); c
 - Corretto "Disattiva": `client.rpc(...)` di supabase-js non ha `.catch` (errore su iPhone);
   ora `await` dentro `try` (`disiscriviSulServer`). Test E2E: Attiva/Disattiva con iscrizione finta stile iOS.
 
+## Anagrafica clienti (Fase J)
+
+Migrazione `20261116090000_anagrafica_clienti.sql` (rollback in `supabase/rollback/`):
+- `clienti` (id uuid, nome, indirizzo, telefono, email, partita_iva, note, archiviato, versione,
+  creato_da/il, aggiornato_da/il). Nessun indice univoco oltre all'id: omonimi ammessi anche con lo
+  stesso indirizzo. Trigger `controlla_cliente`: autore, date e versione dal database.
+- RLS: select a chi ha `mio_ruolo()`; insert a tutti gli attivi (mai già archiviato); update a
+  `pianifica()` (admin, company); delete a `e_admin()`. FK `on delete restrict` da interventi e rapportini:
+  un cliente con documenti non si elimina.
+- `interventi` e `rapportini`: `cliente_id` (FK, facoltativo) e `telefono`. Trigger
+  `documento_cliente_esistente`: un id che non esiste diventa null (il documento si salva comunque).
+- `salva_cliente(p_cliente, p_versione)`: creazione idempotente (`on conflict (id) do nothing`),
+  modifica solo con la versione attesa (altrimenti `conflitto` con la copia del server), modifica
+  vietata a chi non è admin/company (errore, non un falso conflitto).
+- `salva_rapportino`: stessa firma, salva anche `cliente_id` e `telefono`.
+
+App:
+- `js/services/clienti-logica.js` (puro): ricerca (nome, indirizzo, telefono anche solo cifre, email,
+  P. IVA, note), omonimi, unione a tre vie, copia nel documento, candidati per l'importazione.
+- `js/services/clienti-archivio.js`: IndexedDB `rapportino-clienti` (clienti, coda, meta proprietario),
+  `aggiornaClienti`, `salvaCliente` (coda + invio), `sincronizzaClienti` (rete assente o 5xx: si
+  riprova con lo stesso id; permessi: "errore" visibile nella scheda; conflitto: scelta dell'utente),
+  `risolviConflittoCliente`, `eliminaCliente` (solo online).
+- `js/modules/scelta-cliente.js`: suggerimenti nel flusso della pagina sotto il campo (tastiera
+  dell'iPhone), righe da 52 px con nome, indirizzo e telefono; avviso omonimi; "Usa senza anagrafica";
+  "Nuovo cliente"; riga di stato con "Scollega", "Aggiorna la scheda", "Scheda".
+- `api-lavori.js`: `cliente_id` e `telefono` letti e scritti; con colonne mancanti (prima della
+  migrazione) letture e scritture riprovano senza (`colonneClienti`).
+- `sinc-rapportini.js`: confronto dei contenuti con telefono e collegamento; prima di un rapportino
+  collegato si inviano le schede in coda.
+- Permessi interfaccia: `clienti.consulta`, `clienti.crea` (tutti), `clienti.gestisci` (admin, company),
+  `clienti.elimina` (admin); `vista.cerca` anche a company e operaio (voce "Anagrafica clienti" in Altro).
+
+Test: `tests/sql/clienti.sql` (omonimi, idempotenza, versioni, permessi per ruolo e utente disattivato,
+snapshot nei due sensi, FK, compatibilità, rollback e riapplicazione), `tests/unit/clienti.test.mjs`,
+`tests/e2e/clienti.e2e.mjs` (13 scenari nel browser, finto Supabase in memoria).
+
 ## Assistente AI con Groq (Fase I)
 
 Architettura

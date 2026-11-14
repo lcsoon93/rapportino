@@ -31,7 +31,8 @@ function voceIntervento(i, mioRapportino){
         '<div class="int-cliente">' + esc(i.cliente) + '</div>' +
         (i.descrizione ? '<div class="int-desc">' + esc(i.descrizione) + '</div>' : '') +
         '<div class="int-meta"><span>' + icona("cal", "i-sm") + esc(giornoBreve(i.data)) + (i.ora ? ' · ' + esc(oraBreve(i.ora)) : '') + '</span>' +
-          (i.indirizzo ? '<span>' + icona("pin", "i-sm") + esc(i.indirizzo) + '</span>' : '') + '</div>' +
+          (i.indirizzo ? '<span>' + icona("pin", "i-sm") + esc(i.indirizzo) + '</span>' : '') +
+          (i.telefono ? '<span>' + icona("phone", "i-sm") + esc(i.telefono) + '</span>' : '') + '</div>' +
         '<div class="int-badge">' + (urgente ? PRIORITA[i.priorita] : '') + STATO_INTERVENTO[i.stato] + '</div>' +
       '</div>' +
     '</div>' +

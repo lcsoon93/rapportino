@@ -57,18 +57,34 @@ export function nomeOperaio(id){
 
 // ---------------------------------------------------------------- interventi
 // assegnazioni con rimosso_il: quelle rimosse restano come storico (vedi agenda.js / avanzamento)
-const CAMPI_INTERVENTO = "id, data, ora, cliente, indirizzo, descrizione, priorita, tipologia, stato, creato_il, " +
+// Anagrafica clienti (migrazione 20261116090000): cliente_id e telefono su interventi e rapportini.
+// Se il database non ha ancora le colonne (frontend pubblicato prima della migrazione) le letture
+// riprovano senza e le scritture non le inviano: l'app continua a funzionare come prima.
+let colonneClienti = true;
+const senzaClienti = campi=>campi.replace(/, cliente_id, telefono/g, "");
+const campiConClienti = campi=>colonneClienti ? campi : senzaClienti(campi);
+const colonnaMancante = e=>!!e && /42703|PGRST204|column .*(cliente_id|telefono)|(cliente_id|telefono).*column/i.test((e.code || "") + " " + (e.message || ""));
+export const anagraficaNeiDocumenti = ()=>colonneClienti;
+// esegue la lettura; con colonne mancanti la ripete senza i campi nuovi
+async function leggiConRipiego(costruisci){
+  let r = await costruisci(campiConClienti);
+  if(r.error && colonneClienti && colonnaMancante(r.error)){ colonneClienti = false; r = await costruisci(campiConClienti); }
+  return controlla(r);
+}
+const CAMPI_INTERVENTO = "id, data, ora, cliente, indirizzo, cliente_id, telefono, descrizione, priorita, tipologia, stato, creato_il, " +
   "intervento_operai(operaio_id, rimosso_il), rapportini(id, autore_id, stato, data, completato_il)";
 // nel dettaglio servono anche le ore di ciascun rapportino (visibili secondo RLS)
 const CAMPI_DETTAGLIO = CAMPI_INTERVENTO.replace("completato_il)", "completato_il, rapportino_operai(operaio_id, dalle, alle))");
 export async function elencoInterventi({ dal, al, soloMiei } = {}){
-  let q = client.from("interventi").select(soloMiei
-    ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id, rimosso_il)", "intervento_operai!inner(operaio_id, rimosso_il)")
-    : CAMPI_INTERVENTO);
-  if(dal) q = q.gte("data", dal);
-  if(al) q = q.lte("data", al);
-  if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id).is("intervento_operai.rimosso_il", null);
-  return controlla(await q.order("data").order("ora", { nullsFirst: true }));
+  return leggiConRipiego(async campi=>{
+    let q = client.from("interventi").select(campi(soloMiei
+      ? CAMPI_INTERVENTO.replace("intervento_operai(operaio_id, rimosso_il)", "intervento_operai!inner(operaio_id, rimosso_il)")
+      : CAMPI_INTERVENTO));
+    if(dal) q = q.gte("data", dal);
+    if(al) q = q.lte("data", al);
+    if(soloMiei && profilo) q = q.eq("intervento_operai.operaio_id", profilo.id).is("intervento_operai.rimosso_il", null);
+    return q.order("data").order("ora", { nullsFirst: true });
+  });
 }
 // Interventi di un periodo per Calendario e riepiloghi: una sola richiesta per periodo, riusata per
 // 30 secondi (spostarsi tra giorni dello stesso mese non rifa' la richiesta). Ogni scrittura
@@ -100,7 +116,7 @@ su("uscita", ()=>{ memoria.clear(); cacheOperai = null; cacheNomi = null; });
 su("accesso", ()=>{ memoria.clear(); cacheOperai = null; });
 
 export async function leggiIntervento(id){
-  return controlla(await client.from("interventi").select(CAMPI_DETTAGLIO).eq("id", id).maybeSingle());
+  return leggiConRipiego(campi=>client.from("interventi").select(campi(CAMPI_DETTAGLIO)).eq("id", id).maybeSingle());
 }
 // crea o aggiorna e allinea le assegnazioni
 export async function salvaIntervento(dati, operai){
@@ -109,12 +125,17 @@ export async function salvaIntervento(dati, operai){
 async function scriviIntervento(dati, operai){
   const campi = { data: dati.data, ora: dati.ora || null, cliente: dati.cliente, indirizzo: dati.indirizzo || "",
     descrizione: dati.descrizione || "", priorita: dati.priorita || "normale", tipologia: dati.tipologia || "" };
-  let intervento;
-  if(dati.id){
-    intervento = controlla(await client.from("interventi").update(campi).eq("id", dati.id).select("id").single());
-  } else {
-    intervento = controlla(await client.from("interventi").insert(campi).select("id").single());
+  // copia dei dati del cliente nel documento + collegamento alla scheda (se il database li ha)
+  if(colonneClienti){ campi.telefono = dati.telefono || ""; campi.cliente_id = dati.cliente_id || null; }
+  const scrivi = c=>dati.id ? client.from("interventi").update(c).eq("id", dati.id).select("id").single()
+    : client.from("interventi").insert(c).select("id").single();
+  let r = await scrivi(campi);
+  if(r.error && colonneClienti && colonnaMancante(r.error)){
+    colonneClienti = false;
+    delete campi.telefono; delete campi.cliente_id;
+    r = await scrivi(campi);
   }
+  const intervento = controlla(r);
   // solo le assegnazioni attive; togliere = rimozione logica (il database conserva lo storico),
   // riassegnare un operaio rimosso = il database riattiva la sua riga
   const attuali = controlla(await client.from("intervento_operai").select("operaio_id").eq("intervento_id", intervento.id).is("rimosso_il", null)).map(x=>x.operaio_id);
@@ -132,17 +153,19 @@ export async function eliminaIntervento(id){
 }
 
 // ---------------------------------------------------------------- rapportini
-const CAMPI_RAPPORTINO = "id, intervento_id, autore_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, " +
+const CAMPI_RAPPORTINO = "id, intervento_id, autore_id, data, cliente, indirizzo, cliente_id, telefono, tipologia, attivita, materiali, note, esito, " +
   "firma, firmatario, stato, completato_il, versione, creato_il, aggiornato_il, rapportino_operai(operaio_id, dalle, alle), " +
-  "interventi(id, cliente, descrizione, priorita, data, ora)";
+  "interventi(id, cliente, descrizione, priorita, data, ora, cliente_id, telefono)";
 export async function elencoRapportini({ dal, al, stato, autore, intervento } = {}){
-  let q = client.from("rapportini").select(CAMPI_RAPPORTINO.replace("firma, ", ""));
-  if(dal) q = q.gte("data", dal);
-  if(al) q = q.lte("data", al);
-  if(stato) q = q.eq("stato", stato);
-  if(autore) q = q.eq("autore_id", autore);
-  if(intervento) q = q.eq("intervento_id", intervento);
-  return controlla(await q.order("data", { ascending: false }).order("aggiornato_il", { ascending: false }));
+  return leggiConRipiego(async campi=>{
+    let q = client.from("rapportini").select(campi(CAMPI_RAPPORTINO.replace("firma, ", "")));
+    if(dal) q = q.gte("data", dal);
+    if(al) q = q.lte("data", al);
+    if(stato) q = q.eq("stato", stato);
+    if(autore) q = q.eq("autore_id", autore);
+    if(intervento) q = q.eq("intervento_id", intervento);
+    return q.order("data", { ascending: false }).order("aggiornato_il", { ascending: false });
+  });
 }
 // Storico: rapportini di un periodo (per data del rapportino) e quelli collegati agli interventi
 // indicati, con ore e numero di foto. Solo cio' che RLS consente all'utente.
@@ -162,7 +185,7 @@ export async function storicoRapportini({ dal, al, interventi = [] }){
   return delPeriodo.concat(collegati.filter(r=>!visti.has(r.id)));
 }
 export async function leggiRapportino(id){
-  return controlla(await client.from("rapportini").select(CAMPI_RAPPORTINO).eq("id", id).maybeSingle());
+  return leggiConRipiego(campi=>client.from("rapportini").select(campi(CAMPI_RAPPORTINO)).eq("id", id).maybeSingle());
 }
 // salvataggio atomico (testata + ore); risultato { esito: "ok" | "conflitto", rapportino, ore? (solo in conflitto) }
 export async function salvaRapportino(rapportino, ore, completa){
