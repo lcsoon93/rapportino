@@ -19,7 +19,9 @@ import { blobInDataUrl } from "../services/immagini.js";
 import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
-import { esc } from "../utils/formatters.js";
+import { esc, oreTesto } from "../utils/formatters.js";
+import { minutiSulPosto } from "../services/calculations.js";
+import { aggiornaOrari, orarioDelGiorno } from "../services/orario-giornata.js";
 import { sulComputer } from "../utils/dispositivo.js";
 import { icona } from "../utils/dom.js";
 
@@ -60,7 +62,7 @@ function schedaPDF(r, foto){
   };
 }
 // come nel PDF: tecnico e intervallo segnato (dalle-alle), senza il totale delle ore
-const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
+const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle + " · " + oreTesto(minutiSulPosto([o])) : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
 // schede compilate del foglio giornaliero (vecchia app) dello stesso giorno, gia' sul telefono
 function schedeFoglioGiornaliero(iso){
   const g = leggiDB()[iso];
@@ -121,7 +123,17 @@ export async function preparaPDFGiornata(btn){
     // rapportini e schede del foglio giornaliero insieme, in ordine di orario
     const tutte = schede.concat(foglio.schede).map((c, i)=>({ c, k: inizioScheda(c), i })).sort((a, b)=>a.k.localeCompare(b.k) || a.i - b.i).map(x=>x.c);
     const tecnici = [...new Set(tutte.flatMap(c=>c.operai.map(o=>o.nome)).filter(Boolean))];
+    // riepilogo in fondo al PDF: orario della giornata (8-17 salvo inserimento) e ore passate da ogni cliente
+    await aggiornaOrari();
+    const orario = orarioDelGiorno(iso);
+    const riepilogo = { orario, tecnici, righe: tutte.map(c=>{
+      const fasce = (c.fasce || []).filter(f=>f && f.d && f.a).map(f=>({ dalle: f.d, alle: f.a }));
+      const intervalli = fasce.length ? fasce : c.operai.filter(o=>o.dalle && o.alle).map(o=>({ dalle: ora(o.dalle), alle: ora(o.alle) }));
+      const inizi = intervalli.map(i=>i.dalle).sort(), fini = intervalli.map(i=>i.alle).sort();
+      return { nome: c.nome, orario: intervalli.length ? inizi[0] + "–" + fini[fini.length - 1] : "", minuti: minutiSulPosto(intervalli) };
+    }) };
     const dati = {
+      riepilogo,
       tecnici: tecnici.join(" / "),
       operai: tutte.length === 1 ? tutte[0].operai : [],
       spese: foglio.spese, mostraOrario: true, soloIntervalli: true, clienti: tutte,   // solo dalle-alle, mai le ore
@@ -129,7 +141,9 @@ export async function preparaPDFGiornata(btn){
     };
     const chi = autore && puo("rapportini.consulta") ? "_" + nomeOperaio(autore).replace(/[^\w]+/g, "_").slice(0, 30) : "";
     preparato = { iso, dati, nome: "Rapportini_" + iso + chi + ".pdf" };
-    $("rg-esito").innerHTML = '<div class="ai-sez-tit">Nel PDF (' + tutte.length + (tutte.length === 1 ? " scheda" : " schede") + ')</div>' +
+    $("rg-esito").innerHTML = '<div class="card nota" id="rg-orario">Orario della giornata: <b>' + orario.dalle + '–' + orario.alle + ' · ' + oreTesto(orario.minuti) + '</b>' +
+        (orario.escludi ? ' (esclusa dal monte ore)' : '') + '</div>' +
+      '<div class="ai-sez-tit">Nel PDF (' + tutte.length + (tutte.length === 1 ? " scheda" : " schede") + ')</div>' +
       '<div class="card cli-elenco">' + tutte.map((c, i)=>'<div class="st-rap" style="cursor:default"><span class="cli-testi">' +
         '<span class="cli-nome" style="display:block">' + (i + 1) + '. ' + esc(c.nome) + '</span>' +
         '<span class="cli-ind" style="display:block;white-space:normal">' + esc([c.indirizzo, orariScheda(c)].filter(Boolean).join(" · ")) + '</span>' +
@@ -165,11 +179,12 @@ export async function apriPDFGiornata(giorno){
 
 // filtro operaio (admin e company) e data predefinita
 export async function inizializzaPDFGiornata(){
-  if(!$("rg-data").value) $("rg-data").value = oggiIso();
+  if(!$("rg-data").value) $("rg-data").value = ($("data") && $("data").value) || oggiIso();   // il giorno scelto in Home
   if(!puo("rapportini.consulta")) return;
   const sel = $("rg-operaio");
   if(sel.options.length > 1) return;
   const operai = await operaiAttivi().catch(()=>[]);
   operai.forEach(o=>sel.insertAdjacentHTML("beforeend", '<option value="' + o.id + '">' + esc(o.nome || o.username) + '</option>'));
 }
+su("giorno-pdf-cambiato", ()=>azzeraPDFGiornata());   // il giorno scelto in Home vale anche qui
 su("uscita", ()=>{ preparato = null; const s = $("rg-operaio"); while(s.options.length > 1) s.remove(1); $("rg-data").value = ""; });

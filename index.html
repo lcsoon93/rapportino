@@ -277,6 +277,17 @@
           </div>
         </div>
 
+        <div class="card orario-g" id="home-orario">
+          <div class="og-testa"><h2>Orario della giornata</h2><span class="og-ore" id="og-ore">9 ore</span></div>
+          <div class="og-campi">
+            <label for="og-dalle">Dalle<input type="time" id="og-dalle" onchange="cambiaOrarioGiorno()"></label>
+            <label for="og-alle">Alle<input type="time" id="og-alle" onchange="cambiaOrarioGiorno()"></label>
+            <button type="button" class="mini nascosto" id="og-ripristina" onclick="ripristinaOrarioGiorno()">Torna a 8–17</button>
+          </div>
+          <label class="check"><input type="checkbox" id="og-escludi" onchange="cambiaOrarioGiorno()"><span>Escludi dal monte ore</span></label>
+          <div class="og-nota" id="og-nota" role="status" aria-live="polite"></div>
+        </div>
+
         <div class="home-cta">
           <button type="button" class="btn btn-primario btn-xl" id="home-nuovo-rapportino" onclick="nuovoRapportinoAutonomo()">
             <svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo rapportino
@@ -289,8 +300,13 @@
       </div>
 
       <div>
-        <!-- interventi pianificati (tabella interventi): riepilogo operativo -->
+        <!-- prima i lavori del giorno scelto, poi il riepilogo degli interventi pianificati -->
         <div class="sezione-head" style="margin-top:4px">
+          <h2 id="home-int-titolo">Lavori di oggi</h2>
+        </div>
+        <div id="home-interventi"></div>
+
+        <div class="sezione-head">
           <h2>Interventi pianificati</h2>
           <button type="button" class="link-btn" onclick="mostraVista('interventi')">Gestisci</button>
         </div>
@@ -306,17 +322,12 @@
           </div>
           <p class="elenco-nota nascosto" id="ha-locali" style="margin:10px 2px 0"></p>
         </div>
-        <div class="gruppo-tit" style="margin:16px 4px 8px">Oggi</div>
-        <div id="ha-oggi"></div>
+        <!-- elenco "Oggi": doppione di "Lavori di oggi" qui sopra, non mostrato -->
+        <div id="ha-oggi" class="nascosto" aria-hidden="true"></div>
         <div class="gruppo-tit" style="margin:16px 4px 8px">Prossimi giorni</div>
         <div id="ha-prossimi"></div>
         <div class="gruppo-tit" style="margin:16px 4px 8px">Rapportini mancanti · giorni precedenti</div>
         <div id="ha-mancanti"></div>
-
-        <div class="sezione-head">
-          <h2 id="home-int-titolo">Lavori di oggi</h2>
-        </div>
-        <div id="home-interventi"></div>
       </div>
     </div>
   </section>
@@ -437,7 +448,8 @@
       <div class="titolo" style="margin-bottom:6px"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span><span>Interventi della settimana</span></div>
       <div class="msg-info nascosto" id="sett-int-stato" role="status" aria-live="polite"></div>
       <div id="sett-interventi"></div>
-      <div data-permesso="report" style="margin-top:18px">
+      <!-- report settimanale: non piu' in uso (resta solo il report mensile) -->
+      <div class="nascosto" aria-hidden="true">
       <div class="titolo" style="margin-bottom:6px"><span class="t-icona pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span id="sett-titolo">Report settimanale</span></div>
       <div id="settelenco"></div>
       <div class="totore" id="giornilav" style="margin-top:12px"></div>
@@ -471,9 +483,9 @@
         <div class="cal-legenda">
           <span><b class="cal-n legenda">2</b>Interventi in programma</span>
           <span data-permesso="report"><i style="background:var(--brand)"></i>Selezionata</span>
-          <span data-permesso="report"><i style="background:var(--ok-chiaro)"></i><svg class="i" style="color:var(--ok-testo)"><use href="#i-check"/></svg>Firmata</span>
-          <span data-permesso="report"><i style="background:var(--att-chiaro)"></i><svg class="i" style="color:var(--att-testo)"><use href="#i-pen"/></svg>Da firmare</span>
-          <span data-permesso="report"><i style="background:var(--neutro-chiaro)"></i><svg class="i" style="color:var(--testo-2)"><use href="#i-minus"/></svg>Mancante</span>
+          <span data-permesso="report"><i style="background:var(--ok-chiaro)"></i><svg class="i" style="color:var(--ok-testo)"><use href="#i-check"/></svg>Lavorata</span>
+          <span data-permesso="report"><i style="background:var(--att-chiaro)"></i><svg class="i" style="color:var(--att-testo)"><use href="#i-pen"/></svg>Con bozze</span>
+          <span data-permesso="report"><i style="background:var(--neutro-chiaro)"></i><svg class="i" style="color:var(--testo-2)"><use href="#i-minus"/></svg>Nessun lavoro</span>
         </div>
         <div class="msg-info nascosto" id="mese-int-stato" role="status" aria-live="polite" style="margin:12px 0 0"></div>
         <p class="elenco-nota" id="mese-int-riepilogo" style="margin:12px 2px 0"></p>
@@ -481,19 +493,20 @@
 
       <div class="modulo m-sett" data-permesso="report">
         <div class="titolo" style="margin-bottom:6px"><span class="t-icona pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span id="mese-titolo">Report mensile</span></div>
+        <p class="elenco-nota" style="margin:0 2px 8px">Ore della giornata 8–17 (9 ore) per ogni operaio, salvo l'orario inserito in Home. Le giornate escluse dal monte ore restano in elenco ma non si sommano.</p>
+        <div class="og-nota" id="mese-nota" role="status" aria-live="polite"></div>
         <div id="meseelenco"></div>
         <div id="mesericap" style="margin-top:12px"></div>
         <label class="check" style="margin-top:8px">
           <input type="checkbox" id="confronta-200" onchange="disegnaMese()">
           <span>Confronta con il monte ore del mese (giorni lavorativi x 9 ore)</span>
         </label>
-        <label class="check">
+        <!-- opzioni di stampa non piu' in uso: il report ha un formato unico -->
+        <label class="check" style="display:none">
           <input type="checkbox" id="nascondi-ore-mese">
-          <span>Non stampare le ore lavorate nel riepilogo del PDF</span>
         </label>
-        <label class="check" data-permesso="pdf.opzioni">
+        <label class="check" style="display:none">
         <input type="checkbox" id="ore-cliente-mese">
-        <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
         <label class="check" style="display:none">
           <input type="checkbox" id="stampa-extra-mese">
@@ -581,39 +594,23 @@
           </div>
         </div>
 
-        <div class="gruppo" data-permesso="rapportino.compila">
-          <div class="gruppo-tit">Gestione giornata</div>
-          <div class="card">
-            <button type="button" class="voce" onclick="mostraVista('giorno')"><span class="v-ic"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportino della giornata</span><span class="v-sub" id="altro-data"></span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="vaiASezione('m-orario')"><span class="v-ic pervinca"><svg class="i"><use href="#i-users"/></svg></span><span class="v-testi"><span class="v-tit">Operai e orari</span><span class="v-sub">Dalle / alle di ogni operaio</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="vaiASezione('m-spese')"><span class="v-ic att"><svg class="i"><use href="#i-euro"/></svg></span><span class="v-testi"><span class="v-tit">Spese ed extra</span><span class="v-sub">Spese anticipate e scontrini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-          </div>
-        </div>
         <div class="gruppo" data-permesso="report">
           <div class="gruppo-tit">Report</div>
           <div class="card">
-            <button type="button" class="voce" onclick="mostraVista('sett')"><span class="v-ic pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span class="v-testi"><span class="v-tit">Report settimanale</span><span class="v-sub">Giorni, ore per operaio, totale</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('mese')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Report mensile e riepilogo ore</span><span class="v-sub">Calendario, monte ore, spese</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" onclick="mostraVista('mese')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Report mensile</span><span class="v-sub">Ore per operaio, giornate e clienti, PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
       </div>
       <div>
-        <div class="gruppo" data-permesso="pdf">
-          <div class="gruppo-tit">Documenti</div>
-          <div class="card">
-            <button type="button" class="voce" onclick="apriPDFGiornata()"><span class="v-ic"><svg class="i"><use href="#i-send"/></svg></span><span class="v-testi"><span class="v-tit" data-testo-computer="Stampa PDF della giornata">Invia PDF della giornata</span><span class="v-sub">Rapportini completati e foglio giornaliero, con firme e foto</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="inviaTesto()"><span class="v-ic azzurro"><svg class="i"><use href="#i-mail"/></svg></span><span class="v-testi"><span class="v-tit">Invia testo della giornata</span><span class="v-sub">Rapporto in una mail</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="vaiASezione('m-opzioni')"><span class="v-ic azzurro"><svg class="i"><use href="#i-printer"/></svg></span><span class="v-testi"><span class="v-tit">Opzioni del PDF</span><span class="v-sub">Foglio unico, ore in più, ore totali</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-          </div>
-        </div>
         <div class="gruppo">
-          <div class="gruppo-tit">Archivio</div>
+          <div class="gruppo-tit">Archivio della vecchia app</div>
           <div class="card m-backup">
+            <button type="button" class="voce" data-permesso="rapportino.compila" onclick="mostraVista('giorno')"><span class="v-ic"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Foglio giornaliero (vecchia app)</span><span class="v-sub" id="altro-data"></span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" onclick="sincronizza()"><span class="v-ic"><svg class="i"><use href="#i-refresh"/></svg></span><span class="v-testi"><span class="v-tit">Aggiorna da server</span><span class="v-sub">Scarica le modifiche dell'altro telefono</span></span></button>
             <button type="button" class="voce" data-permesso="backup.esporta" onclick="esportaBackup()"><span class="v-ic"><svg class="i"><use href="#i-download"/></svg></span><span class="v-testi"><span class="v-tit">Esporta backup</span><span class="v-sub">File .json con tutti i rapporti</span></span></button>
             <button type="button" class="voce" data-permesso="backup.importa" onclick="document.getElementById('fileimporta').click()"><span class="v-ic att"><svg class="i"><use href="#i-upload"/></svg></span><span class="v-testi"><span class="v-tit">Importa backup</span><span class="v-sub">Da un file esportato da questa app</span></span></button>
             <input type="file" id="fileimporta" accept=".json,application/json" class="nascosto" onchange="importaBackup(this)">
-            <div class="nota">I rapporti sono salvati su questo telefono. Esporta il backup ogni tanto (o quando cambi telefono) e conservalo, ad esempio, su Drive o mandatelo per mail.</div>
+            <div class="nota">Il foglio giornaliero della vecchia app resta consultabile; i lavori nuovi si registrano con i rapportini. Il backup riguarda solo quelle giornate.</div>
           </div>
         </div>
         <div class="gruppo">
@@ -740,7 +737,7 @@
       <button type="button" class="btn btn-primario btn-blocco" id="st-pdf-cliente" onclick="pdfClienteStorico(this)" disabled>
         <svg class="i"><use href="#i-file"/></svg><span>PDF riepilogo cliente</span></button>
       <p class="nota" id="st-pdf-nota">Scegli un cliente (e il mese) per stampare il riepilogo dei suoi lavori.</p>
-      <label class="check st-pdf-spunta" data-permesso="pdf.opzioni">
+      <label class="check st-pdf-spunta" style="display:none">
         <input type="checkbox" id="ore-cliente-storico">
         <span>Nelle stampe solo le ore per cliente (senza orari e ore dei singoli operai)</span>
       </label>
@@ -818,7 +815,7 @@
         <div class="campo"><label for="rf-firmatario">Nome firmatario (stampatello)</label><input type="text" id="rf-firmatario" autocomplete="off"></div>
       </div>
     </form>
-    <div class="modulo m-opzioni" data-permesso="pdf.opzioni">
+    <div class="modulo m-opzioni nascosto" aria-hidden="true">
       <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>Opzioni del PDF</div>
       <label class="check">
         <input type="checkbox" id="ore-cliente-rapportino">
@@ -904,7 +901,7 @@
 </div>
 
 <!-- barra settimana -->
-<div class="barra nascosto" id="barra-sett" data-permesso="report">
+<div class="barra nascosto" id="barra-sett" data-permesso="mai">
   <div class="dentro">
     <button type="button" class="invia" id="btn-pdf-sett" onclick="inviaPDFSettimana()">
       <svg class="i"><use href="#i-send"/></svg>

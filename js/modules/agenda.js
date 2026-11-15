@@ -8,7 +8,7 @@
 import { mostraVista, registraVista, vistaCorrente } from "../core/navigation.js";
 import { puo } from "../core/permessi.js";
 import { profilo } from "../core/sessione.js";
-import { su } from "../core/eventi.js";
+import { emetti, su } from "../core/eventi.js";
 import { elencoRapportini, interventiPeriodo, invalidaInterventi, leggiIntervento, minutiTra, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
 import { dataIt, dataLunga, giorniMese, giorniSettimana, isoDi, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
@@ -281,6 +281,7 @@ export async function disegnaGiornoCal(){
 }
 export function apriGiornoCal(iso){
   $("cg-data").value = iso || oggiIso();
+  emetti("giorno-scelto", $("cg-data").value);     // la Home segue il giorno scelto nel Calendario
   if(vistaCorrente === "calgiorno") disegnaGiornoCal(); else mostraVista("calgiorno");
 }
 export function spostaGiornoCal(delta){

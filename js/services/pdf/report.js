@@ -1,7 +1,7 @@
 // PDF dei report settimanale e mensile.
 import { dataIt } from "../../utils/dates.js";
 import { ORARIO_ORDINARIO } from "../calculations.js";
-import { clientiConOre, confrontoAttivo, datiMese, datiSettimana, monteOreMese, oreMeseNascoste, oreMeseTesto } from "../../modules/report.js";
+import { clientiConOre, confrontoAttivo, datiMese, datiSettimana, monteOreMese, oreMeseTesto } from "../../modules/report.js";
 import { orePerCliente } from "../../core/preferenze.js";
 import { euro, oreTesto, saldoTesto } from "../../utils/formatters.js";
 import { aggiungiPiePagina, intestazionePDF } from "./comune.js";
@@ -94,7 +94,7 @@ export function generaPDFMese(){
   const doc = new jsPDF({unit:"mm", format:"a4"});
   const ML = 18, MR = 18, W = 210, CW = W - ML - MR;
   const s = datiMese();
-  const soloCliente = orePerCliente();     // spunta "solo ore per cliente": una colonna Ore (tempo sul posto) al posto degli operai
+  // formato unico: una colonna di ore per operaio (ore della giornata) e i clienti con le ore passate da ciascuno
   let y = intestazionePDF(doc, "REPORT MENSILE");
 
   doc.setFontSize(11);
@@ -107,7 +107,6 @@ export function generaPDFMese(){
     (r.operai || []).forEach(o=>{ if(!nomiOperai.includes(o.nome)) nomiOperai.push(o.nome); });
   });
   nomiOperai.sort();
-  if(soloCliente) nomiOperai.splice(0, nomiOperai.length, "Ore");
 
   const colGiorno = 13, colData = 20;
   let colOperaio = 32, colClienti = CW - colGiorno - colData - colOperaio * nomiOperai.length;
@@ -129,7 +128,7 @@ export function generaPDFMese(){
       const righeNome = doc.splitTextToSize(n, colOperaio - 3);
       doc.text(righeNome[0], xOperai + i * colOperaio + 1.5, y);
     });
-    doc.text(soloCliente ? "Tecnici e clienti" : "Clienti", xClienti + 1.5, y);
+    doc.text("Clienti (ore dal cliente)", xClienti + 1.5, y);
     y += 8;
     doc.setFont("helvetica","normal");
     doc.setFontSize(9.5);
@@ -144,14 +143,14 @@ export function generaPDFMese(){
   s.righe.forEach(r=>{
     if(y > 262){ doc.addPage(); y = 22; intestazioneTabella(); }
     if(r.escluso) cEscluse = true;
-    const testoClienti = soloCliente ? [r.tecnici.join(" / "), clientiConOre(r)].filter(Boolean).join("  —  ") : r.clienti;
+    const testoClienti = clientiConOre(r);
     const clientiRighe = doc.splitTextToSize(testoClienti || "—", colClienti - 3);
     const altezza = Math.max(clientiRighe.length * 5, 7);
 
     doc.text(r.nome, xGiorno + 1.5, y);
     doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), xData + 1.5, y);
     nomiOperai.forEach((n,i)=>{
-      const op = soloCliente ? { minuti: r.sulPosto } : r.operai.find(o=>o.nome === n);
+      const op = r.operai.find(o=>o.nome === n);
       doc.text(op && op.minuti ? oreTesto(op.minuti) : "-", xOperai + i * colOperaio + 1.5, y);
     });
     doc.text(clientiRighe, xClienti + 1.5, y);
@@ -178,18 +177,17 @@ export function generaPDFMese(){
   doc.text("Giorni lavorati", ML + 2, y);
   doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
   y += 6;
-  const mostraOre = !oreMeseNascoste();
-  if(mostraOre && soloCliente){
-    doc.text("Totale ore", ML + 2, y);
-    doc.text(oreTesto(s.totSulPosto), W - MR - 3, y, {align:"right"});
+  if(s.giorniLavorati - s.giorniConteggiati > 0){
+    doc.text("di cui esclusi dal monte ore", ML + 2, y);
+    doc.text(String(s.giorniLavorati - s.giorniConteggiati), W - MR - 3, y, {align:"right"});
     y += 6;
   }
-  if(mostraOre && !soloCliente && confrontoAttivo()){
+  if(confrontoAttivo()){
     doc.text("Monte ore del mese (" + monteOreMese().giorni + " giorni lavorativi x 9 ore)", ML + 2, y);
     doc.text(oreTesto(monteOreMese().minuti), W - MR - 3, y, {align:"right"});
     y += 6;
   }
-  if(mostraOre && !soloCliente) Object.keys(s.operaiTotali).sort().forEach(n=>{
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
     const info = s.operaiTotali[n];
     doc.text(n + " (" + info.giorni + " g.)", ML + 2, y);
     doc.text(oreMeseTesto(info), W - MR - 3, y, {align:"right"});

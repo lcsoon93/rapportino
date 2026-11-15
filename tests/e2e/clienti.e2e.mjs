@@ -506,7 +506,7 @@ try{
     assert.equal(await val("st-interventi"), "3");        // 1 da eseguire + 1 eseguito + 1 non programmato
     assert.equal(await val("st-firmati"), "2");           // eseguito + non programmato completato
     assert.equal(await val("st-dafirmare"), "1");
-    assert.equal(await val("st-ore"), "1 ora");           // 15:00-16:00 dal rapportino del giorno
+    assert.equal(await val("st-ore"), "9 ore");           // ore della giornata: 8-17 fisso, salvo orario inserito
     assert.match(await a.page.textContent("#home-interventi"), /Lavoro Fatto A Mano/);
     assert.equal(await a.page.$('#vista-calgiorno button:has-text("foglio giornaliero")'), null, "niente pulsante del foglio vecchio");
     await foto(a.page, "home");

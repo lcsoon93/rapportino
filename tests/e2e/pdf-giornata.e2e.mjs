@@ -37,7 +37,7 @@ const jwt = id=>b64u({ alg: "HS256", typ: "JWT" }) + "." + b64u({ sub: id, role:
 
 function nuovoSupabase(ruolo, immagini){
   const u = UTENTI[ruolo];
-  const stato = { query: [] };
+  const stato = { query: [], impostazioni: [{ chiave: "ore_per_cliente", valore: true }] };
   const R = (id, extra)=>({ id, intervento_id: null, data: GIORNO, cliente: "", indirizzo: "", telefono: "", tipologia: "Manutenzione ordinaria",
     attivita: "", materiali: [], note: "", esito: "Completato", firma: "", firmatario: "", stato: "completato", completato_il: GIORNO + "T18:00:00Z",
     versione: 2, aggiornato_il: GIORNO + "T18:00:00Z", rapportino_operai: [], interventi: null, ...extra });
@@ -65,14 +65,19 @@ function nuovoSupabase(ruolo, immagini){
       stato.query.push(url.search);
       const autore = (q.get("autore_id") || "").replace(/^eq\./, "");
       const st = (q.get("stato") || "").replace(/^eq\./, "");
-      const filtroData = q.getAll("data").find(x=>/^(eq|gte)\./.test(x)) || "";
-      const giorno = filtroData.replace(/^(eq|gte)\./, "");
-      let elenco = st === "completato" ? completati : st === "bozza" ? [bozza] : [];
-      if(giorno && giorno !== GIORNO) elenco = [];
+      const f = pre=>((q.getAll("data").find(x=>x.startsWith(pre + ".")) || "").slice(pre.length + 1));
+      const dal = f("eq") || f("gte"), al = f("eq") || f("lte");
+      let elenco = st === "completato" ? completati : st === "bozza" ? [bozza] : completati.concat([bozza]);
+      if((dal && GIORNO < dal) || (al && GIORNO > al)) elenco = [];
       if(autore) elenco = elenco.filter(r=>r.autore_id === autore);
       return json(route, elenco);
     }
-    if(p === "/rest/v1/impostazioni" && m === "GET") return json(route, [{ chiave: "ore_per_cliente", valore: true }]);
+    if(p === "/rest/v1/impostazioni" && m === "GET") return json(route, stato.impostazioni);
+    if(p === "/rest/v1/impostazioni"){                      // upsert dell'orario della giornata (solo admin)
+      if(u.ruolo !== "admin") return json(route, { code: "42501", message: "new row violates row-level security policy" }, 403);
+      [].concat(req.postDataJSON()).forEach(r=>{ stato.impostazioni = stato.impostazioni.filter(x=>x.chiave !== r.chiave).concat([r]); });
+      return json(route, [], 201);
+    }
     if(p === "/rest/v1/allegati" && m === "GET"){
       const rid = (q.get("rapportino_id") || "").replace(/^eq\./, "");
       return json(route, rid === completati[1].id ? [{ id: "a1", tipo: "foto", nome: "quadro.jpg", percorso: rid + "/a1.jpg", larghezza: 64, altezza: 48 }] : []);
@@ -180,9 +185,9 @@ try{
     assert.match(esito, /Non inclusi/);
     assert.match(esito, /Bozza Spa — in bozza: non completato/);
     assert.match(esito, /Sospeso Snc — completato sul telefono ma non ancora inviato/);
-    assert.match(esito, /Mario Bianchi 08:00–10:30/);
+    assert.match(esito, /Mario Bianchi 08:00–10:30 · 2h 30m/, "orario e ore passate dal cliente");
+    assert.match(esito, /Orario della giornata: 08:00–17:00 · 9 ore/);
     assert.match(esito, /Anna Verdi dalle 14:00, Luca Admin(?! \d)/);
-    assert.doesNotMatch(esito, /\d+h|\d+ ore/, "a schermo niente totale delle ore");
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(2\)/);
     const q = a.sb.stato.query.find(s=>/stato=eq.completato/.test(s));
     assert.ok(q && /data=eq.2026-11-13/.test(q) && !/autore_id=eq/.test(q), "admin senza filtro: tutti gli operai");
@@ -195,8 +200,9 @@ try{
     for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Ugello 0.6", "Mario Bianchi", "Anna Verdi", "Luca Admin",
       "08:00", "10:30", "dalle 14:00", "ORARIO", "TAGLIA QUI", "Tel. 02 1234"])
       assert.ok(testo.includes(t), "manca nel PDF: " + t);
-    // solo gli intervalli segnati: nessun totale di ore (anche con "solo ore per cliente" attiva)
-    assert.ok(!/\(\d+h[ \d]*m?\)|\(\d+ ore\)|Ore di lavoro|2h 30m/.test(testo), "nessun totale di ore nel PDF");
+    // pagina del cliente: orario e ore passate dal cliente; in fondo il riepilogo con l'orario della giornata
+    for(const t of ["2h 30m", "RIEPILOGO DELLA GIORNATA", "ORARIO DELLA GIORNATA", "17:00", "9 ore", "CLIENTI E ORE DAL CLIENTE"])
+      assert.ok(testo.includes(t), "manca nel PDF: " + t);
     assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "nel PDF solo i completati");
     assert.ok((testo.match(/\/Subtype \/Image/g) || []).length >= 2, "foto e firma nel PDF");
     assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
@@ -213,14 +219,14 @@ try{
     assert.equal(nome, "Rapportini_2026-11-13_Anna_Verdi.pdf");
     assert.ok(testo.includes("Condominio Verdi") && !testo.includes("Rossi Srl"));
     assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
-    assert.ok(!/\(ORE\)|Ore di lavoro|2h 30m/.test(testo), "A4: niente colonna ORE");
+    assert.ok(testo.includes("(ORE)") && testo.includes("RIEPILOGO DELLA GIORNATA"), "A4: colonna ORE e pagina di riepilogo");
     const volte = t=>(testo.match(new RegExp("\\(" + t + "\\)", "g")) || []).length;
     assert.equal(volte("Anna Verdi"), 1, "Anna nella tabella degli orari");
     assert.ok(testo.includes("Anna Verdi / Luca Admin"), "entrambi tra i tecnici");
     assert.equal(volte("Luca Admin"), 0, "chi non ha segnato l'orario non compare nella tabella degli orari");
   });
 
-  await prova("Altro -> Invia PDF della giornata: rapportini completati + schede compilate del foglio giornaliero", async()=>{
+  await prova("Home -> Invia PDF: rapportini completati + schede compilate del foglio giornaliero del giorno scelto", async()=>{
     await a.page.evaluate(giorno=>import("./js/core/storage.js").then(m=>{
       const db = m.leggiDB();
       db[giorno] = { tecnici: "Luca Admin", escludi: false, spese: [], operai: [{ nome: "Luca Admin", dalle: "11:00", alle: "12:30" }],
@@ -228,8 +234,9 @@ try{
                   { id: "v2", nome: "Scheda Vuota", indirizzo: "", fasce: [], dettagli: "", materiali: [], foto: [], firma: "", firmatario: "" }] };
       m.scriviDB(db);
     }), GIORNO);
-    await a.page.evaluate(giorno=>{ document.getElementById("data").value = giorno; window.mostraVista("altro"); }, GIORNO);
-    await a.page.click('#vista-altro .voce:has-text("Invia PDF della giornata")');
+    await a.page.evaluate(giorno=>{ window.apriGiornoHome(giorno); window.mostraVista("home"); }, GIORNO);
+    assert.equal(await a.page.locator('#vista-altro .voce:has-text("PDF della giornata")').count(), 0, "in Altro non c'e' piu' il doppione");
+    await a.page.click("#btn-pdf-home");
     await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
     assert.equal(await a.page.inputValue("#rg-data"), GIORNO);
     const nomi = await a.page.$$eval("#rg-esito .cli-elenco .cli-nome", e=>e.map(x=>x.textContent));
@@ -238,7 +245,7 @@ try{
     const { testo } = await scaricaPDF(a.page);
     for(const t of ["Rossi Srl", "Foglio Vecchio Snc", "Verifica caldaia", "Condominio Verdi", "11:00", "12:30"]) assert.ok(testo.includes(t), "manca: " + t);
     assert.ok(!testo.includes("Scheda Vuota") && !testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"));
-    assert.ok(!/Ore di lavoro|2h 30m|1h 30m/.test(testo), "nessun totale di ore");
+    assert.ok(testo.includes("1h 30m") && testo.includes("2h 30m"), "ore passate da ogni cliente");
   });
 
   await prova("Apri giornata -> 'Invia PDF' (telefono): PDF del giorno aperto, non di oggi", async()=>{
@@ -252,7 +259,69 @@ try{
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(3\)/);
   });
 
+  await prova("Home: orario della giornata 8-17 salvo inserimento; escludi dal monte ore; vale anche nel PDF", async()=>{
+    // giorno senza nulla di inserito: 08:00-17:00, 9 ore
+    await a.page.evaluate(()=>{ window.apriGiornoHome("2026-11-12"); window.mostraVista("home"); });
+    await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "9 ore");
+    assert.equal(await a.page.inputValue("#og-dalle"), "08:00");
+    assert.equal(await a.page.inputValue("#og-alle"), "17:00");
+    assert.match(await a.page.textContent("#og-nota"), /Orario fisso 8–17/);
+    assert.ok(await a.page.isHidden("#og-ripristina"));
+    // giorno con il vecchio foglio: propone l'orario segnato li' finche' non se ne inserisce uno
+    await a.page.evaluate(g=>window.apriGiornoHome(g), GIORNO);
+    await a.page.waitForFunction(()=>/foglio giornaliero/.test(document.getElementById("og-nota").textContent));
+    assert.equal(await a.page.inputValue("#og-dalle"), "11:00");
+    // inserisco io l'orario: 08:00-13:00 = 5 ore, salvato per quel giorno (non per gli altri)
+    await a.page.fill("#og-dalle", "08:00");
+    await a.page.waitForFunction(()=>/Salvato/.test(document.getElementById("og-nota").textContent));
+    assert.equal(await a.page.textContent("#og-ore"), "4h 30m");
+    await a.page.fill("#og-alle", "13:00");
+    await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore");
+    assert.deepEqual(a.sb.stato.impostazioni.find(x=>x.chiave === "giornata:" + GIORNO).valore, { escludi: false, dalle: "08:00", alle: "13:00" });
+    assert.equal(await a.page.textContent("#st-ore"), "5 ore", "riepilogo della Home: ore della giornata");
+    await a.page.check("#og-escludi");
+    await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore · esclusa");
+    assert.equal(a.sb.stato.impostazioni.find(x=>x.chiave === "giornata:" + GIORNO).valore.escludi, true);
+    // il giorno della Home vale anche per Calendario -> Giorno e per il PDF della giornata
+    assert.equal(await a.page.inputValue("#cg-data"), GIORNO);
+    await a.page.click("#btn-pdf-home");
+    await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
+    assert.match(await a.page.textContent("#rg-orario"), /08:00–13:00 · 5 ore.*esclusa dal monte ore/);
+    const { testo } = await scaricaPDF(a.page);
+    assert.ok(testo.includes("13:00") && testo.includes("5 ore") && testo.includes("esclusa dal monte ore"), "riepilogo nel PDF con l'orario inserito");
+  });
+
+  await prova("Report mensile: rapportini + foglio, ore per operaio, giornata esclusa non sommata", async()=>{
+    await a.page.evaluate(()=>{ document.getElementById("mesedata").value = "2026-11"; window.mostraVista("mese"); });
+    await a.page.waitForFunction(()=>/Rossi Srl/.test(document.getElementById("meseelenco").textContent), null, { timeout: 15000 });
+    const riga = await a.page.textContent("#meseelenco");
+    assert.match(riga, /13\/11\/2026 · 08:00–13:00/);
+    assert.match(riga, /ESCLUSA/);
+    for(const t of ["Luca Admin 5 ore", "Mario Bianchi 5 ore", "Anna Verdi 5 ore", "Foglio Vecchio Snc (1h 30m)", "Rossi Srl (2h 30m)", "Condominio Verdi", "Bozza Spa"])
+      assert.ok(riga.includes(t), "manca nel report: " + t);
+    let ricap = await a.page.textContent("#mesericap");
+    assert.match(ricap, /Giorni lavorati1/);
+    assert.match(ricap, /escluse dal monte ore1/);
+    assert.doesNotMatch(ricap, /Luca Admin|Mario Bianchi/, "giornata esclusa: nessuna ora sommata agli operai");
+    assert.ok(await a.page.isHidden("#nascondi-ore-mese") && await a.page.isHidden("#ore-cliente-mese"), "niente opzioni di stampa");
+    assert.equal(await a.page.locator('#vista-altro .voce:has-text("Report settimanale")').count(), 0);
+    // tolgo "escludi" dalla Home: le ore entrano nel conteggio per operaio
+    await a.page.evaluate(()=>window.mostraVista("home"));
+    await a.page.uncheck("#og-escludi");
+    await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore");
+    await a.page.evaluate(()=>window.mostraVista("mese"));
+    await a.page.waitForFunction(()=>/Mario Bianchi \(1 g\.\)/.test(document.getElementById("mesericap").textContent));
+    ricap = await a.page.textContent("#mesericap");
+    for(const t of ["Luca Admin (1 g.)5 ore", "Mario Bianchi (1 g.)5 ore", "Anna Verdi (1 g.)5 ore"]) assert.ok(ricap.includes(t), "manca: " + t + " in " + ricap);
+    // la griglia del mese segna il giorno con una bozza
+    assert.ok(await a.page.$eval('#mese-griglia [data-giorno="2026-11-13"]', el=>el.classList.contains("dafirmare")));
+    const [dl] = await Promise.all([a.page.waitForEvent("download", { timeout: 20000 }), a.page.click("#btn-pdf-mese")]);
+    const pdf = fs.readFileSync(await dl.path()).toString("latin1");
+    for(const t of ["REPORT MENSILE", "Novembre 2026", "Mario Bianchi (1 g.)", "5 ore", "Rossi Srl", "2h 30m", "Clienti (ore dal cliente)"]) assert.ok(pdf.includes(t.replace(/[()]/g, "\\$&")), "manca nel PDF del mese: " + t);   // nel PDF le parentesi sono precedute da \\
+  });
+
   await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("rapporti"));
     await a.page.selectOption("#rg-operaio", "");
     await a.page.fill("#rg-data", "2026-11-10");
     await a.page.click("#rg-prepara");
@@ -279,8 +348,6 @@ try{
     await pc.page.evaluate(g=>window.apriGiornoCal(g), GIORNO);
     await pc.page.waitForSelector("#vista-calgiorno:not(.nascosto) #cg-pdf");
     assert.equal((await pc.page.textContent("#cg-pdf")).trim(), "Stampa PDF", "Apri giornata sul computer");
-    await pc.page.evaluate(()=>window.mostraVista("altro"));
-    assert.ok(await pc.page.isVisible('#vista-altro .voce:has-text("Stampa PDF della giornata")'));
     await pc.page.evaluate(()=>window.mostraVista("rapporti"));
     await pc.page.fill("#rg-data", GIORNO);
     await pc.page.click("#rg-prepara");
@@ -319,7 +386,7 @@ try{
     assert.deepEqual(nomi, ["1. Rossi Srl"]);
     const { testo } = await scaricaPDF(w.page);
     assert.ok(testo.includes("Rossi Srl") && !testo.includes("Condominio Verdi"));
-    assert.ok(testo.includes("08:00") && testo.includes("10:30") && !/\(ORE\)|Ore di lavoro|2h 30m/.test(testo), "rapportino A4: orario si', ore no");
+    assert.ok(testo.includes("08:00") && testo.includes("10:30") && testo.includes("2h 30m"), "rapportino A4: orario e ore dal cliente");
   });
   assert.deepEqual(w.errori, [], w.errori.join("; "));
   assert.equal(a.esterne.concat(w.esterne).filter(u=>/supabase|groq/.test(u)).length, 0);

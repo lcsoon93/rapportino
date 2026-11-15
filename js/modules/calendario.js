@@ -3,7 +3,7 @@
 // il report delle giornate (ore, saldi, firme) resta solo a chi ha il permesso "report" (admin).
 import { dataIt, giorniMese, isoDi, oggiIso } from "../utils/dates.js";
 import { ORARIO_ORDINARIO } from "../services/calculations.js";
-import { confrontoAttivo, datiMese, datiSettimana, monteOreMese, oreMeseTesto } from "./report.js";
+import { caricaMese, clientiConOre, confrontoAttivo, datiMese, datiSettimana, giornateDelMese, meseLetto, monteOreMese, oreMeseTesto } from "./report.js";
 import { esc, euro, oreTesto, saldoTesto } from "../utils/formatters.js";
 import { leggiDB, scriviDB } from "../core/storage.js";
 import { cancellaGiornoRemoto } from "../services/sync.js";
@@ -89,7 +89,24 @@ export function disegnaMese(){
   }
   disegnaGrigliaMese(null);
   disegnaInterventiMese();
-  if(puo("report")) disegnaReportMese();
+  if(puo("report")) caricaReportMese();
+}
+// report del mese: prima con i dati gia' sul telefono, poi con i rapportini del mese letti dal server
+async function caricaReportMese(){
+  const mese = document.getElementById("mesedata").value;
+  const nota = document.getElementById("mese-nota");
+  disegnaReportMese();
+  nota.textContent = meseLetto(mese) ? "" : "Lettura dei rapportini del mese…"; nota.className = "og-nota";
+  try{ await caricaMese(mese); }
+  catch(e){
+    if(document.getElementById("mesedata").value !== mese) return;
+    nota.textContent = "Rapportini del mese non letti (" + messaggioErrore(e) + "): il report può essere incompleto."; nota.className = "og-nota err";
+    return;
+  }
+  if(document.getElementById("mesedata").value !== mese) return;
+  nota.textContent = "";
+  disegnaReportMese();
+  disegnaGrigliaMese(null);
 }
 // interventi del mese: numero per giorno nella griglia e giorno piu' carico
 async function disegnaInterventiMese(){
@@ -113,7 +130,7 @@ function disegnaReportMese(){
   const cont = document.getElementById("meseelenco");
   cont.innerHTML = "";
   if(s.righe.length === 0){
-    cont.innerHTML = '<div class="giorno"><div class="ginfo gvuoto">Nessun rapporto in questo mese</div></div>';
+    cont.innerHTML = '<div class="giorno"><div class="ginfo gvuoto">Nessun lavoro in questo mese</div></div>';
   }
   s.righe.forEach(r=>{
     const div = document.createElement("div");
@@ -121,13 +138,12 @@ function disegnaReportMese(){
     const opTesto = r.operai.length ? r.operai.map(o=>o.nome + " " + oreTesto(o.minuti)).join(" · ") : "—";
     div.innerHTML =
       '<span class="gnome">' + r.nome + '</span>' +
-      '<div class="ginfo apri" role="button" tabindex="0" onclick="apriGiorno(\'' + r.iso + '\')"><div>' + dataIt(r.iso) +
+      '<div class="ginfo apri" role="button" tabindex="0" onclick="apriGiornoCal(\'' + r.iso + '\')"><div>' + dataIt(r.iso) + ' · ' + r.orario +
       (r.escluso ? '<span class="escl">ESCLUSA</span>' : '') + '</div>' +
       '<div class="gclienti">' + esc(opTesto) + '</div>' +
-      (r.clienti ? '<div class="gclienti cli">' + esc(r.clienti) + '</div>' : '') +
+      (r.clientiOre.length ? '<div class="gclienti cli">' + esc(clientiConOre(r)) + '</div>' : '') +
       '</div>' +
-      '<span class="gore">' + oreTesto(r.totGiorno) + '</span>' +
-      '<button type="button" class="gdel" data-permesso="rapportino.elimina" aria-label="Elimina giorno" onclick="eliminaGiornoMese(\'' + r.iso + '\')">&times;</button>';
+      '<span class="gore">' + oreTesto(r.operai.length ? r.operai[0].minuti : 0) + '</span>';
     cont.appendChild(div);
   });
 
@@ -159,7 +175,7 @@ export function disegnaGrigliaMese(conteggi){
   if(conteggi) ultimi = { mese: meseG, conta: conteggi };
   else if(ultimi.mese === meseG) conteggi = ultimi.conta;
   const mese = document.getElementById("mesedata").value;
-  const db = leggiDB();
+  const db = report ? giornateDelMese(mese) : {};
   const giorni = giorniMese(mese);
   const sel = document.getElementById("data").value;
   const oggi = oggiIso();
@@ -170,15 +186,14 @@ export function disegnaGrigliaMese(conteggi){
     const d = db[g];
     const w = new Date(g + "T12:00:00").getDay();
     const weekend = w === 0 || w === 6;
-    let stato = "", icn = "", testo = report ? "nessun rapporto" : "";
+    let stato = "", icn = "", testo = report ? "nessun lavoro" : "";
     if(!report){ /* solo interventi */ }
     else if(d){
-      const cl = (d.clienti || []).filter(c=>c.nome || c.firma);
-      const daFirmare = cl.filter(c=>!c.firma).length;
-      if(daFirmare){ stato = "dafirmare"; icn = icona("pen"); testo = daFirmare + " da firmare"; }
-      else { stato = "completo"; icn = icona("check"); testo = cl.length ? "tutto firmato" : "compilato"; }
-    } else if(!weekend && g < oggi){
-      stato = "mancante"; icn = icona("minus"); testo = "rapporto mancante";
+      const bozze = d.clienti.filter(c=>c.bozza).length;
+      if(bozze){ stato = "dafirmare"; icn = icona("pen"); testo = bozze + (bozze === 1 ? " rapportino in bozza" : " rapportini in bozza"); }
+      else { stato = "completo"; icn = icona("check"); testo = d.clienti.length + (d.clienti.length === 1 ? " lavoro" : " lavori") + (d.escludi ? ", esclusa dal monte ore" : ""); }
+    } else if(!weekend && g < oggi && meseLetto(mese)){
+      stato = "mancante"; icn = icona("minus"); testo = "nessun lavoro registrato";
     }
     const n = conteggi ? conteggi[g] || 0 : 0;
     const descr = [n ? n + (n === 1 ? " intervento" : " interventi") : (conteggi ? "nessun intervento" : ""), testo].filter(Boolean).join(", ");

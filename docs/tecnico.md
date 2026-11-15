@@ -273,6 +273,32 @@ browser, stessa sessione, nessun nuovo accesso). Sostituisce la vecchia dashboar
 - File: `search.html`, `js/modules/ricerca-computer.js` (pagina), `js/services/ricerca-logica.js`
   (logica pura), `js/services/pdf/ricerca.js` (PDF). La vecchia copia `ricerca.html` è stata eliminata.
 
+## Ore e giornate (ristrutturazione di novembre 2026)
+
+Un solo modello, senza opzioni di stampa:
+- **Ore dal cliente**: intervalli di `rapportino_operai` (dalle–alle) di quel rapportino; nei PDF dei
+  rapportini ogni tecnico ha intervallo e durata ("08:00–10:30 · 2h 30m").
+- **Orario della giornata**: 08:00–17:00 (9 ore) per tutti gli operai del giorno. L'amministratore può
+  inserirne uno diverso e spuntare "Escludi dal monte ore" dalla Home. Si salva nella tabella
+  `impostazioni` già esistente, chiave `giornata:AAAA-MM-GG`, valore `{ dalle, alle, escludi }`
+  (legge chiunque, scrive solo l'admin: policy invariate, **nessuna migrazione**).
+  Precedenza: orario inserito > orario del vecchio foglio di quel giorno (dati storici) > 8–17.
+- **Giornata unita** (`js/services/giornate-logica.js`, logica pura con test): rapportini + vecchio foglio
+  + orario inserito, nella forma del vecchio foglio, così report e PDF usano gli stessi dati. Un giorno
+  conta se ha almeno un rapportino, oppure schede con nome o spese nel vecchio foglio. Operai del giorno:
+  quelli delle ore dei rapportini (o l'autore) e quelli del vecchio foglio (nomi liberi ricondotti agli utenti).
+- **Report mensile** (Calendario → Mese; `caricaMese`/`datiMese` in `js/modules/report.js`): per giorno
+  orario, ore per operaio e clienti con le ore dal cliente; conteggio per operaio; le giornate escluse
+  restano in elenco ma non si sommano. Unica opzione: confronto con il monte ore. Report settimanale tolto
+  (la vista Settimana mostra solo gli interventi).
+- **PDF della giornata**: ultima colonna (o pagina) "Riepilogo della giornata" con orario della giornata,
+  tecnici e ore passate da ogni cliente.
+- **Giorno scelto**: quello della Home vale anche per Calendario → Giorno e "PDF della giornata"
+  (eventi `giornata-caricata` e `giorno-scelto`).
+- **Menu Altro**: tolte le voci del vecchio foglio, del report settimanale, del testo e delle opzioni PDF;
+  il vecchio foglio e il suo backup sono in "Archivio della vecchia app".
+- File: `js/services/giornate-logica.js`, `js/services/orario-giornata.js`, Home in `js/modules/dashboard.js`.
+
 ## Giornata: interventi e lavori del giorno
 
 Home → "Apri giornata" (e Calendario → Giorno) mostra il lavoro del giorno scelto, diviso in:

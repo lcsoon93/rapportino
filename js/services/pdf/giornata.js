@@ -10,7 +10,7 @@
 // del cliente "(segue)". Testi e tabelle si spezzano riga per riga; un titolo non resta mai da solo
 // in fondo; foto con proporzioni reali (ridotte se non entrano per poco); firma con l'ultima foto.
 import { dataIt } from "../../utils/dates.js";
-import { minutiCliente, minutiSulPosto, totaleImporti, totaleSpese } from "../calculations.js";
+import { minutiCliente, minutiGiornata, minutiSulPosto, totaleImporti, totaleSpese } from "../calculations.js";
 import { rigaOrarioCliente } from "../../modules/report.js";
 import { contoOreOperaio, orePerCliente } from "../../core/preferenze.js";
 import { euro, oreTesto } from "../../utils/formatters.js";
@@ -33,6 +33,8 @@ const conOrePerCliente = d=>!orePerCliente() || d.soloIntervalli ? d
   : { ...d, soloOreCliente: true, tecnici: d.tecnici || (d.operai || []).map(o=>o.nome).filter(Boolean).join(" / "),
       clienti: d.clienti.map(c=>({ ...c, oreLavoro: c.operai ? (minutiSulPosto(c.operai) || null) : minutiCliente(c, d) })) };
 const oreOperaio = op=>contoOreOperaio(op, "").trim().replace(/^\(|\)$/g, "");
+// rapportini: ore passate dal cliente = durata dell'intervallo segnato da ciascun tecnico
+const durata = op=>op.dalle && op.alle ? oreTesto(minutiGiornata(String(op.dalle).slice(0, 5), String(op.alle).slice(0, 5))) : "";
 // "08:00–10:30", "dalle 08:00", "fino alle 10:30"
 const intervallo = op=>op.dalle && op.alle ? op.dalle + "–" + op.alle : op.dalle ? "dalle " + op.dalle : op.alle ? "fino alle " + op.alle : "";
 const nuovoDoc = ()=>{ const { jsPDF } = window.jspdf; return new jsPDF({unit:"mm", format:"a4"}); };
@@ -233,14 +235,14 @@ function impaginatore(doc, s, cornice, yIniziale){
         doc.text("ORARIO DEI TECNICI" + (escludi ? "  (GIORNATA ESCLUSA DAL MONTE ORE)" : ""), X0 + 5, y, {charSpace: 0.2});
         doc.text("DALLE", X0 + 82, y, {charSpace: 0.2});
         doc.text("ALLE", X0 + 106, y, {charSpace: 0.2});
-        if(!senzaOre) doc.text("ORE", X1 - 5, y, {align:"right"});
+        doc.text("ORE", X1 - 5, y, {align:"right"});
         y += 6;
         righeOrario.forEach(({ nome, op }, k)=>{
           stileTesto(doc, 9.5);
           doc.text(nome, X0 + 5, y);
           doc.text(op.dalle || "—", X0 + 82, y);
           doc.text(op.alle || "—", X0 + 106, y);
-          const ore = senzaOre ? "" : oreOperaio(op);
+          const ore = senzaOre ? durata(op) : oreOperaio(op);
           if(ore){ stileTesto(doc, 9.5, "bold"); doc.text(ore, X1 - 5, y, {align:"right"}); }
           y += nome.length * 4.6 + 1.2;
           if(k < righeOrario.length - 1){ coloreLinea(doc, [230,233,236]); doc.setLineWidth(0.2); doc.line(X0 + 5, y - 3.6, X1 - 5, y - 3.6); }
@@ -251,7 +253,7 @@ function impaginatore(doc, s, cornice, yIniziale){
       stileTesto(doc, 9);
       const tec = tecnici ? doc.splitTextToSize(tecnici, CW - 60) : ["—"];
       const or = orari && operai.length
-        ? doc.splitTextToSize(operai.map(op=>op.nome + "  " + (senzaOre ? intervallo(op)
+        ? doc.splitTextToSize(operai.map(op=>op.nome + "  " + (senzaOre ? intervallo(op) + (durata(op) ? " · " + durata(op) : "")
             : (op.dalle || "—") + "–" + (op.alle || "—") + (oreOperaio(op) ? " (" + oreOperaio(op) + ")" : ""))).join("     "), CW - 22) : [];
       const alt = 3 + tec.length * 4.3 + (or.length ? or.length * 4.1 + 1 : 0) + 1.5;
       coloreRiempimento(doc, COLORI.sfondo);
@@ -371,6 +373,37 @@ function documentoPagina(titolo, info){
   return { doc, im, ML, MR };
 }
 
+// Riepilogo della giornata (in fondo al PDF della giornata): orario della giornata uguale per tutti
+// (08:00-17:00 salvo inserimento), tecnici, e per ogni cliente l'orario e le ore passate da lui.
+// r = { orario: { dalle, alle, minuti, escludi }, tecnici: [nomi], righe: [{ nome, orario, minuti }] }
+function disegnaRiepilogo(doc, r, x0, x1, y, { testo, passo, limite }){
+  const larg = x1 - x0;
+  const voce = (etichetta, valore)=>{
+    stileTesto(doc, testo - 2.3, "bold", COLORI.grigio);
+    doc.text(etichetta.toUpperCase(), x0, y, {charSpace: 0.2});
+    stileTesto(doc, testo + 0.5, "bold");
+    const righe = doc.splitTextToSize(valore, larg);
+    doc.text(righe, x0, y + passo * 0.85);
+    y += passo * 0.85 + righe.length * passo + 1.5;
+  };
+  voce("Orario della giornata", r.orario.dalle + "–" + r.orario.alle + "  ·  " + oreTesto(r.orario.minuti) +
+    (r.orario.escludi ? "  (esclusa dal monte ore)" : ""));
+  voce("Tecnici", r.tecnici.join(" / ") || "—");
+  y = titoloSezione(doc, "Clienti e ore dal cliente", x0, y + 1, larg, testo - 0.5);
+  r.righe.forEach((c, i)=>{
+    if(y > limite) return;
+    stileTesto(doc, testo);
+    const ore = [c.orario, c.minuti ? oreTesto(c.minuti) : ""].filter(Boolean).join(" · ") || "—";
+    const largOre = doc.getTextWidth(ore) + 4;
+    const nome = doc.splitTextToSize((i + 1) + ". " + c.nome, larg - largOre);
+    doc.text(nome, x0, y);
+    stileTesto(doc, testo, "bold");
+    doc.text(ore, x1, y, {align:"right"});
+    y += nome.length * passo + 1;
+  });
+  return y;
+}
+
 // rapportino di un solo cliente (layout normale, A4)
 function rapportinoSingolo(d, iso){
   const data = dataIt(iso);
@@ -380,6 +413,11 @@ function rapportinoSingolo(d, iso){
   const c = d.clienti[0];
   if(c) im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   else { stileTesto(doc, 10.5, "normal", COLORI.grigio); doc.text("Nessun lavoro cliente registrato per questo giorno.", 18, im.y); }
+  if(d.riepilogo){                       // PDF della giornata: pagina finale con le ore della giornata
+    doc.addPage();
+    const y = intestazioneCompatta(doc, "RIEPILOGO DELLA GIORNATA", { data }) + 12;
+    disegnaRiepilogo(doc, d.riepilogo, 18, W - 18, y, { testo: 10.5, passo: 6, limite: 272 });
+  }
   aggiungiPiePagina(doc, "Rapportino N. " + rif + " del " + data);
   return doc;
 }
@@ -425,12 +463,12 @@ function multiCliente(d, iso){
     cornice.x0 = destra ? MEZZO + MARGINE_INT : MARGINE_EST;
     cornice.x1 = destra ? LW - MARGINE_EST : MEZZO - MARGINE_INT;
     if(colonna >= 2) filigranaPDF(doc, (cornice.x0 + cornice.x1) / 2, LH / 2 + 6, 95);
-    const yl = intestazioneCompatta(doc, TITOLO_RAPPORTINO,
-      { riferimento: cliente.rif, data, extra: "Cliente " + cliente.n + " di " + d.clienti.length }, cornice.x0, cornice.x1, ALTO);
+    const yl = intestazioneCompatta(doc, cliente.riepilogo ? "RIEPILOGO DELLA GIORNATA" : TITOLO_RAPPORTINO,
+      { riferimento: cliente.rif, data, extra: cliente.riepilogo ? "" : "Cliente " + cliente.n + " di " + d.clienti.length }, cornice.x0, cornice.x1, ALTO);
     const yp = LH - BASSO + 6;
     stileTesto(doc, 7, "normal", COLORI.grigio);
     doc.text("COMP.HAS assistance SRL", cornice.x0, yp);
-    doc.text("Rapportino N. " + cliente.rif + " del " + data, (cornice.x0 + cornice.x1) / 2, yp, {align:"center"});
+    doc.text((cliente.riepilogo ? "Giornata N. " : "Rapportino N. ") + cliente.rif + " del " + data, (cornice.x0 + cornice.x1) / 2, yp, {align:"center"});
     piedi.push({ pagina: doc.getNumberOfPages(), x1: cornice.x1, y: yp });
     return yl + 6;
   }
@@ -447,6 +485,12 @@ function multiCliente(d, iso){
     im.datiGenerali({ data, riferimento: cliente.rif, tecnici: c.tecnici ?? d.tecnici, operai: c.operai ?? d.operai, orari: haOrario, senzaOre: !!d.soloIntervalli });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
+  // ultima colonna: riepilogo della giornata (orario 8-17 salvo inserimento, clienti e ore da ciascuno)
+  if(d.riepilogo){
+    cliente = { n: 0, rif: base, riepilogo: true };
+    const y = nuovaColonna();
+    disegnaRiepilogo(doc, d.riepilogo, cornice.x0, cornice.x1, y + 2, { testo: 9, passo: 5, limite: LH - BASSO - 4 });
+  }
   // numerazione delle pagine nel piede di ogni colonna
   const n = doc.getNumberOfPages();
   piedi.forEach(p=>{

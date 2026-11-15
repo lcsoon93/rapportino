@@ -6,7 +6,7 @@ import { mostraVista } from "./navigation.js";
 import { attivaNotificheUI, disattivaNotificheUI, provaNotificaUI, vaiASezione } from "../modules/altro.js";
 import { disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana } from "../modules/calendario.js";
 import { apriCliente, chiudiSchedaCliente, eseguiRicerca, importaClientiUI, nuovoClienteUI, nuovoPerCliente } from "../modules/clienti.js";
-import { apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino } from "../modules/dashboard.js";
+import { apriGiornoHome, apriIntervento, cambiaOrarioGiorno, firmaIntervento, nuovoRapportino, ripristinaOrarioGiorno } from "../modules/dashboard.js";
 import { aggiungiCliente, aggiungiFascia, aggiungiMateriale, aggiungiUrgenza, gestisciFoto, riprendiLavoro, spostaCliente, togliCliente, togliFascia } from "../modules/interventi.js";
 import { aggiungiOperaio, togliOperaio } from "../modules/operai.js";
 import { apriGiorno, copiaIeri, salvaGiornata, spostaGiorno, svuotaGiornata, vaiOggi } from "../modules/rapportini.js";
@@ -33,7 +33,7 @@ Object.assign(window, {
   vaiASezione, attivaNotificheUI, disattivaNotificheUI, provaNotificaUI,
   disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana,
   apriCliente, chiudiSchedaCliente, eseguiRicerca, importaClientiUI, nuovoClienteUI, nuovoPerCliente,
-  apriGiornoHome, apriIntervento, firmaIntervento, nuovoRapportino,
+  apriGiornoHome, apriIntervento, cambiaOrarioGiorno, firmaIntervento, nuovoRapportino, ripristinaOrarioGiorno,
   aggiungiCliente, aggiungiFascia, aggiungiMateriale, aggiungiUrgenza, gestisciFoto, riprendiLavoro, spostaCliente, togliCliente, togliFascia,
   aggiungiOperaio, togliOperaio,
   apriGiorno, copiaIeri, salvaGiornata, spostaGiorno, svuotaGiornata, vaiOggi,

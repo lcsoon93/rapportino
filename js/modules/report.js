@@ -5,6 +5,26 @@ import { contoOreOperaio, orePerCliente } from "../core/preferenze.js";
 import { euro, oreTesto, saldoTesto } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
 import { datiGiornata } from "./rapportini.js";
+import { elencoRapportini, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
+import { giornateUnite } from "../services/giornate-logica.js";
+import { aggiornaOrari, orariInseriti } from "../services/orario-giornata.js";
+
+// ---- giornate del mese: vecchio foglio + rapportini + orario della giornata (8-17 salvo inserimento) ----
+// I rapportini del mese si leggono dal server (caricaMese) e restano in memoria: report, testo e PDF
+// usano gli stessi dati. Senza rete restano i soli dati gia' sul telefono (vecchio foglio).
+let meseCaricato = { mese: "", rapportini: [], utenti: [] };
+export async function caricaMese(mese){
+  const giorni = giorniMese(mese);
+  const [operai, rapportini] = await Promise.all([operaiAttivi().catch(()=>[]),
+    elencoRapportini({ dal: giorni[0], al: giorni[giorni.length - 1] }), aggiornaOrari()]);
+  meseCaricato = { mese, rapportini, utenti: operai.map(o=>o.nome || o.username).filter(Boolean) };
+}
+export function meseLetto(mese){ return meseCaricato.mese === mese; }
+export function giornateDelMese(mese){
+  const giorni = giorniMese(mese), ok = meseLetto(mese);
+  const utenti = ok ? [...new Set(meseCaricato.utenti.concat(meseCaricato.rapportini.flatMap(r=>(r.rapportino_operai || []).map(o=>nomeOperaio(o.operaio_id)))))] : [];
+  return giornateUnite(giorni, { fogli: leggiDB(), rapportini: ok ? meseCaricato.rapportini : [], inseriti: orariInseriti(giorni), nome: nomeOperaio, utenti });
+}
 
 // saldo con segno: +1h 30m oppure -45m
 // "30 ore (di cui straordinario 3 ore)" - totale lavorato, straordinario = quanto supera le 9 ore di ogni giorno
@@ -16,8 +36,6 @@ export function monteOreMese(){
   const giorni = giorniLavorativiMese(iso);
   return {giorni, minuti: giorni * ORARIO_ORDINARIO};
 }
-// spunta: nel riepilogo finale del report mensile (PDF e testo) niente ore per operaio
-export function oreMeseNascoste(){ return document.getElementById("nascondi-ore-mese").checked; }
 export function confrontoAttivo(){ return document.getElementById("confronta-200").checked; }
 export function descrizioneMonte(){
   const mo = monteOreMese();
@@ -178,7 +196,7 @@ export function testoSettimana(){
 }
 export function datiMese(){
   const iso = document.getElementById("mesedata").value;
-  const db = leggiDB();
+  const db = giornateDelMese(iso);
   const giorni = giorniMese(iso);
   const operaiTotali = {};
   let totGenerale = 0, giorniConteggiati = 0, totSpese = 0, totSulPosto = 0;
@@ -205,8 +223,12 @@ export function datiMese(){
       nome: GIORNI[(data.getDay() + 6) % 7],
       operai, totGiorno,
       escluso: !!d.escludi,
+      orario: d.orario.dalle + "–" + d.orario.alle,
       clienti: d.clienti.map(c=>c.nome).join(", "),
-      ...perCliente(d)
+      tecnici: (d.operai || []).map(o=>o.nome).filter(Boolean),
+      sulPosto: minutiSulPosto(d.operai),
+      // ore passate da ciascun cliente: solo quando l'orario e' stato segnato
+      clientiOre: d.clienti.map(c=>({ nome: c.nome, minuti: c.fasce.length ? minutiSulPosto(c.fasce.map(f=>({ dalle: f.d, alle: f.a }))) : null })),
     };
   }).filter(Boolean);
   const [aa, mm] = iso.split("-");
@@ -219,39 +241,27 @@ export function datiMese(){
     etichetta: nomiMesi[+mm - 1] + " " + aa
   };
 }
+// Report mensile in testo: formato unico. Per ogni giorno orario della giornata, ore per operaio e
+// clienti con le ore passate da ciascuno; in fondo il conteggio per operaio (le giornate escluse dal
+// monte ore restano in elenco ma non entrano nei totali).
 export function testoMese(){
   const s = datiMese();
-  const extra = document.getElementById("stampa-extra-mese").checked;
   const righe = [];
   righe.push("REPORT MENSILE - " + s.etichetta.toUpperCase());
   righe.push("");
-  if(orePerCliente()){
-    s.righe.forEach(r=>{
-      righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
-        "  —  " + (r.tecnici.join(" / ") || "—") + (r.clientiOre.length ? "  —  " + clientiConOre(r) : "") +
-        (r.sulPosto ? "  —  " + oreTesto(r.sulPosto) : ""));
-    });
-    righe.push("");
-    righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
-    if(!oreMeseNascoste()) righe.push("TOTALE ORE: " + oreTesto(s.totSulPosto));
-    if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
-    return righe.join("\n");
-  }
   s.righe.forEach(r=>{
     const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
     righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
-               "  —  " + opTesto + (r.clienti ? "  —  " + r.clienti : ""));
+               "  —  " + opTesto + (r.clientiOre.length ? "  —  " + clientiConOre(r) : ""));
   });
   righe.push("");
-  righe.push("GIORNI LAVORATI: " + s.giorniLavorati);
-  if(!oreMeseNascoste()){
-    if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
-    Object.keys(s.operaiTotali).sort().forEach(n=>{
-      const info = s.operaiTotali[n];
-      righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
-      if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
-    });
-  }
+  righe.push("GIORNI LAVORATI: " + s.giorniLavorati + (s.giorniLavorati - s.giorniConteggiati ? " (di cui " + (s.giorniLavorati - s.giorniConteggiati) + " esclusi dal monte ore)" : ""));
+  if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
+  Object.keys(s.operaiTotali).sort().forEach(n=>{
+    const info = s.operaiTotali[n];
+    righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
+    if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
+  });
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
   return righe.join("\n");
 }

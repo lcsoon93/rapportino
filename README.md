@@ -15,14 +15,24 @@ Pubblicata con GitHub Pages: https://lcsoon93.github.io/rapportino/
 |---|---|---|
 | Interventi: crea, assegna agli operai, stato | Interventi, Calendario | admin, company |
 | Rapportini: bozza, ore dalle–alle, materiali, foto, firma, completa (anche senza rete) | Lavoro, Rapportino | operai, admin |
-| Giornata: da eseguire, eseguiti, non programmati, foglio giornaliero; pulsante "Invia PDF" (computer: "Stampa PDF") | Home → Apri giornata | tutti |
-| PDF della giornata (solo rapportini completati, orari e non totale ore) | Rapportini, Altro, Home | tutti |
+| Home: giorno scelto (vale anche per Calendario e PDF), lavori del giorno, **orario della giornata** 8–17 salvo inserimento, "escludi dal monte ore" | Home | admin |
+| Giornata: da eseguire, eseguiti, non programmati; pulsante "Invia PDF" (computer: "Stampa PDF") | Home → Apri giornata | tutti |
+| PDF della giornata: rapportini completati con orario e ore passate dal cliente; in fondo il riepilogo con le ore della giornata | Home, Apri giornata, Rapportini | tutti |
+| Report mensile: ore per operaio, giornate e clienti, PDF (le giornate escluse non si sommano) | Calendario → Mese, Altro | admin |
 | Anagrafica clienti con omonimi, suggerimenti e uso offline | Clienti, campo Cliente | tutti (modifica admin/company) |
 | Storico e ricerca | Storico | admin, company |
 | Notifiche push (assegnazioni, modifiche, rapportini) | Altro → Account | tutti |
 | Assistente AI (Groq): testo, foto, controlli, ricerca, domande, tendenze | Rapportino, Storico, Altro | secondo il ruolo |
 | **Computer**: menu esteso, rapportino su due colonne; i pulsanti PDF aprono la stampa | stesso indirizzo | tutti |
 | **Ricerca dal computer** (`search.html`): riepilogo del mese, filtri, dettaglio con stampa, export materiali in Excel e PDF | `/search.html` | admin, company |
+
+## Ore: una regola sola
+
+- **Dal cliente**: l'orario segnato nel rapportino (dalle–alle) e la durata, stampati nella pagina del cliente.
+- **Giornata**: 08:00–17:00 = 9 ore, uguale per tutti gli operai che hanno lavorato quel giorno. Si cambia
+  solo dalla Home ("Orario della giornata"), giorno per giorno; lì c'è anche "Escludi dal monte ore".
+- Nessuna spunta di stampa: PDF e report hanno un formato unico. Il vecchio foglio giornaliero resta
+  consultabile in Altro → "Archivio della vecchia app" e i suoi dati entrano nel report mensile.
 
 ## Sicurezza in breve
 

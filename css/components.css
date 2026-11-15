@@ -119,6 +119,17 @@ select{
 .riepilogo-tit{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:14px}
 .riepilogo-tit h2{font-size:16px;font-weight:700}
 .riepilogo-tit span{font-size:13px;color:var(--testo-2)}
+/* orario della giornata (Home): 8-17 salvo inserimento, escludi dal monte ore */
+.orario-g{padding:16px;margin-top:12px}
+.og-testa{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.og-testa h2{font-size:16px;font-weight:700}
+.og-ore{font-weight:700;color:var(--pervinca-scuro);background:var(--pervinca-chiaro);padding:3px 10px;border-radius:999px;font-size:13px}
+.og-campi{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.og-campi label{display:flex;flex-direction:column;gap:4px;font-size:12px;font-weight:600;color:var(--testo-2);flex:1;min-width:110px}
+.og-campi input{min-height:44px}
+.og-campi .mini{min-height:44px}
+.og-nota{font-size:12.5px;color:var(--testo-2);margin-top:6px}
+.og-nota.err{color:var(--err-testo)}
 .stat-griglia{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .stat{
   border-radius:14px;padding:12px 12px 11px;background:var(--sfondo);

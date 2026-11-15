@@ -1543,3 +1543,10 @@ giornaliero (`rapporti`) e conteggio degli `interventi` del periodo. L'operaio v
 e la pagina non legge dati. La vecchia versione usava la chiave anonima su `rapporti`, non più
 consentita: ora passa dall'accesso come l'app. Dettagli e file in `docs/tecnico.md` (sezione "Ricerca dal computer").
 
+## Orario della giornata e report mensile
+
+Nessuna tabella nuova: l'orario della giornata inserito dall'amministratore (e "escludi dal monte ore") è
+una riga di `impostazioni` con chiave `giornata:AAAA-MM-GG`. Senza riga vale 08:00–17:00 (9 ore) per
+tutti. Il report mensile unisce `rapportini`, `rapporti` (storico) e queste righe. Dettagli in
+`docs/tecnico.md` ("Ore e giornate").
+
