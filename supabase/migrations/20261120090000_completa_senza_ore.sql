@@ -1,0 +1,11 @@
+-- =====================================================================
+-- Rapportino completabile anche senza ore (richiede 20261108090000).
+--
+-- Prima il database rifiutava il completamento se nessun operaio aveva dalle/alle.
+-- Ora il rapportino si completa anche senza orari: l'operaio, se non ha ore, non compare
+-- negli orari del cliente e viene contato nella giornata solo se è indicato nel rapportino.
+--
+-- Solo rimozione di un controllo: nessun dato modificato o cancellato. Ripetibile.
+-- Rollback: vedi docs/interventi-rapportini.md (sezione "Completare senza ore").
+-- =====================================================================
+drop trigger if exists rapportini_ore_completamento on public.rapportini;

@@ -31,6 +31,8 @@ Pubblicata con GitHub Pages: https://lcsoon93.github.io/rapportino/
 - **Dal cliente**: l'orario segnato nel rapportino (dalle–alle) e la durata, stampati nella pagina del cliente.
 - **Giornata**: 08:00–17:00 = 9 ore, uguale per tutti gli operai che hanno lavorato quel giorno. Si cambia
   solo dalla Home ("Orario della giornata"), giorno per giorno; lì c'è anche "Escludi dal monte ore".
+- Il rapportino si completa anche senza ore: il controllo mostra solo un'attenzione. Un operaio senza orario
+  non compare negli orari del cliente; nella giornata conta solo se è indicato nel rapportino.
 - Nessuna spunta di stampa: PDF e report hanno un formato unico. Il vecchio foglio giornaliero resta
   consultabile in Altro → "Archivio della vecchia app" e i suoi dati entrano nel report mensile.
 

@@ -22,6 +22,11 @@ test("dati mancanti: errori bloccanti prima delle attenzioni", ()=>{
   const m = msg(s).join("\n");
   for(const t of ["Manca la data", "Manca il cliente", "Mancano le attività", "Mancano le ore", "Manca la firma", "Manca l'indirizzo"]) assert.match(m, new RegExp(t));
 });
+test("senza ore il rapportino si completa: solo un'attenzione, non un errore", ()=>{
+  const s = controllaRapportino({ ...completo, ore: [] });
+  assert.equal(s.some(x=>x.livello === "errore"), false);
+  assert.match(msg(s).join(), /attenzione: Mancano le ore lavorate/);
+});
 test("ore: fine prima dell'inizio, sovrapposte, oltre 12 ore, incomplete, notturne", ()=>{
   const ore = (o)=>controllaRapportino({ ...completo, ore: o });
   assert.match(msg(ore([{ nome: "Mario", dalle: "10:00", alle: "09:00" }])).join(), /errore: Per Mario l'orario di fine/);

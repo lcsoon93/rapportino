@@ -1543,6 +1543,23 @@ giornaliero (`rapporti`) e conteggio degli `interventi` del periodo. L'operaio v
 e la pagina non legge dati. La vecchia versione usava la chiave anonima su `rapporti`, non più
 consentita: ora passa dall'accesso come l'app. Dettagli e file in `docs/tecnico.md` (sezione "Ricerca dal computer").
 
+## Completare senza ore (migrazione 20261120090000)
+
+Il trigger `rapportini_ore_completamento` (migrazione 20261108090000) rifiutava il completamento senza
+dalle/alle. La migrazione `20261120090000_completa_senza_ore.sql` lo elimina: solo rimozione di un controllo,
+nessun dato toccato. Il controllo automatico del frontend (`js/services/controlli.js`) segnala "Mancano le
+ore" come attenzione, non più come errore. La funzione `controlla_ore_rapportino()` resta nel database.
+
+Rollback (SQL Editor):
+
+```sql
+create constraint trigger rapportini_ore_completamento after insert or update on public.rapportini
+  deferrable initially deferred for each row execute function public.controlla_ore_rapportino();
+```
+
+Ordine: prima la migrazione nel SQL Editor, poi il frontend. Il frontend nuovo con la migrazione vecchia
+riceve ancora il rifiuto dal server, con il messaggio "Per completare indica le ore lavorate".
+
 ## Orario della giornata e report mensile
 
 Nessuna tabella nuova: l'orario della giornata inserito dall'amministratore (e "escludi dal monte ore") è

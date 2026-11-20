@@ -1,6 +1,6 @@
 // Controllo automatico del rapportino: regole fisse, senza rete e senza AI (funziona anche offline).
 // Restituisce un elenco di segnalazioni { livello: "errore" | "attenzione" | "info", campo, messaggio }.
-// "errore" = il server rifiuterebbe il completamento (stesse regole di salva/completa);
+// "errore" = il server rifiuterebbe il completamento (stesse regole di salva/completa; le ore non sono obbligatorie);
 // "attenzione" = probabile dimenticanza; "info" = suggerimento. Nessun dato viene modificato.
 
 const LIVELLI = { errore: 0, attenzione: 1, info: 2 };
@@ -36,7 +36,7 @@ export function controllaRapportino(dati){
 
   // ore
   const complete = ore.filter(o=>o.dalle && o.alle);
-  if(!complete.length) add("errore", "ore", "Mancano le ore lavorate (dalle / alle).");
+  if(!complete.length) add("attenzione", "ore", "Mancano le ore lavorate (dalle / alle): si può completare lo stesso.");
   ore.forEach(o=>{
     const nome = o.nome || "operaio";
     if((o.dalle && !o.alle) || (!o.dalle && o.alle)) add("attenzione", "ore", "Orario incompleto per " + nome + ".");

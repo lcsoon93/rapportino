@@ -460,7 +460,6 @@ async function salva(completa){
   if(!rapportino.data || !rapportino.cliente){ messaggio("Data e cliente sono obbligatori.", "err"); return false; }
   if(completa){
     if(!rapportino.attivita){ messaggio("Per completare descrivi le attività svolte.", "err"); $("rf-attivita").focus(); return false; }
-    if(!ore.some(o=>o.dalle && o.alle)){ messaggio("Per completare indica le ore lavorate (dalle / alle).", "err"); return false; }
     if(ore.some(o=>o.dalle && o.alle && o.alle <= o.dalle)){ messaggio("Controlla le ore: \"alle\" deve essere dopo \"dalle\".", "err"); return false; }
     // controllo automatico (senza rete): le possibili dimenticanze compaiono nella conferma
     const avvisi = elencoTesto(controlloRapportinoAperto(), ["attenzione"]);
