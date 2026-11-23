@@ -373,37 +373,6 @@ function documentoPagina(titolo, info){
   return { doc, im, ML, MR };
 }
 
-// Riepilogo della giornata (in fondo al PDF della giornata): orario della giornata uguale per tutti
-// (08:00-17:00 salvo inserimento), tecnici, e per ogni cliente l'orario e le ore passate da lui.
-// r = { orario: { dalle, alle, minuti, escludi }, tecnici: [nomi], righe: [{ nome, orario, minuti }] }
-function disegnaRiepilogo(doc, r, x0, x1, y, { testo, passo, limite }){
-  const larg = x1 - x0;
-  const voce = (etichetta, valore)=>{
-    stileTesto(doc, testo - 2.3, "bold", COLORI.grigio);
-    doc.text(etichetta.toUpperCase(), x0, y, {charSpace: 0.2});
-    stileTesto(doc, testo + 0.5, "bold");
-    const righe = doc.splitTextToSize(valore, larg);
-    doc.text(righe, x0, y + passo * 0.85);
-    y += passo * 0.85 + righe.length * passo + 1.5;
-  };
-  voce("Orario della giornata", r.orario.dalle + "–" + r.orario.alle + "  ·  " + oreTesto(r.orario.minuti) +
-    (r.orario.escludi ? "  (esclusa dal monte ore)" : ""));
-  voce("Tecnici", r.tecnici.join(" / ") || "—");
-  y = titoloSezione(doc, "Clienti e ore dal cliente", x0, y + 1, larg, testo - 0.5);
-  r.righe.forEach((c, i)=>{
-    if(y > limite) return;
-    stileTesto(doc, testo);
-    const ore = [c.orario, c.minuti ? oreTesto(c.minuti) : ""].filter(Boolean).join(" · ") || "—";
-    const largOre = doc.getTextWidth(ore) + 4;
-    const nome = doc.splitTextToSize((i + 1) + ". " + c.nome, larg - largOre);
-    doc.text(nome, x0, y);
-    stileTesto(doc, testo, "bold");
-    doc.text(ore, x1, y, {align:"right"});
-    y += nome.length * passo + 1;
-  });
-  return y;
-}
-
 // rapportino di un solo cliente (layout normale, A4)
 function rapportinoSingolo(d, iso){
   const data = dataIt(iso);
@@ -413,11 +382,6 @@ function rapportinoSingolo(d, iso){
   const c = d.clienti[0];
   if(c) im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   else { stileTesto(doc, 10.5, "normal", COLORI.grigio); doc.text("Nessun lavoro cliente registrato per questo giorno.", 18, im.y); }
-  if(d.riepilogo){                       // PDF della giornata: pagina finale con le ore della giornata
-    doc.addPage();
-    const y = intestazioneCompatta(doc, "RIEPILOGO DELLA GIORNATA", { data }) + 12;
-    disegnaRiepilogo(doc, d.riepilogo, 18, W - 18, y, { testo: 10.5, passo: 6, limite: 272 });
-  }
   aggiungiPiePagina(doc, "Rapportino N. " + rif + " del " + data);
   return doc;
 }
@@ -463,12 +427,12 @@ function multiCliente(d, iso){
     cornice.x0 = destra ? MEZZO + MARGINE_INT : MARGINE_EST;
     cornice.x1 = destra ? LW - MARGINE_EST : MEZZO - MARGINE_INT;
     if(colonna >= 2) filigranaPDF(doc, (cornice.x0 + cornice.x1) / 2, LH / 2 + 6, 95);
-    const yl = intestazioneCompatta(doc, cliente.riepilogo ? "RIEPILOGO DELLA GIORNATA" : TITOLO_RAPPORTINO,
-      { riferimento: cliente.rif, data, extra: cliente.riepilogo ? "" : "Cliente " + cliente.n + " di " + d.clienti.length }, cornice.x0, cornice.x1, ALTO);
+    const yl = intestazioneCompatta(doc, TITOLO_RAPPORTINO,
+      { riferimento: cliente.rif, data, extra: "Cliente " + cliente.n + " di " + d.clienti.length }, cornice.x0, cornice.x1, ALTO);
     const yp = LH - BASSO + 6;
     stileTesto(doc, 7, "normal", COLORI.grigio);
     doc.text("COMP.HAS assistance SRL", cornice.x0, yp);
-    doc.text((cliente.riepilogo ? "Giornata N. " : "Rapportino N. ") + cliente.rif + " del " + data, (cornice.x0 + cornice.x1) / 2, yp, {align:"center"});
+    doc.text("Rapportino N. " + cliente.rif + " del " + data, (cornice.x0 + cornice.x1) / 2, yp, {align:"center"});
     piedi.push({ pagina: doc.getNumberOfPages(), x1: cornice.x1, y: yp });
     return yl + 6;
   }
@@ -485,12 +449,6 @@ function multiCliente(d, iso){
     im.datiGenerali({ data, riferimento: cliente.rif, tecnici: c.tecnici ?? d.tecnici, operai: c.operai ?? d.operai, orari: haOrario, senzaOre: !!d.soloIntervalli });
     im.cliente(c, { spese: d.spese.filter(sp=>sp.clienteId && sp.clienteId === c.id) });
   });
-  // ultima colonna: riepilogo della giornata (orario 8-17 salvo inserimento, clienti e ore da ciascuno)
-  if(d.riepilogo){
-    cliente = { n: 0, rif: base, riepilogo: true };
-    const y = nuovaColonna();
-    disegnaRiepilogo(doc, d.riepilogo, cornice.x0, cornice.x1, y + 2, { testo: 9, passo: 5, limite: LH - BASSO - 4 });
-  }
   // numerazione delle pagine nel piede di ogni colonna
   const n = doc.getNumberOfPages();
   piedi.forEach(p=>{

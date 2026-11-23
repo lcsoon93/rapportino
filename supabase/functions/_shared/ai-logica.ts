@@ -60,10 +60,21 @@ const minutiDa = (dalle: unknown, alle: unknown) => {
 export const oreTesto = (min: number) => { const h = Math.floor(min / 60), m = min % 60; return h + "h" + (m ? String(m).padStart(2, "0") : ""); };
 export const norma = (t: unknown) => String(t || "").toLocaleLowerCase("it-IT").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim();
 
+// Un cliente e' la sua scheda (cliente_id). Le righe senza scheda collegata (dati vecchi o scritti a mano)
+// si distinguono per nome + indirizzo: due clienti omonimi con indirizzi diversi non vengono mai sommati.
+export type ClienteRiga = { cliente_id?: string | null; cliente: string; indirizzo?: string };
+export const chiaveCliente = (r: ClienteRiga): string =>
+  r.cliente_id ? "scheda:" + r.cliente_id : "nome:" + norma(r.cliente) + "|" + norma(r.indirizzo || "");
+export const etichettaCliente = (r: ClienteRiga): string => {
+  const nome = String(r.cliente || "").replace(/\s+/g, " ").trim() || "(senza nome)";
+  const ind = String(r.indirizzo || "").replace(/\s+/g, " ").trim();
+  return ind ? nome + " (" + (ind.length > 50 ? ind.slice(0, 49) + "…" : ind) + ")" : nome;
+};
+
 // ---------------------------------------------------------------- validazione degli input
 export type Materiale = { a: string; q: string };
 export type RapportinoAI = {
-  data: string; cliente: string; indirizzo: string; tipologia: string; attivita: string; note: string; esito: string;
+  data: string; clienteId: string; cliente: string; indirizzo: string; tipologia: string; attivita: string; note: string; esito: string;
   materiali: Materiale[]; ore: { operaio: string; dalle: string; alle: string }[];
   firma: boolean; firmatario: string; foto: number; fotoNonInviate: number; intervento: string;
 };
@@ -79,7 +90,7 @@ export function rapportinoDaInput(v: unknown): RapportinoAI {
     return { operaio: testo(x.operaio, 80), dalle: testo(x.dalle, 5), alle: testo(x.alle, 5) };
   });
   return {
-    data: dataValida(r.data), cliente: testo(r.cliente, 200), indirizzo: testo(r.indirizzo, 200), tipologia: testo(r.tipologia, 60),
+    data: dataValida(r.data), clienteId: testo(r.cliente_id, 40), cliente: testo(r.cliente, 200), indirizzo: testo(r.indirizzo, 200), tipologia: testo(r.tipologia, 60),
     attivita: testo(r.attivita, LIMITI.testo), note: testo(r.note, 1500), esito: testo(r.esito, 30), materiali: mat, ore,
     firma: !!r.firma, firmatario: testo(r.firmatario, 120), foto: Math.max(0, Math.min(99, Number(r.foto) || 0)),
     fotoNonInviate: Math.max(0, Math.min(99, Number(r.fotoNonInviate) || 0)), intervento: testo(r.intervento, 1000),
@@ -135,7 +146,7 @@ const REGOLE = [
 ].join("\n");
 const blocco = (o: unknown) => "<dati>\n" + (typeof o === "string" ? o : JSON.stringify(o)) + "\n</dati>";
 const contestoBreve = (r: RapportinoAI) => ({
-  cliente: r.cliente, tipologia: r.tipologia, esito: r.esito, intervento: r.intervento,
+  cliente: etichettaCliente(r), tipologia: r.tipologia, esito: r.esito, intervento: r.intervento,
   materiali: r.materiali.map((m) => m.a + (m.q ? " x " + m.q : "")),
 });
 type Msg = { role: "system" | "user"; content: unknown };
@@ -210,7 +221,8 @@ export function promptPredittiva(stat: Statistiche): Msg[] {
       "\nCompito: commenta per il responsabile le statistiche calcolate (ricorrenze, anomalie, tendenze). Usa SOLO questi numeri; non estrapolare oltre i dati; indica che sono stime." +
       " Puoi proporre attivita' (es. pianificare una manutenzione), senza dire di averle fatte." +
       '\nFormato: {"sintesi": "2-4 frasi", "suggerimenti": ["azione proposta", ...]} (massimo 5 suggerimenti).' },
-    { role: "user", content: "Statistiche:\n" + blocco(stat) },
+    // gli identificativi della scheda restano nell'app: il modello vede solo nomi e indirizzi
+    { role: "user", content: "Statistiche:\n" + blocco({ ...stat, ricorrenze: stat.ricorrenze.map(({ clienteId: _id, ...x }) => x) }) },
   ];
 }
 
@@ -267,12 +279,12 @@ export function rispostaPredittiva(o: Record<string, unknown>) {
 
 // ---------------------------------------------------------------- dati letti dal database (con RLS)
 export type RigaRapportino = {
-  id: string; intervento_id?: string | null; autore_id?: string; data: string; cliente: string; indirizzo?: string; tipologia?: string;
+  id: string; intervento_id?: string | null; autore_id?: string; data: string; cliente_id?: string | null; cliente: string; indirizzo?: string; tipologia?: string;
   attivita?: string; materiali?: Materiale[]; note?: string; esito?: string; stato: string; completato_il?: string | null; firmatario?: string;
   rapportino_operai?: { operaio_id: string; dalle?: string; alle?: string }[]; allegati?: { count: number }[];
 };
 export type RigaIntervento = {
-  id: string; data: string; ora?: string | null; cliente: string; indirizzo?: string; descrizione?: string; priorita?: string; tipologia?: string; stato: string;
+  id: string; data: string; ora?: string | null; cliente_id?: string | null; cliente: string; indirizzo?: string; descrizione?: string; priorita?: string; tipologia?: string; stato: string;
   intervento_operai?: { operaio_id: string; rimosso_il?: string | null }[];
 };
 export const minutiRapportino = (r: RigaRapportino) => (r.rapportino_operai || []).reduce((t, o) => t + minutiDa(o.dalle, o.alle), 0);
@@ -282,24 +294,25 @@ const corto = (s: unknown, n: number) => { const t = String(s || "").replace(/\s
 export function rigaRapportinoTesto(r: RigaRapportino, nome: (id: string) => string): string {
   const ore = (r.rapportino_operai || []).map((o) => nome(o.operaio_id) + " " + String(o.dalle || "").slice(0, 5) + "-" + String(o.alle || "").slice(0, 5)).join(", ");
   const mat = (r.materiali || []).map((m) => m.a + (m.q ? " x" + m.q : "")).join(", ");
-  return ["R", r.data, corto(r.cliente, 60), r.tipologia || "-", r.stato, r.esito || "-", "ore " + oreTesto(minutiRapportino(r)) + (ore ? " (" + ore + ")" : ""),
+  return ["R", r.data, corto(etichettaCliente(r), 110), r.tipologia || "-", r.stato, r.esito || "-", "ore " + oreTesto(minutiRapportino(r)) + (ore ? " (" + ore + ")" : ""),
     "foto " + nFoto(r), "firmatario " + (r.firmatario ? "si" : "no"), "attivita: " + corto(r.attivita, 160), mat ? "materiali: " + corto(mat, 120) : ""].filter(Boolean).join(" | ");
 }
 export function rigaInterventoTesto(i: RigaIntervento, nome: (id: string) => string): string {
   const op = (i.intervento_operai || []).filter((o) => !o.rimosso_il).map((o) => nome(o.operaio_id)).join(", ");
-  return ["I", i.data + (i.ora ? " " + String(i.ora).slice(0, 5) : ""), corto(i.cliente, 60), i.stato, i.priorita || "-", i.tipologia || "-",
+  return ["I", i.data + (i.ora ? " " + String(i.ora).slice(0, 5) : ""), corto(etichettaCliente(i), 110), i.stato, i.priorita || "-", i.tipologia || "-",
     op ? "operai: " + op : "nessun operaio", i.descrizione ? "richiesta: " + corto(i.descrizione, 140) : ""].filter(Boolean).join(" | ");
 }
 // totali esatti (il modello non deve ricalcolarli) + righe fino al limite di caratteri
 export function contestoDomanda(interventi: RigaIntervento[], rapportini: RigaRapportino[], nome: (id: string) => string, oggi: string): string {
-  const perCliente = new Map<string, { n: number; min: number }>();
+  const perCliente = new Map<string, { nome: string; n: number; min: number }>();
   const perOperaio = new Map<string, number>();
   const perMese = new Map<string, number>();
   const stati: Record<string, number> = {};
   let bozzeVecchie = 0, senzaFirmatario = 0, senzaFoto = 0;
   for (const r of rapportini) {
-    const c = perCliente.get(r.cliente) || { n: 0, min: 0 };
-    c.n++; c.min += minutiRapportino(r); perCliente.set(r.cliente, c);
+    const k = chiaveCliente(r);
+    const c = perCliente.get(k) || { nome: etichettaCliente(r), n: 0, min: 0 };
+    c.n++; c.min += minutiRapportino(r); perCliente.set(k, c);
     for (const o of r.rapportino_operai || []) perOperaio.set(nome(o.operaio_id), (perOperaio.get(nome(o.operaio_id)) || 0) + minutiDa(o.dalle, o.alle));
     perMese.set(r.data.slice(0, 7), (perMese.get(r.data.slice(0, 7)) || 0) + 1);
     stati["rapportini " + r.stato] = (stati["rapportini " + r.stato] || 0) + 1;
@@ -313,7 +326,7 @@ export function contestoDomanda(interventi: RigaIntervento[], rapportini: RigaRa
     "TOTALI: interventi " + interventi.length + ", rapportini " + rapportini.length + ", ore " + oreTesto(rapportini.reduce((t, r) => t + minutiRapportino(r), 0)),
     "STATI: " + Object.entries(stati).map(([k, v]) => k + " " + v).join(", "),
     "RAPPORTINI PER MESE: " + [...perMese.entries()].sort().map(([k, v]) => k + " " + v).join(", "),
-    "PER CLIENTE (rapportini, ore): " + ordina(perCliente, (x) => x.n).slice(0, 40).map(([k, v]) => k + " " + v.n + " / " + oreTesto(v.min)).join("; "),
+    "PER CLIENTE (rapportini, ore; clienti omonimi con indirizzi diversi sono elencati separatamente): " + ordina(perCliente, (x) => x.n).slice(0, 40).map(([, v]) => v.nome + " " + v.n + " / " + oreTesto(v.min)).join("; "),
     "ORE PER OPERAIO: " + ordina(perOperaio, (x) => x).map(([k, v]) => k + " " + oreTesto(v)).join("; "),
     "CONTROLLI: bozze aperte da piu' di 7 giorni " + bozzeVecchie + ", completati senza firmatario " + senzaFirmatario + ", rapportini senza foto " + senzaFoto,
     "LEGENDA RIGHE: R = rapportino (data | cliente | tipologia | stato | esito | ore | foto | firmatario | attivita | materiali); I = intervento (data | cliente | stato | priorita | tipologia | operai | richiesta)",
@@ -342,7 +355,7 @@ export function storicoClienteTesto(rapportini: RigaRapportino[]): string[] {
 export const SOGLIE = { ricorrenzaMinima: 3, campioneAnomalie: 8, mesiTendenza: 4 };
 export type Statistiche = {
   periodo: { dal: string; al: string }; rapportini: number; interventi: number;
-  ricorrenze: { cliente: string; volte: number; ogniGiorni: number; regolare: boolean; ultima: string; prossimaStimata: string }[];
+  ricorrenze: { cliente: string; indirizzo: string; clienteId: string; etichetta: string; volte: number; ogniGiorni: number; regolare: boolean; ultima: string; prossimaStimata: string }[];
   anomalie: { tipo: string; dettaglio: string; data: string; cliente: string; id: string }[];
   tendenze: { mesi: { mese: string; rapportini: number; ore: number }[]; variazionePercento: number | null; direzione: string } | null;
   insufficienti: string[];
@@ -353,21 +366,23 @@ const devStd = (a: number[]) => { const m = media(a); return Math.sqrt(media(a.m
 export function statistiche(interventi: RigaIntervento[], rapportini: RigaRapportino[], dal: string, al: string, oggi: string): Statistiche {
   const insufficienti: string[] = [];
   // ricorrenze: date distinte di lavoro per cliente (interventi non annullati + rapportini)
-  const date = new Map<string, { nome: string; giorni: Set<string> }>();
-  const aggiungi = (cliente: string, d: string) => {
-    const k = norma(cliente); if (!k) return;
-    const v = date.get(k) || { nome: cliente, giorni: new Set<string>() }; v.giorni.add(d); date.set(k, v);
+  const date = new Map<string, { nome: string; indirizzo: string; clienteId: string; giorni: Set<string> }>();
+  const aggiungi = (r: ClienteRiga, d: string) => {
+    if (!norma(r.cliente) && !r.cliente_id) return;
+    const k = chiaveCliente(r);
+    const v = date.get(k) || { nome: String(r.cliente || "").trim(), indirizzo: String(r.indirizzo || "").trim(), clienteId: r.cliente_id || "", giorni: new Set<string>() };
+    v.giorni.add(d); date.set(k, v);
   };
-  interventi.filter((i) => i.stato !== "annullato").forEach((i) => aggiungi(i.cliente, i.data));
-  rapportini.forEach((r) => aggiungi(r.cliente, r.data));
+  interventi.filter((i) => i.stato !== "annullato").forEach((i) => aggiungi(i, i.data));
+  rapportini.forEach((r) => aggiungi(r, r.data));
   const ricorrenze: Statistiche["ricorrenze"] = [];
-  for (const { nome, giorni } of date.values()) {
+  for (const { nome, indirizzo, clienteId, giorni } of date.values()) {
     const g = [...giorni].sort();
     if (g.length < SOGLIE.ricorrenzaMinima) continue;
     const intervalli = g.slice(1).map((d, i) => giorniTra(g[i], d)).filter((x) => x > 0);
     if (intervalli.length < SOGLIE.ricorrenzaMinima - 1) continue;
     const m = media(intervalli), cv = devStd(intervalli) / (m || 1);
-    ricorrenze.push({ cliente: nome, volte: g.length, ogniGiorni: Math.round(m), regolare: cv <= 0.35, ultima: g[g.length - 1],
+    ricorrenze.push({ cliente: nome, indirizzo, clienteId, etichetta: etichettaCliente({ cliente: nome, indirizzo }), volte: g.length, ogniGiorni: Math.round(m), regolare: cv <= 0.35, ultima: g[g.length - 1],
       prossimaStimata: cv <= 0.35 ? spostaGiorni(g[g.length - 1], Math.round(m)) : "" });
   }
   ricorrenze.sort((a, b) => Number(b.regolare) - Number(a.regolare) || b.volte - a.volte);
@@ -380,15 +395,15 @@ export function statistiche(interventi: RigaIntervento[], rapportini: RigaRappor
     const min = conOre.map(minutiRapportino), m = media(min), s = devStd(min);
     for (const r of conOre) {
       const x = minutiRapportino(r);
-      if (s > 0 && x > m + 2 * s && x > m * 1.5) anomalie.push({ tipo: "ore elevate", dettaglio: oreTesto(x) + " contro una media di " + oreTesto(Math.round(m)), data: r.data, cliente: r.cliente, id: r.id });
+      if (s > 0 && x > m + 2 * s && x > m * 1.5) anomalie.push({ tipo: "ore elevate", dettaglio: oreTesto(x) + " contro una media di " + oreTesto(Math.round(m)), data: r.data, cliente: etichettaCliente(r), id: r.id });
     }
   } else insufficienti.push("anomalie sulle ore: servono almeno " + SOGLIE.campioneAnomalie + " rapportini con ore (ce ne sono " + conOre.length + ")");
   for (const r of rapportini) {
-    if (r.stato === "bozza" && giorniTra(r.data, oggi) > 7) anomalie.push({ tipo: "bozza ferma", dettaglio: "in bozza da " + giorniTra(r.data, oggi) + " giorni", data: r.data, cliente: r.cliente, id: r.id });
-    if (r.stato === "completato" && !r.firmatario) anomalie.push({ tipo: "senza firmatario", dettaglio: "completato senza nome del firmatario", data: r.data, cliente: r.cliente, id: r.id });
+    if (r.stato === "bozza" && giorniTra(r.data, oggi) > 7) anomalie.push({ tipo: "bozza ferma", dettaglio: "in bozza da " + giorniTra(r.data, oggi) + " giorni", data: r.data, cliente: etichettaCliente(r), id: r.id });
+    if (r.stato === "completato" && !r.firmatario) anomalie.push({ tipo: "senza firmatario", dettaglio: "completato senza nome del firmatario", data: r.data, cliente: etichettaCliente(r), id: r.id });
   }
   for (const i of interventi) {
-    if (i.stato === "pianificato" && giorniTra(i.data, oggi) > 3) anomalie.push({ tipo: "intervento scaduto", dettaglio: "pianificato per il " + i.data + " e non ancora iniziato", data: i.data, cliente: i.cliente, id: i.id });
+    if (i.stato === "pianificato" && giorniTra(i.data, oggi) > 3) anomalie.push({ tipo: "intervento scaduto", dettaglio: "pianificato per il " + i.data + " e non ancora iniziato", data: i.data, cliente: etichettaCliente(i), id: i.id });
   }
 
   // tendenze: rapportini e ore per mese (mesi pieni con dati)

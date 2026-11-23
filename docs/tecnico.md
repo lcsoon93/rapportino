@@ -414,7 +414,7 @@ Modelli (verificati sulla documentazione Groq a novembre 2026; si cambiano con i
 | Uso | Modello predefinito | Secret per cambiarlo |
 |---|---|---|
 | Testo, ricerca, domande, controllo, suggerimenti | `openai/gpt-oss-120b` (produzione, JSON mode) | `GROQ_MODELLO_TESTO` |
-| Riserva se il primo non è disponibile | `llama-3.3-70b-versatile` (produzione) | `GROQ_MODELLO_RISERVA` |
+| Riserva se il primo non è disponibile | `openai/gpt-oss-20b` (produzione; `llama-3.3-70b-versatile` non è più nell'elenco Groq) | `GROQ_MODELLO_RISERVA` |
 | Foto | `qwen/qwen3.8-27b` (immagini, max 3 per richiesta; su Groq è in anteprima) | `GROQ_MODELLO_VISIONE` |
 
 "Verifica modelli" (admin) confronta i modelli configurati con quelli attivi sull'account Groq.

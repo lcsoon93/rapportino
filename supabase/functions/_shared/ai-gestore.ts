@@ -60,8 +60,8 @@ const funzioneNome = (nomi: { id: string; nome: string }[]) => {
   return (id: string) => m.get(id) || "operaio";
 };
 
-const CAMPI_INT = "id, data, ora, cliente, indirizzo, descrizione, priorita, tipologia, stato, intervento_operai(operaio_id, rimosso_il)";
-const CAMPI_RAP = "id, intervento_id, autore_id, data, cliente, indirizzo, tipologia, attivita, materiali, note, esito, stato, completato_il, firmatario, " +
+const CAMPI_INT = "id, data, ora, cliente_id, cliente, indirizzo, descrizione, priorita, tipologia, stato, intervento_operai(operaio_id, rimosso_il)";
+const CAMPI_RAP = "id, intervento_id, autore_id, data, cliente_id, cliente, indirizzo, tipologia, attivita, materiali, note, esito, stato, completato_il, firmatario, " +
   "rapportino_operai(operaio_id, dalle, alle), allegati(count)";
 async function leggiPeriodo(db: DB, dal: string, al: string) {
   const [interventi, rapportini, nomi] = await Promise.all([
@@ -144,13 +144,29 @@ const AZIONE: Record<string, (x: Contesto) => Promise<Record<string, unknown>>> 
   async suggerimenti(x) {
     const r0 = rapportinoDaInput(x.c.rapportino);
     if (!r0.cliente) throw new ErroreInput("Indica prima il cliente.");
-    let q = x.db().from("rapportini").select("id, data, cliente, tipologia, attivita, materiali").ilike("cliente", r0.cliente.replace(/[\\%_]/g, (m) => "\\" + m));
+    // lo storico e' quello della SCHEDA del cliente (cliente_id). Senza scheda: stesso nome esatto e,
+    // se indicato, stesso indirizzo. Omonimi con indirizzi diversi non si mescolano mai.
+    const idCliente = UUID.test(r0.clienteId) ? r0.clienteId : "";
+    const esatto = (s: string) => s.replace(/[\\%_]/g, (m) => "\\" + m);
+    let q = x.db().from("rapportini").select("id, data, cliente_id, cliente, indirizzo, tipologia, attivita, materiali");
+    q = idCliente ? q.eq("cliente_id", idCliente) : q.ilike("cliente", esatto(r0.cliente));
     if (typeof x.c.id === "string" && UUID.test(x.c.id)) q = q.neq("id", x.c.id);
-    const storico = await leggi<RigaRapportino[]>(q.order("data", { ascending: false }).limit(8));
+    let trovati = await leggi<RigaRapportino[]>(q.order("data", { ascending: false }).limit(40));
+    let avviso = "";
+    if (!idCliente) {
+      const ind = norma(r0.indirizzo);
+      const indirizzi = new Set(trovati.map((r) => norma(r.indirizzo)).filter(Boolean));
+      if (ind) trovati = trovati.filter((r) => norma(r.indirizzo) === ind);
+      else if (indirizzi.size > 1) {
+        trovati = [];
+        avviso = "Ci sono più clienti con questo nome e indirizzi diversi: scegli il cliente dall'anagrafica (o indica l'indirizzo) per avere i suggerimenti giusti.";
+      }
+    }
+    const storico = trovati.slice(0, 8);
     const r = await chiediJson(x.cfg, { tipo: "testo", messaggi: promptSuggerimenti(r0, storicoClienteTesto(storico)), maxToken: 900, timeoutMs: TIMEOUT.testo,
       valida: (o) => rispostaSuggerimenti(o, r0), fetchImpl: x.fetchImpl });
     x.uso.modello = r.modello; x.uso.token = r.token;
-    return { ...r.dati, storico: storico.length };
+    return { ...r.dati, storico: storico.length, ...(avviso ? { avviso } : {}) };
   },
   async ricerca(x) {
     const v = validaRicerca(x.c);

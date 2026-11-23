@@ -200,9 +200,10 @@ try{
     for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Ugello 0.6", "Mario Bianchi", "Anna Verdi", "Luca Admin",
       "08:00", "10:30", "dalle 14:00", "ORARIO", "TAGLIA QUI", "Tel. 02 1234"])
       assert.ok(testo.includes(t), "manca nel PDF: " + t);
-    // pagina del cliente: orario e ore passate dal cliente; in fondo il riepilogo con l'orario della giornata
-    for(const t of ["2h 30m", "RIEPILOGO DELLA GIORNATA", "ORARIO DELLA GIORNATA", "17:00", "9 ore", "CLIENTI E ORE DAL CLIENTE"])
-      assert.ok(testo.includes(t), "manca nel PDF: " + t);
+    // pagina del cliente: orario e ore passate dal cliente; nel PDF niente pagina di riepilogo della giornata
+    assert.ok(testo.includes("2h 30m"), "manca nel PDF: 2h 30m");
+    for(const t of ["RIEPILOGO DELLA GIORNATA", "ORARIO DELLA GIORNATA", "CLIENTI E ORE DAL CLIENTE"])
+      assert.ok(!testo.includes(t), "nel PDF non deve esserci: " + t);
     assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "nel PDF solo i completati");
     assert.ok((testo.match(/\/Subtype \/Image/g) || []).length >= 2, "foto e firma nel PDF");
     assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
@@ -219,7 +220,7 @@ try{
     assert.equal(nome, "Rapportini_2026-11-13_Anna_Verdi.pdf");
     assert.ok(testo.includes("Condominio Verdi") && !testo.includes("Rossi Srl"));
     assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
-    assert.ok(testo.includes("(ORE)") && testo.includes("RIEPILOGO DELLA GIORNATA"), "A4: colonna ORE e pagina di riepilogo");
+    assert.ok(testo.includes("(ORE)") && !testo.includes("RIEPILOGO DELLA GIORNATA"), "A4: colonna ORE, senza pagina di riepilogo");
     const volte = t=>(testo.match(new RegExp("\\(" + t + "\\)", "g")) || []).length;
     assert.equal(volte("Anna Verdi"), 1, "Anna nella tabella degli orari");
     assert.ok(testo.includes("Anna Verdi / Luca Admin"), "entrambi tra i tecnici");
@@ -259,7 +260,7 @@ try{
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(3\)/);
   });
 
-  await prova("Home: orario della giornata 8-17 salvo inserimento; escludi dal monte ore; vale anche nel PDF", async()=>{
+  await prova("Home: orario della giornata 8-17 salvo inserimento; escludi dal monte ore; non compare nel PDF", async()=>{
     // giorno senza nulla di inserito: 08:00-17:00, 9 ore
     await a.page.evaluate(()=>{ window.apriGiornoHome("2026-11-12"); window.mostraVista("home"); });
     await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "9 ore");
@@ -288,7 +289,7 @@ try{
     await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
     assert.match(await a.page.textContent("#rg-orario"), /08:00–13:00 · 5 ore.*esclusa dal monte ore/);
     const { testo } = await scaricaPDF(a.page);
-    assert.ok(testo.includes("13:00") && testo.includes("5 ore") && testo.includes("esclusa dal monte ore"), "riepilogo nel PDF con l'orario inserito");
+    assert.ok(!testo.includes("esclusa dal monte ore") && !testo.includes("RIEPILOGO DELLA GIORNATA"), "il PDF non riporta l'orario della giornata");
   });
 
   await prova("Report mensile: rapportini + foglio, ore per operaio, giornata esclusa non sommata", async()=>{

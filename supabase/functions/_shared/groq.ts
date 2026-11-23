@@ -6,11 +6,11 @@ export const GROQ_URL = "https://api.groq.com/openai/v1";
 
 // Modelli predefiniti (verificati sulla documentazione Groq, novembre 2026; sovrascrivibili con i secret):
 // - testo:   openai/gpt-oss-120b      (produzione, JSON mode, 131k token di contesto)
-// - riserva: llama-3.3-70b-versatile  (produzione, usato se il modello testo non e' disponibile)
+// - riserva: openai/gpt-oss-20b        (produzione, usato se il modello testo non e' disponibile; llama-3.3-70b-versatile non risulta piu' nell'elenco Groq)
 // - visione: qwen/qwen3.8-27b         (immagini: max 3 per richiesta, JSON mode)
 export const MODELLI_PREDEFINITI = {
   testo: "openai/gpt-oss-120b",
-  riserva: "llama-3.3-70b-versatile",
+  riserva: "openai/gpt-oss-20b",
   visione: "qwen/qwen3.8-27b",
 };
 

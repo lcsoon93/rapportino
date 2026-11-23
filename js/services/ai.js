@@ -41,11 +41,12 @@ export async function chiediAI(azione, dati = {}){
 }
 
 // ---------------------------------------------------------------- dati del rapportino per l'AI
-// Solo testo e indicatori: MAI l'immagine della firma ne' identificativi interni.
+// Solo testo e indicatori: MAI l'immagine della firma. Unico identificativo: cliente_id della scheda
+// (serve al server per lo storico del SOLO cliente giusto con gli omonimi; non entra nei prompt del modello).
 export function contestoRapportino(rapportino, ore, foto, intervento){
   const r = rapportino || {};
   return {
-    data: r.data || "", cliente: r.cliente || "", indirizzo: r.indirizzo || "", tipologia: r.tipologia || "",
+    data: r.data || "", cliente_id: r.cliente_id || "", cliente: r.cliente || "", indirizzo: r.indirizzo || "", tipologia: r.tipologia || "",
     attivita: String(r.attivita || "").slice(0, LIMITI_AI.testo), note: r.note || "", esito: r.esito || "",
     materiali: (r.materiali || []).filter(m=>m && m.a).map(m=>({ a: m.a, q: m.q || "" })),
     ore: (ore || []).map(o=>({ operaio: o.nome || "", dalle: o.dalle || "", alle: o.alle || "" })),
