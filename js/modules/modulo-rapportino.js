@@ -533,15 +533,14 @@ async function creaInterventoRitorno(){
   if(!data) return;
   try{
     const { rapportino: r } = leggiModulo();
-    const ore = [...document.querySelectorAll("#rf-ore .rf-ore-riga")].map(el=>el.querySelector(".rf-operaio").value).filter(Boolean);
+    const operaiIds = [...new Set([...document.querySelectorAll("#rf-ore .rf-ore-riga")].map(el=>el.querySelector(".rf-operaio").value).filter(Boolean))];
     await salvaIntervento({
       data, ora: $("rf-followup-ora").value || null,
       cliente: r.cliente, indirizzo: r.indirizzo, cliente_id: r.cliente_id || null,
       tipologia: r.tipologia,
       descrizione: (desc || "Ritorno: completare lavoro") + (r.attivita ? "\n\nDal rapportino precedente:\n" + r.attivita.slice(0, 200) : ""),
       priorita: "normale",
-      intervento_operai: ore.map(id=>({ operaio_id: id })),
-    });
+    }, operaiIds);
     messaggio("Rapportino completato. Intervento di ritorno creato per " + data + ".");
   }catch(e){
     messaggio("Rapportino completato, ma non è stato possibile creare l'intervento di ritorno: " + e.message, "att");
