@@ -11,7 +11,7 @@ import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
 import {
   elencoAllegati, elencoRapportini, eliminaAllegato, leggiIntervento, leggiRapportino,
-  minutiTra, nomeOperaio, operaiAttivi, riapriRapportino, scaricaFoto,
+  minutiTra, nomeOperaio, operaiAttivi, riapriRapportino, salvaIntervento, scaricaFoto,
 } from "../services/api-lavori.js";
 import { aggiornaAnteprimaFirma } from "../services/signature.js";
 import { blobInDataUrl, improntaFile, mostraFotoIntera, preparaFoto } from "../services/immagini.js";
@@ -93,6 +93,10 @@ function leggiModulo(){
       telefono: $("rf-telefono").value.trim(), cliente_id: sceltaCliente.id(),
       tipologia: $("rf-tipologia").value, attivita: $("rf-attivita").value.trim(), note: $("rf-note").value.trim(),
       esito: $("rf-esito").value,
+      followup_desc: $("rf-followup-desc").value.trim(),
+      followup_data: $("rf-followup-data").value,
+      followup_ora: $("rf-followup-ora").value,
+      followup_crea: $("rf-followup-crea").checked,
       materiali: [...document.querySelectorAll("#rf-materiali .mat-riga")].map(r=>({ a: r.querySelector(".m-art").value.trim(), q: r.querySelector(".m-qta").value.trim() })).filter(m=>m.a),
       firma: $("rf-firma-box").querySelector(".c-firma-dato").value, firmatario: $("rf-firmatario").value.trim(),
     },
@@ -107,6 +111,8 @@ function riempiModulo(r, ore){
   sceltaCliente.imposta(r.cliente_id || null);
   $("rf-tipologia").value = r.tipologia || ""; $("rf-attivita").value = r.attivita || ""; $("rf-note").value = r.note || "";
   $("rf-esito").value = r.esito || "Completato"; $("rf-firmatario").value = r.firmatario || "";
+  $("rf-followup-desc").value = r.followup_desc || ""; $("rf-followup-data").value = r.followup_data || ""; $("rf-followup-ora").value = r.followup_ora || ""; $("rf-followup-crea").checked = r.followup_crea !== false;
+  aggiornaFollowup();
   $("rf-materiali").innerHTML = ""; (r.materiali || []).forEach(m=>aggiungiMaterialeRapportino(m));
   $("rf-ore").innerHTML = "";
   (ore && ore.length ? ore : [{ operaio_id: profilo && profilo.id, dalle: "", alle: "" }]).forEach(o=>aggiungiOreRapportino(o));
@@ -263,10 +269,26 @@ async function recuperaLocale(){
   messaggio("Recuperate le modifiche non ancora inviate al server. Salva per inviarle (verranno inviate anche in automatico).", "att");
   return true;
 }
+function aggiornaFollowup(){
+  const daUltimare = $("rf-esito").value === "Da ultimare";
+  $("rf-followup").classList.toggle("nascosto", !daUltimare);
+}
+$("rf-esito").addEventListener("change", aggiornaFollowup);
+
+let modalitaRapportino = "rapido";
+export function impostaModalitaRapportino(modo){
+  modalitaRapportino = modo || "rapido";
+  const rapido = modalitaRapportino === "rapido";
+  document.querySelectorAll(".rf-extra").forEach(el=>el.classList.toggle("nascosto", rapido));
+  $("rf-modo-rapido").classList.toggle("attivo", rapido);
+  $("rf-modo-completo").classList.toggle("attivo", !rapido);
+}
+
 function cambiato(){
   sporco = true;
   segnaModificaNelModulo();
   aggiornaTotale();
+  aggiornaFollowup();
   salvaLocale();
 }
 $("rap-form").addEventListener("input", cambiato);
@@ -325,7 +347,7 @@ export async function risolviConflitto(scelta){
 }
 
 // ---------------------------------------------------------------- apertura
-async function prepara(){
+async function prepara(modoIniziale){
   vistaDiRitorno = vistaCorrente === "rapportino" ? vistaDiRitorno : vistaCorrente;
   try{ operai = await operaiAttivi(); }catch(e){ operai = []; }
   mostraVista("rapportino");
@@ -333,9 +355,10 @@ async function prepara(){
   allegati = []; inAttesa = []; scaricamenti = null;
   nascondiConflitto();
   $("rf-foto").innerHTML = ""; $("rf-foto-stato").className = "msg-info nascosto"; $("rf-foto-invia").classList.add("nascosto");
+  impostaModalitaRapportino(modoIniziale || "rapido");
 }
 export async function apriRapportino(id){
-  await prepara();
+  await prepara("completo");
   messaggio("Caricamento…");
   try{
     let r;
@@ -501,6 +524,29 @@ function applicaServer(s){
   if(!s) return;
   corrente = Object.assign(corrente, { id: s.id, salvato: true, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
 }
+async function creaInterventoRitorno(){
+  if($("rf-esito").value !== "Da ultimare") return;
+  if(!$("rf-followup-crea").checked) return;
+  if(!puo("interventi.gestisci")) return;
+  const desc = $("rf-followup-desc").value.trim();
+  const data = $("rf-followup-data").value;
+  if(!data) return;
+  try{
+    const { rapportino: r } = leggiModulo();
+    const ore = [...document.querySelectorAll("#rf-ore .rf-ore-riga")].map(el=>el.querySelector(".rf-operaio").value).filter(Boolean);
+    await salvaIntervento({
+      data, ora: $("rf-followup-ora").value || null,
+      cliente: r.cliente, indirizzo: r.indirizzo, cliente_id: r.cliente_id || null,
+      tipologia: r.tipologia,
+      descrizione: (desc || "Ritorno: completare lavoro") + (r.attivita ? "\n\nDal rapportino precedente:\n" + r.attivita.slice(0, 200) : ""),
+      priorita: "normale",
+      intervento_operai: ore.map(id=>({ operaio_id: id })),
+    });
+    messaggio("Rapportino completato. Intervento di ritorno creato per " + data + ".");
+  }catch(e){
+    messaggio("Rapportino completato, ma non è stato possibile creare l'intervento di ritorno: " + e.message, "att");
+  }
+}
 async function mostraEsito(res, completa){
   const nFoto = n=>n === 1 ? "1 foto" : n + " foto";
   await riconciliaFoto(res.fotoInviate);
@@ -509,7 +555,12 @@ async function mostraEsito(res, completa){
     sporco = false;
     nascondiConflitto();
     aggiornaStatoUI();
-    messaggio(corrente.stato === "completato" ? "Rapportino completato e inviato." : (res.fotoInviate && res.fotoInviate.length ? "Bozza salvata con le foto." : "Bozza salvata."));
+    if(corrente.stato === "completato"){
+      messaggio("Rapportino completato e inviato.");
+      await creaInterventoRitorno();
+    } else {
+      messaggio(res.fotoInviate && res.fotoInviate.length ? "Bozza salvata con le foto." : "Bozza salvata.");
+    }
     return true;
   }
   if(res.esito === "conflitto"){
