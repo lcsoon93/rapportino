@@ -35,7 +35,7 @@ const jwt = id=>b64u({ alg: "HS256", typ: "JWT" }) + "." + b64u({ sub: id, role:
 
 function nuovoSupabase(ruolo){
   const u = UTENTI[ruolo];
-  const stato = { ai: [], scritture: [], richieste: 0, aiRisposta: null };
+  const stato = { ai: [], scritture: [], corpiScritture: [], richieste: 0, aiRisposta: null };
   const json = (route, corpo, status = 200, headers = {})=>route.fulfill({ status, contentType: "application/json", headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*", "access-control-expose-headers": "content-range", ...headers }, body: JSON.stringify(corpo) });
   async function gestisci(route){
     const req = route.request();
@@ -63,7 +63,7 @@ function nuovoSupabase(ruolo){
     if(p === "/rest/v1/rpc/operai_attivi" || p === "/rest/v1/rpc/nomi_utenti") return json(route, [{ id: UTENTI.worker.id, username: "mario", nome: "Mario Bianchi", attivo: true }]);
     if(p.startsWith("/rest/v1/rpc/")){ if(/notifiche_/.test(p)) stato.scritture.push(m + " " + p); return json(route, null); }
     if(p.startsWith("/rest/v1/")){
-      if(m !== "GET" && m !== "HEAD"){ stato.scritture.push(m + " " + p); return json(route, [], 201); }
+      if(m !== "GET" && m !== "HEAD"){ stato.scritture.push(m + " " + p); stato.corpiScritture.push(JSON.parse(req.postData() || "null")); return json(route, [], 201); }
       if(/vnd\.pgrst\.object/.test(req.headers()["accept"] || "")) return json(route, null, 406);
       return json(route, [], 200, { "content-range": "*/0" });
     }
@@ -345,6 +345,29 @@ try{
 
   // ======================= admin
   const a = await apri(browser, base, "admin");
+  await prova("admin: omonimi nelle tendenze -> 'Prepara intervento' usa la scheda e l'indirizzo giusti", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("altro"));
+    const ROMA = "5a000000-0000-4000-8000-000000000001", MILANO = "5a000000-0000-4000-8000-000000000002";
+    a.sb.stato.aiRisposta = { corpo: { ok: true, sufficienti: true, commento: null, statistiche: { periodo: { dal: "2026-01-01", al: "2026-07-31" }, rapportini: 8, interventi: 0,
+      insufficienti: [], tendenze: null, anomalie: [], ricorrenze: [
+        { cliente: "Rossi Srl", indirizzo: "Via Roma 1", clienteId: ROMA, etichetta: "Rossi Srl (Via Roma 1)", volte: 4, ogniGiorni: 30, regolare: true, ultima: "2026-04-05", prossimaStimata: "2026-05-05" },
+        { cliente: "Rossi Srl", indirizzo: "Via Milano 9", clienteId: MILANO, etichetta: "Rossi Srl (Via Milano 9)", volte: 4, ogniGiorni: 60, regolare: true, ultima: "2026-07-09", prossimaStimata: "2026-09-07" },
+      ] } } };
+    await a.page.click("#ai-tendenze");
+    await a.page.waitForSelector("text=Via Milano 9");
+    await a.page.locator("text=Prepara intervento").nth(1).click();
+    await a.page.waitForSelector("#int-form:not(.nascosto)");
+    assert.equal(await a.page.inputValue("#int-cliente"), "Rossi Srl");
+    assert.equal(await a.page.inputValue("#int-indirizzo"), "Via Milano 9", "indirizzo della seconda scheda");
+    await a.page.click("#int-salva");
+    await a.page.waitForTimeout(1200);
+    const scritto = a.sb.stato.corpiScritture.find(c=>c && (c.cliente_id || (Array.isArray(c) && c[0]?.cliente_id)));
+    const dati = scritto && (scritto.cliente_id ? scritto : scritto[0]);
+    assert.ok(dati, "intervento salvato con un cliente_id");
+    assert.equal(dati.cliente_id, MILANO, "collegato alla scheda di Via Milano, non a quella di Via Roma");
+    assert.equal(dati.indirizzo, "Via Milano 9");
+  });
+
   await prova("admin: tendenze -> 'Prepara intervento' compila il modulo senza salvare", async()=>{
     await a.page.evaluate(()=>window.mostraVista("altro"));
     for(const s of ["#ai-chiedi", "#ai-cerca", "#ai-tendenze", "#ai-modelli"]) assert.equal(await a.page.$eval(s, el=>el.classList.contains("vietato")), false, s);

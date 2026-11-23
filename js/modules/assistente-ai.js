@@ -324,7 +324,7 @@ function disegnaPredittiva(r){
   let html = "";
   if(r.commento && r.commento.sintesi) html += '<div class="idt-desc ai-risposta"></div>' + elencoHtml("Attività suggerite (da valutare)", r.commento.suggerimenti);
   if(s.ricorrenze.length) html += '<div class="ai-sez-tit">Ricorrenze per cliente</div>' + s.ricorrenze.map((x, i)=>
-    '<div class="ai-ric"><div><b>' + esc(x.cliente) + '</b><span class="cli-ind" style="display:block">' + x.volte + ' lavori, in media ogni ' + x.ogniGiorni + ' giorni' +
+    '<div class="ai-ric"><div><b>' + esc(x.cliente) + '</b>' + (x.indirizzo ? ' <span class="cli-ind">· ' + esc(x.indirizzo) + '</span>' : '') + '<span class="cli-ind" style="display:block">' + x.volte + ' lavori, in media ogni ' + x.ogniGiorni + ' giorni' +
     (x.regolare ? "" : " (irregolare)") + ' · ultimo ' + esc(dataIt(x.ultima)) + (x.prossimaStimata ? " · prossimo stimato " + esc(dataIt(x.prossimaStimata)) : "") + '</span></div>' +
     (x.prossimaStimata && puo("interventi.gestisci") ? '<button type="button" class="btn btn-secondario" onclick="aiPreparaIntervento(' + i + ')">Prepara intervento</button>' : "") + '</div>').join("");
   if(s.anomalie.length) html += '<div class="ai-sez-tit">Anomalie</div>' + s.anomalie.map(a=>{
@@ -371,8 +371,8 @@ export async function aiPreparaIntervento(i){
   const x = ultimaPredittiva && ultimaPredittiva.statistiche.ricorrenze[i];
   if(!x || !puo("interventi.gestisci")) return;
   mostraVista("interventi");
-  await apriModuloIntervento();
-  $("int-cliente").value = x.cliente;
+  // stessa scheda della statistica (cliente_id quando c'e'): con gli omonimi non si sceglie per nome
+  await apriModuloIntervento(null, { cliente_id: x.clienteId || null, cliente: x.cliente, indirizzo: x.indirizzo || "", telefono: "" });
   $("int-data").value = x.prossimaStimata > oggiIso() ? x.prossimaStimata : oggiIso();
   $("int-descrizione").value = "Intervento periodico: in media ogni " + x.ogniGiorni + " giorni (ultimo " + dataIt(x.ultima) + "). Proposto dall'assistente: verifica prima di salvare.";
 }

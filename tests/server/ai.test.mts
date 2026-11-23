@@ -381,7 +381,7 @@ test("suggerimenti: storico dello stesso cliente con RLS; materiali gia' present
   assert.equal(j.storico, 1);
   const ops = db.chiamate[0].ops;
   assert.ok(ops.some((o) => o[0] === "neq" && o[1] === "id"));
-  assert.ok(ops.some((o) => o[0] === "limit" && o[1] === 8));
+  assert.ok(ops.some((o) => o[0] === "limit" && o[1] === 40));  // legge di piu' per rilevare gli omonimi, poi ne tiene 8
   assert.match(JSON.stringify(g.richieste[0].body.messages), /Pulizia bruciatore/);
 });
 
@@ -414,4 +414,98 @@ test("chiediJson: errore di input del servizio (400) non viene ripetuto", async 
   await assert.rejects(chiediJson(configurazione(() => "k"), { tipo: "testo", messaggi: [], maxToken: 10, timeoutMs: 1000, valida: (o) => o, fetchImpl: g.f }),
     (e: ErroreAI) => e.stato === 400);
   assert.equal(g.richieste.length, 1);
+});
+
+// ---------------------------------------------------------------- omonimi (stesso nome, indirizzi diversi)
+const SCHEDA_ROMA = "5a000000-0000-4000-8000-000000000001";
+const SCHEDA_MILANO = "5a000000-0000-4000-8000-000000000002";
+const rapOmonimo = (id: string, data: string, cliente_id: string | null, indirizzo: string, min: number, cliente = "Rossi Srl") => ({
+  id, data, cliente_id, cliente, indirizzo, stato: "completato", firmatario: "F", tipologia: "Manutenzione ordinaria",
+  attivita: "Visita a " + indirizzo, materiali: [],
+  rapportino_operai: [{ operaio_id: "u", dalle: "08:00", alle: String(8 + Math.floor(min / 60)).padStart(2, "0") + ":" + String(min % 60).padStart(2, "0") }],
+});
+
+test("omonimi: due 'Rossi Srl' con indirizzi diversi restano separati nella predittiva", async () => {
+  const rapportini = [
+    // Via Roma 1: visite ogni 30 giorni
+    rapOmonimo("r1", "2026-01-05", SCHEDA_ROMA, "Via Roma 1", 60), rapOmonimo("r2", "2026-02-04", SCHEDA_ROMA, "Via Roma 1", 60),
+    rapOmonimo("r3", "2026-03-06", SCHEDA_ROMA, "Via Roma 1", 60), rapOmonimo("r4", "2026-04-05", SCHEDA_ROMA, "Via Roma 1", 60),
+    // Via Milano 9: visite ogni 60 giorni
+    rapOmonimo("m1", "2026-01-10", SCHEDA_MILANO, "Via Milano 9", 90), rapOmonimo("m2", "2026-03-11", SCHEDA_MILANO, "Via Milano 9", 90),
+    rapOmonimo("m3", "2026-05-10", SCHEDA_MILANO, "Via Milano 9", 90), rapOmonimo("m4", "2026-07-09", SCHEDA_MILANO, "Via Milano 9", 90),
+  ];
+  const db = dbFinto({ rapportini });
+  const g = groqFinto([{ sintesi: "Due clienti distinti.", suggerimenti: [] }]);
+  const r = await gestisci(richiesta({ azione: "predittiva", dal: "2026-01-01", al: "2026-07-31" }), dipendenze({ db, groq: g }).d);
+  const j = await corpo(r);
+  assert.equal(j.sufficienti, true);
+  const ric = j.statistiche.ricorrenze as { cliente: string; indirizzo: string; clienteId: string; volte: number; ogniGiorni: number }[];
+  assert.equal(ric.length, 2, "due clienti, due ricorrenze");
+  const roma = ric.find((x) => x.indirizzo === "Via Roma 1");
+  const milano = ric.find((x) => x.indirizzo === "Via Milano 9");
+  assert.ok(roma && milano, "nome e indirizzo separati");
+  assert.equal(roma.cliente, "Rossi Srl");
+  assert.equal(milano.cliente, "Rossi Srl");
+  assert.ok(roma.clienteId === SCHEDA_ROMA && milano.clienteId === SCHEDA_MILANO, "id della scheda per 'Prepara intervento'");
+  // gli id non entrano nel prompt del modello
+  assert.ok(!JSON.stringify(g.richieste[0].body.messages).includes(SCHEDA_ROMA), "nessun id scheda nel prompt");
+  assert.equal(roma.volte, 4);
+  assert.equal(milano.volte, 4);
+  assert.equal(roma.ogniGiorni, 30);
+  assert.equal(milano.ogniGiorni, 60);
+});
+
+test("omonimi: i totali per cliente della domanda sono separati per scheda", () => {
+  const rap = [
+    rapOmonimo("a", "2026-03-01", SCHEDA_ROMA, "Via Roma 1", 120), rapOmonimo("b", "2026-03-08", SCHEDA_ROMA, "Via Roma 1", 120),
+    rapOmonimo("c", "2026-03-02", SCHEDA_MILANO, "Via Milano 9", 60),
+  ];
+  const testo = contestoDomanda([], rap, () => "op", OGGI);
+  const riga = testo.split("\n").find((x) => x.startsWith("PER CLIENTE")) || "";
+  assert.ok(riga.includes("Rossi Srl (Via Roma 1) 2 / 4h"), riga);
+  assert.ok(riga.includes("Rossi Srl (Via Milano 9) 1 / 1h"), riga);
+  // nessuna somma unica di "Rossi Srl"
+  assert.ok(!/Rossi Srl \d+ \/ 5h/.test(riga), riga);
+});
+
+test("omonimi, suggerimenti con scheda: storico solo della scheda scelta (cliente_id, non il nome)", async () => {
+  const db = dbFinto({ rapportini: [rapOmonimo("x1", "2026-09-01", SCHEDA_ROMA, "Via Roma 1", 60)] });
+  const g = groqFinto([{ attivita: [], materiali: [], controlli: [] }]);
+  const r = await gestisci(richiesta({ azione: "suggerimenti", id: "22222222-2222-4222-8222-222222222222",
+    rapportino: { cliente_id: SCHEDA_ROMA, cliente: "Rossi Srl", indirizzo: "Via Milano 9", attivita: "Controllo" } }), dipendenze({ ruolo: "worker", db, groq: g }).d);
+  const j = await corpo(r);
+  assert.equal(r.status, 200);
+  assert.equal(j.storico, 1);
+  assert.equal(j.avviso, undefined);
+  const ops = db.chiamate[0].ops;
+  assert.ok(ops.some((o) => o[0] === "eq" && o[1] === "cliente_id" && o[2] === SCHEDA_ROMA), "filtro per scheda");
+  assert.ok(!ops.some((o) => o[0] === "ilike" && o[1] === "cliente"), "nessun filtro per nome quando c'e' la scheda");
+  assert.match(JSON.stringify(g.richieste[0].body.messages), /Visita a Via Roma 1/);
+});
+
+test("omonimi, suggerimenti senza scheda: nessuno storico mescolato, avviso chiaro", async () => {
+  const db = dbFinto({ rapportini: [
+    rapOmonimo("x1", "2026-09-01", SCHEDA_ROMA, "Via Roma 1", 60), rapOmonimo("x2", "2026-08-01", SCHEDA_MILANO, "Via Milano 9", 60),
+  ] });
+  const g = groqFinto([{ attivita: [], materiali: [], controlli: [] }]);
+  const r = await gestisci(richiesta({ azione: "suggerimenti", rapportino: { cliente: "Rossi Srl", attivita: "Controllo" } }), dipendenze({ ruolo: "worker", db, groq: g }).d);
+  const j = await corpo(r);
+  assert.equal(j.storico, 0);
+  assert.match(j.avviso, /indirizzi diversi/);
+  const messaggi = JSON.stringify(g.richieste[0].body.messages);
+  assert.ok(!/Visita a Via/.test(messaggi), "nessuna attivita' di un altro indirizzo nel prompt");
+});
+
+test("omonimi, suggerimenti senza scheda ma con indirizzo: solo le visite di quell'indirizzo", async () => {
+  const db = dbFinto({ rapportini: [
+    rapOmonimo("x1", "2026-09-01", SCHEDA_ROMA, "Via Roma 1", 60), rapOmonimo("x2", "2026-08-01", SCHEDA_MILANO, "Via Milano 9", 60),
+  ] });
+  const g = groqFinto([{ attivita: [], materiali: [], controlli: [] }]);
+  const r = await gestisci(richiesta({ azione: "suggerimenti", rapportino: { cliente: "Rossi Srl", indirizzo: "via milano 9", attivita: "Controllo" } }), dipendenze({ ruolo: "worker", db, groq: g }).d);
+  const j = await corpo(r);
+  assert.equal(j.storico, 1);
+  assert.equal(j.avviso, undefined);
+  const messaggi = JSON.stringify(g.richieste[0].body.messages);
+  assert.match(messaggi, /Visita a Via Milano 9/);
+  assert.ok(!/Visita a Via Roma/.test(messaggi));
 });
