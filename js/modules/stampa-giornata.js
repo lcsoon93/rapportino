@@ -123,17 +123,10 @@ export async function preparaPDFGiornata(btn){
     // rapportini e schede del foglio giornaliero insieme, in ordine di orario
     const tutte = schede.concat(foglio.schede).map((c, i)=>({ c, k: inizioScheda(c), i })).sort((a, b)=>a.k.localeCompare(b.k) || a.i - b.i).map(x=>x.c);
     const tecnici = [...new Set(tutte.flatMap(c=>c.operai.map(o=>o.nome)).filter(Boolean))];
-    // riepilogo in fondo al PDF: orario della giornata (8-17 salvo inserimento) e ore passate da ogni cliente
+    // orario della giornata (8-17 salvo inserimento): mostrato sullo schermo, non nel PDF
     await aggiornaOrari();
     const orario = orarioDelGiorno(iso);
-    const riepilogo = { orario, tecnici, righe: tutte.map(c=>{
-      const fasce = (c.fasce || []).filter(f=>f && f.d && f.a).map(f=>({ dalle: f.d, alle: f.a }));
-      const intervalli = fasce.length ? fasce : c.operai.filter(o=>o.dalle && o.alle).map(o=>({ dalle: ora(o.dalle), alle: ora(o.alle) }));
-      const inizi = intervalli.map(i=>i.dalle).sort(), fini = intervalli.map(i=>i.alle).sort();
-      return { nome: c.nome, orario: intervalli.length ? inizi[0] + "–" + fini[fini.length - 1] : "", minuti: minutiSulPosto(intervalli) };
-    }) };
     const dati = {
-      riepilogo,
       tecnici: tecnici.join(" / "),
       operai: tutte.length === 1 ? tutte[0].operai : [],
       spese: foglio.spese, mostraOrario: true, soloIntervalli: true, clienti: tutte,   // solo dalle-alle, mai le ore
