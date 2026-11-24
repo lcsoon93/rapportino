@@ -83,3 +83,17 @@ test("ore: intervalli sovrapposti tra rapportini contano una volta sola", async 
     coda: [loc("b", {}, {})].map(v=>({ ...v, ore: [{ operaio_id: IO, dalle: "09:30", alle: "11:00" }] })) });
   assert.equal(g.conteggi.minuti, 180, "stesso rapportino sul server e sul telefono + sovrapposizione: 08:00-11:00");
 });
+
+test("orario della scheda: programmato, effettivo dal rapportino, nessuno (mai inventato)", async ()=>{
+  const { orarioScheda } = await import("../../js/modules/giornata-dati.js");
+  const st = ore=>({ rapportino: { ore } });
+  assert.deepEqual(orarioScheda({ ora: "07:00:00" }, st([{ operaio_id: IO, dalle: "07:10:00", alle: "09:00:00" }]), IO),
+    { tipo: "programmato", ora: "07:00", lavoro: "07:10–09:00" });
+  assert.deepEqual(orarioScheda({ ora: null }, st([{ operaio_id: IO, dalle: "08:15", alle: "10:30" }, { operaio_id: ALTRO, dalle: "07:00", alle: "11:00" }]), IO),
+    { tipo: "effettivo", ora: "08:15", lavoro: "08:15–10:30" }, "prima le righe dell'utente");
+  assert.deepEqual(orarioScheda({ ora: null }, st([{ operaio_id: ALTRO, dalle: "09:00", alle: "" }]), IO),
+    { tipo: "effettivo", ora: "09:00", lavoro: "" }, "solo inizio: niente intervallo");
+  assert.equal(orarioScheda({}, st([]), IO).tipo, "nessuno", "dati vecchi senza campo ora, rapportino senza orari");
+  assert.equal(orarioScheda({ ora: "" }, { rapportino: { id: "x", stato: "completato" } }, IO).tipo, "nessuno");
+  assert.equal(orarioScheda({ ora: "25:99" }, null, IO).tipo, "nessuno", "orario non valido ignorato");
+});

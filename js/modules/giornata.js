@@ -10,7 +10,7 @@ import { elencoCoda, messaggioConnessione } from "../services/sinc-rapportini.js
 import { elencoFollowup, idInterventoPrevisto, leggiFollowup, rimuoviFollowup, segnaProgrammato } from "../services/followup.js";
 import { apriModuloIntervento } from "./gestione-interventi.js";
 import { apriRapportino, nuovoRapportinoAutonomo, rapportinoPerIntervento, testoDescrizioneRitorno } from "./modulo-rapportino.js";
-import { calcolaGiornata } from "./giornata-dati.js";
+import { calcolaGiornata, orarioScheda } from "./giornata-dati.js";
 import { isoDi, oggiIso } from "../utils/dates.js";
 import { esc, formattaData, minutiAOre } from "./giornata-utils.js";
 
@@ -22,10 +22,11 @@ function bottone(testo, azione, primario, icona){
   return `<button type="button" class="btn ${primario ? "btn-primario" : "btn-secondario"}" onclick="${azione}">` +
     (icona ? `<svg class="i"><use href="#i-${icona}"/></svg>` : "") + testo + `</button>`;
 }
-function card({ ora, oraIcona, titolo, sotto, badge, azioni, classe }){
+// riquadro a sinistra: html già pronto (orario) oppure un'icona di tipo (imprevisto, bozza, ritorno)
+function card({ ora, oraHtml, oraIcona, titolo, sotto, badge, azioni, classe }){
   return `<div class="card intervento mg-intervento ${classe || ""}">
     <div class="int-top">
-      <div class="int-ora${ora ? "" : " vuota"}">${ora || `<svg class="i i-sm"><use href="#i-${oraIcona || "clock"}"/></svg>`}</div>
+      ${oraHtml || `<div class="int-ora${ora ? "" : " vuota"}">${ora || `<svg class="i i-sm"><use href="#i-${oraIcona || "file"}"/></svg>`}</div>`}
       <div class="int-corpo">
         <div class="int-cliente">${esc(titolo || "Senza cliente")}</div>
         ${sotto ? `<div class="int-desc">${sotto}</div>` : ""}
@@ -44,7 +45,15 @@ function cardIntervento({ intervento: i, stato: st }){
   else if(st.codice === "da_completare") azione = bottone("Riprendi rapportino", `compilaRapportinoIntervento('${i.id}')`, true, "pen");
   else if(st.codice !== "completato" && puo("rapportini.compila")) azione = bottone("Compila rapportino", `compilaRapportinoIntervento('${i.id}')`, true, "pen");
   const dettaglio = `<button type="button" class="btn btn-secondario btn-dettagli" aria-label="Dettagli" onclick="apriDettaglioIntervento('${i.id}')"><svg class="i"><use href="#i-search"/></svg></button>`;
-  return card({ ora: i.ora ? i.ora.slice(0, 5) : "", titolo: i.cliente, sotto: i.descrizione ? esc(i.descrizione) : "",
+  // orario programmato, effettivo (dal rapportino) o nessuno: distinti dallo stato del rapportino
+  const o = orarioScheda(i, st, profilo && profilo.id);
+  const oraHtml = o.tipo === "programmato" ? `<div class="int-ora" title="Orario programmato">${o.ora}</div>`
+    : o.tipo === "effettivo" ? `<div class="int-ora effettivo" title="Inizio effettivo dal rapportino (nessun orario programmato)">${o.ora}<small>effettivo</small></div>`
+    : `<div class="int-ora vuota" title="Nessun orario programmato">—<small>senza ora</small></div>`;
+  const sotto = [i.descrizione ? esc(i.descrizione) : "",
+    o.tipo !== "programmato" ? "Orario non programmato" : "",
+    o.lavoro ? "Lavoro effettivo " + o.lavoro : ""].filter(Boolean).join(" · ");
+  return card({ oraHtml, titolo: i.cliente, sotto,
     badge: badge("Programmato", "neutro") + badge(st.label, st.classe) + (i.priorita === "urgente" ? badge("Urgente", "err") : ""),
     azioni: azione + dettaglio });
 }
