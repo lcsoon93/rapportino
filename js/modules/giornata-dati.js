@@ -8,6 +8,21 @@ export function minutiTra(dalle, alle){
   return Math.max(0, m(alle) - m(dalle));
 }
 
+// minuti coperti da una serie di intervalli {dalle, alle}: le parti sovrapposte (stesso tempo
+// segnato su due rapportini) contano una volta sola
+export function minutiUnione(intervalli){
+  const m = t=>{ const p = String(t).split(":"); return +p[0] * 60 + +p[1]; };
+  const iv = (intervalli || []).filter(o=>o && o.dalle && o.alle).map(o=>[m(o.dalle), m(o.alle)])
+    .filter(([a, b])=>Number.isFinite(a) && Number.isFinite(b) && b > a).sort((x, y)=>x[0] - y[0]);
+  let tot = 0, ini = -1, fin = -1;
+  for(const [a, b] of iv){
+    if(a > fin){ if(fin > ini) tot += fin - ini; ini = a; fin = b; }
+    else if(b > fin) fin = b;
+  }
+  if(fin > ini) tot += fin - ini;
+  return tot;
+}
+
 // copia del telefono con modifiche non ancora confermate dal server (solo foto in attesa: no)
 export const localeAttivo = v=>!!v && v.stato !== "inviato" && v.testoDaInviare !== false;
 
@@ -92,8 +107,7 @@ export function calcolaGiornata({ oggi, io, interventi, rapportiniServer, coda }
     .sort((a, b)=>String(b.data || "").localeCompare(String(a.data || "")));
   const tutti = [...schede.map(s=>s.stato), ...imprevisti.map(x=>x.stato)];
   const conta = c=>tutti.filter(s=>s.codice === c).length;
-  const minuti = miei.filter(r=>r.data === oggi)
-    .reduce((t, r)=>t + (r.ore || []).filter(o=>o.operaio_id === io).reduce((a, o)=>a + minutiTra(o.dalle, o.alle), 0), 0);
+  const minuti = minutiUnione(miei.filter(r=>r.data === oggi).flatMap(r=>(r.ore || []).filter(o=>o.operaio_id === io)));
   return {
     schede, imprevisti, bozze,
     conteggi: {

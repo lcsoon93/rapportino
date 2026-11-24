@@ -67,3 +67,19 @@ test("date locali: isoDi non cambia giorno vicino alla mezzanotte", ()=>{
   const d = new Date("2026-12-31T12:00:00"); d.setDate(d.getDate() + 1);
   assert.equal(isoDi(d), "2027-01-01");
 });
+
+test("ore: intervalli sovrapposti tra rapportini contano una volta sola", async ()=>{
+  const { minutiUnione } = await import("../../js/modules/giornata-dati.js");
+  assert.equal(minutiUnione([{ dalle: "08:00", alle: "10:00" }, { dalle: "09:00", alle: "11:00" }]), 180);
+  assert.equal(minutiUnione([{ dalle: "08:00", alle: "12:00" }, { dalle: "09:00", alle: "10:00" }]), 240, "contenuto");
+  assert.equal(minutiUnione([{ dalle: "08:00", alle: "09:00" }, { dalle: "09:00", alle: "10:00" }]), 120, "contigui");
+  assert.equal(minutiUnione([{ dalle: "14:00", alle: "15:00" }, { dalle: "08:00", alle: "09:30" }]), 150, "non ordinati");
+  assert.equal(minutiUnione([{ dalle: "10:00", alle: "09:00" }, { dalle: "", alle: "09:00" }, null]), 0, "non validi ignorati");
+  const g = calcolaGiornata({ oggi: OGGI, io: IO, interventi: [intervento("i1")],
+    rapportiniServer: [
+      srv("a", { intervento_id: "i1", rapportino_operai: [{ operaio_id: IO, dalle: "08:00", alle: "10:00" }] }),
+      srv("b", { rapportino_operai: [{ operaio_id: IO, dalle: "09:30", alle: "11:00" }, { operaio_id: ALTRO, dalle: "07:00", alle: "12:00" }] }),
+    ],
+    coda: [loc("b", {}, {})].map(v=>({ ...v, ore: [{ operaio_id: IO, dalle: "09:30", alle: "11:00" }] })) });
+  assert.equal(g.conteggi.minuti, 180, "stesso rapportino sul server e sul telefono + sovrapposizione: 08:00-11:00");
+});

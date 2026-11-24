@@ -5,9 +5,9 @@ import { profilo } from "../core/sessione.js";
 import { puo } from "../core/permessi.js";
 import { registraVista, vistaCorrente } from "../core/navigation.js";
 import { su } from "../core/eventi.js";
-import { elencoInterventi, elencoRapportini, interventiPeriodo, invalidaInterventi, operaiAttivi } from "../services/api-lavori.js";
+import { controllaInterventoPrevisto, elencoInterventi, elencoRapportini, interventiPeriodo, invalidaInterventi, operaiAttivi } from "../services/api-lavori.js";
 import { elencoCoda, messaggioConnessione } from "../services/sinc-rapportini.js";
-import { elencoFollowup, leggiFollowup, rimuoviFollowup, segnaProgrammato } from "../services/followup.js";
+import { elencoFollowup, idInterventoPrevisto, leggiFollowup, rimuoviFollowup, segnaProgrammato } from "../services/followup.js";
 import { apriModuloIntervento } from "./gestione-interventi.js";
 import { apriRapportino, nuovoRapportinoAutonomo, rapportinoPerIntervento, testoDescrizioneRitorno } from "./modulo-rapportino.js";
 import { calcolaGiornata } from "./giornata-dati.js";
@@ -67,10 +67,22 @@ function cardFollowup(f){
   const gestisce = puo("interventi.gestisci");
   return card({ oraIcona: "clock", titolo: f.cliente, classe: "mg-bozza",
     sotto: esc(f.desc || "Lavoro da ultimare") + (f.data ? " · ritorno proposto: " + esc(formattaData(f.data)) : " · data di ritorno da decidere"),
-    badge: badge("Da programmare", "att") + (f.data_rapportino ? badge("Rapportino del " + formattaData(f.data_rapportino), "neutro") : ""),
+    badge: (f.daCompletare ? badge("Intervento creato: operai da assegnare", "err") : badge("Da programmare", "att")) + (f.data_rapportino ? badge("Rapportino del " + formattaData(f.data_rapportino), "neutro") : ""),
     azioni: (gestisce ? bottone("Programma", `programmaFollowup('${esc(f.id)}')`, true, "cal") : `<span class="nota" style="padding:0">Da comunicare a chi programma gli interventi</span>`) +
       (f.rapportino_id ? bottone("Rapportino", `apriRapportino('${esc(f.rapportino_id)}')`, false, "file") : "") +
       `<button type="button" class="btn btn-secondario" aria-label="Elimina" onclick="eliminaFollowup('${esc(f.id)}')"><svg class="i"><use href="#i-trash"/></svg></button>` });
+}
+
+// Ritorni con un tentativo di creazione già fatto: se l'intervento è sul server (risposta persa)
+// e ha gli operai previsti, il ritorno è programmato; se mancano operai resta, da completare.
+async function riconciliaRitorni(lista){
+  const out = [];
+  for(const f of lista){
+    const c = f.intervento_previsto ? await controllaInterventoPrevisto(f.intervento_previsto) : null;
+    if(c && c.esiste && (f.operai || []).every(o=>c.operai.includes(o))){ segnaProgrammato(f.id, f.intervento_previsto); continue; }
+    out.push(Object.assign({}, f, { daCompletare: !!(c && c.esiste) }));
+  }
+  return out;
 }
 
 let inDisegno = null;
@@ -122,7 +134,7 @@ async function disegna(){
   $("mg-conta-bozze").textContent = g.bozze.length || "";
   $("mg-lista-bozze").innerHTML = g.bozze.map(cardBozza).join("");
 
-  const ritorni = elencoFollowup();
+  const ritorni = await riconciliaRitorni(elencoFollowup());
   mostra("mg-sez-followup-head", ritorni.length);
   $("mg-conta-followup").textContent = ritorni.length || "";
   $("mg-lista-followup").innerHTML = ritorni.map(cardFollowup).join("");
@@ -188,7 +200,7 @@ window.programmaFollowup = async id=>{
   if(f.stato === "programmato"){ alert("Questo ritorno è già stato programmato."); return disegnaGiornata(); }
   await apriModuloIntervento(null,
     { cliente: f.cliente, indirizzo: f.indirizzo || "", telefono: f.telefono || "", cliente_id: f.cliente_id || null, tipologia: f.tipologia || "" },
-    { data: f.data || sposta(oggiIso(), 1), ora: f.ora || "", descrizione: testoDescrizioneRitorno(f), operai: f.operai, origine: "followup:" + f.id });
+    { data: f.data || sposta(oggiIso(), 1), ora: f.ora || "", descrizione: testoDescrizioneRitorno(f), operai: f.operai, origine: "followup:" + f.id, idNuovo: idInterventoPrevisto(f.id) });
 };
 window.eliminaFollowup = id=>{
   if(!confirm("Eliminare questo ritorno da programmare? Il rapportino di origine non cambia.")) return;

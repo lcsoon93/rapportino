@@ -56,6 +56,19 @@ export function segnaProgrammato(id, interventoId){
   Object.assign(f, { stato: "programmato", intervento_id: interventoId || null, aggiornato: new Date().toISOString() });
   scrivi(lista);
 }
+// id dell'intervento di ritorno deciso prima del primo tentativo e conservato: ogni nuovo tentativo
+// usa lo stesso id, cosi' un intervento creato con risposta persa non viene creato una seconda volta
+export function idInterventoPrevisto(id){
+  const lista = leggi();
+  const f = lista.find(x=>x.id === id);
+  if(!f) return null;
+  if(!f.intervento_previsto){
+    f.intervento_previsto = crypto.randomUUID();
+    f.aggiornato = new Date().toISOString();
+    scrivi(lista);
+  }
+  return f.intervento_previsto;
+}
 // solo se non ancora programmato (es. l'esito torna "Completato")
 export function rimuoviFollowup(id){
   scrivi(leggi().filter(f=>f.id !== id));

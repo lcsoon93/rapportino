@@ -109,9 +109,11 @@ export function spostaPeriodoInterventi(delta){
 // id = intervento da modificare; cliente (facoltativo, nuovo intervento) = dati copiati da una scheda
 // extra (facoltativo, nuovo intervento): { data, ora, descrizione, operai, origine }; origine torna nell'evento "intervento-salvato"
 let origineModulo = null;
+let idNuovoModulo = null;     // id previsto del nuovo intervento (ritorni): lo stesso a ogni tentativo
 export async function apriModuloIntervento(id, cliente, extra){
   if(vistaCorrente !== "interventi") mostraVista("interventi");
   origineModulo = (!id && extra && extra.origine) || null;
+  idNuovoModulo = (!id && extra && extra.idNuovo) || null;
   inModifica = id || null;
   $("int-errore").textContent = "";
   await caricaOperai();
@@ -145,6 +147,7 @@ export async function apriModuloIntervento(id, cliente, extra){
 }
 export function chiudiModuloIntervento(){
   origineModulo = null;
+  idNuovoModulo = null;
   inModifica = null;
   interventoAperto = null;
   $("int-form").classList.add("nascosto");
@@ -167,7 +170,7 @@ $("int-form").addEventListener("submit", async e=>{
   try{
     // una scheda cliente creata al volo (ancora sul telefono) va prima al server: cosi' il collegamento arriva
     if(sceltaCliente.id()) await sincronizzaClienti().catch(()=>{});
-    const salvatoId = await salvaIntervento({ id: inModifica, data: $("int-data").value, ora: $("int-ora").value, cliente,
+    const salvatoId = await salvaIntervento({ id: inModifica, idNuovo: idNuovoModulo, data: $("int-data").value, ora: $("int-ora").value, cliente,
       indirizzo: $("int-indirizzo").value.trim(), telefono: $("int-telefono").value.trim(), cliente_id: sceltaCliente.id(),
       descrizione: $("int-descrizione").value.trim(),
       priorita: $("int-priorita").value, tipologia: $("int-tipologia").value }, scelti);
