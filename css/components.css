@@ -870,6 +870,10 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .mg-fine-giornata .titolo{margin-bottom:10px}
 .mg-fine-azioni{margin-top:12px}
 @media (min-width:600px){.mg-azioni-rapide{grid-template-columns:1fr 1fr}}
+/* ================= DETTAGLI AVANZATI INTERVENTO ================= */
+.int-avanzati{margin-top:8px}
+.int-avanzati summary{font-size:14px;color:var(--brand);font-weight:500}
+.int-avanzati[open] summary{margin-bottom:8px}
 /* ================= TOGGLE MODALITÀ RAPPORTINO ================= */
 .rf-modo-toggle{display:flex;gap:6px;margin:0 0 12px;padding:4px;background:var(--sfondo);border-radius:var(--r-btn)}
 .rf-modo-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:42px;border:none;border-radius:calc(var(--r-btn) - 2px);background:transparent;font-size:14px;font-weight:600;color:var(--testo-2);cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}

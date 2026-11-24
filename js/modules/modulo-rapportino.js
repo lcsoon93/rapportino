@@ -199,6 +199,8 @@ function aggiornaStatoUI(){
   $("rap-form").classList.toggle("sola-lettura", !scrivibile);
   $("rap-form").querySelectorAll("input, textarea, select").forEach(el=>{ el.disabled = !scrivibile; });
   document.querySelectorAll(".rf-solo-bozza").forEach(el=>el.classList.toggle("nascosto", !scrivibile));
+  $("rf-modo-box").classList.toggle("nascosto", !scrivibile);
+  if(scrivibile) impostaModalitaRapportino(modalitaRapportino);
   sceltaCliente.aggiorna();
   $("rf-riapri").classList.toggle("nascosto", !(corrente && corrente.stato === "completato" && puo("rapportini.riapri")));
   $("rf-pdf").classList.toggle("nascosto", !corrente || !corrente.salvato);
@@ -526,25 +528,58 @@ function applicaServer(s){
 }
 async function creaInterventoRitorno(){
   if($("rf-esito").value !== "Da ultimare") return;
-  if(!$("rf-followup-crea").checked) return;
   if(!puo("interventi.gestisci")) return;
   const desc = $("rf-followup-desc").value.trim();
   const data = $("rf-followup-data").value;
-  if(!data) return;
+  const crea = $("rf-followup-crea").checked;
+  if(!crea && !data) return;
+  if(!crea){
+    salvaDatiFollowup();
+    return;
+  }
+  if(!data){
+    if(confirm("Non hai indicato una data di ritorno. Vuoi creare comunque l'intervento per domani?")){
+      const domani = new Date(); domani.setDate(domani.getDate() + 1);
+      $("rf-followup-data").value = domani.toISOString().slice(0, 10);
+    } else {
+      salvaDatiFollowup();
+      messaggio("Rapportino completato. Il follow-up è stato conservato: lo trovi nella dashboard.", "att");
+      return;
+    }
+  }
+  const dataRitorno = $("rf-followup-data").value;
+  const { rapportino: r } = leggiModulo();
+  const testoConferma = "Creare un intervento di ritorno per " + dataRitorno + " presso " + (r.cliente || "il cliente") + "?";
+  if(!confirm(testoConferma)){
+    salvaDatiFollowup();
+    messaggio("Rapportino completato. Il follow-up è stato conservato: lo trovi nella dashboard.", "att");
+    return;
+  }
   try{
-    const { rapportino: r } = leggiModulo();
     const operaiIds = [...new Set([...document.querySelectorAll("#rf-ore .rf-ore-riga")].map(el=>el.querySelector(".rf-operaio").value).filter(Boolean))];
     await salvaIntervento({
-      data, ora: $("rf-followup-ora").value || null,
+      data: dataRitorno, ora: $("rf-followup-ora").value || null,
       cliente: r.cliente, indirizzo: r.indirizzo, cliente_id: r.cliente_id || null,
       tipologia: r.tipologia,
       descrizione: (desc || "Ritorno: completare lavoro") + (r.attivita ? "\n\nDal rapportino precedente:\n" + r.attivita.slice(0, 200) : ""),
       priorita: "normale",
     }, operaiIds);
-    messaggio("Rapportino completato. Intervento di ritorno creato per " + data + ".");
+    messaggio("Rapportino completato. Intervento di ritorno creato per " + dataRitorno + ".");
   }catch(e){
-    messaggio("Rapportino completato, ma non è stato possibile creare l'intervento di ritorno: " + e.message, "att");
+    salvaDatiFollowup();
+    messaggio("Rapportino completato, ma non è stato possibile creare l'intervento di ritorno: " + e.message + ". Il follow-up è stato conservato.", "att");
   }
+}
+function salvaDatiFollowup(){
+  try{
+    const dati = { desc: $("rf-followup-desc").value.trim(), data: $("rf-followup-data").value, ora: $("rf-followup-ora").value,
+      cliente: $("rf-cliente").value.trim(), indirizzo: $("rf-indirizzo").value.trim(), cliente_id: sceltaCliente.id(),
+      tipologia: $("rf-tipologia").value, attivita: $("rf-attivita").value.trim().slice(0, 300),
+      salvato: new Date().toISOString() };
+    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
+    lista.push(dati);
+    localStorage.setItem("followup_pendenti", JSON.stringify(lista.slice(-20)));
+  }catch(e){ /* localStorage non disponibile */ }
 }
 async function mostraEsito(res, completa){
   const nFoto = n=>n === 1 ? "1 foto" : n + " foto";

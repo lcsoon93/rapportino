@@ -121,16 +121,19 @@ async function disegnaGiornata() {
   }
 
   // statistiche
-  let completati = 0, inCorso = 0, oreTotali = 0;
+  let completati = 0, inCorso = 0, oreTotali = 0, daUltimare = 0;
   for (const i of interventiOggi) {
     const st = statoIntervento(i, io);
     if (st.codice === "completato") completati++;
     else if (st.codice === "in_corso" || st.codice === "da_completare") inCorso++;
     for (const r of (i.rapportini || [])) {
-      if (r.autore_id === io && r.rapportino_operai) {
-        for (const o of r.rapportino_operai) {
-          if (o.operaio_id === io && o.dalle && o.alle) {
-            oreTotali += minutiTra(o.dalle, o.alle);
+      if (r.autore_id === io) {
+        if (r.esito === "Da ultimare") daUltimare++;
+        if (r.rapportino_operai) {
+          for (const o of r.rapportino_operai) {
+            if (o.operaio_id === io && o.dalle && o.alle) {
+              oreTotali += minutiTra(o.dalle, o.alle);
+            }
           }
         }
       }
@@ -138,7 +141,7 @@ async function disegnaGiornata() {
   }
   $("mg-tot").textContent = interventiOggi.length;
   $("mg-completati").textContent = completati;
-  $("mg-incorso").textContent = inCorso;
+  $("mg-incorso").textContent = inCorso + (daUltimare ? " (" + daUltimare + " da ultimare)" : "");
   $("mg-ore").textContent = minutiAOre(oreTotali);
 
   // lista interventi di oggi
@@ -191,6 +194,35 @@ async function disegnaGiornata() {
         $("mg-lista-prossimi").innerHTML = "";
       }
     } catch (e) { /* non critico */ }
+  }
+
+  // follow-up pendenti (ritorni rimandati)
+  if (isAdmin) {
+    try {
+      const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
+      const sezF = $("mg-sez-followup-head");
+      if (lista.length) {
+        sezF.classList.remove("nascosto");
+        $("mg-conta-followup").textContent = lista.length;
+        $("mg-lista-followup").innerHTML = lista.map((f, idx) => `<div class="card intervento mg-bozza" style="margin-bottom:10px">
+          <div class="int-top">
+            <div class="int-ora vuota"><svg class="i i-sm"><use href="#i-clock"/></svg></div>
+            <div class="int-corpo">
+              <div class="int-cliente">${esc(f.cliente || "Senza cliente")}</div>
+              <div class="int-desc">${f.desc ? esc(f.desc) : "Lavoro da ultimare"}${f.data ? " · Ritorno: " + formattaData(f.data) : ""}</div>
+              <div class="int-badge"><span class="badge att">Da programmare</span></div>
+            </div>
+          </div>
+          <div class="int-azioni">
+            <button type="button" class="btn btn-primario" style="font-size:13px" onclick="creaIntervnetoDaFollowup(${idx})"><svg class="i"><use href="#i-cal"/></svg>Programma</button>
+            <button type="button" class="btn btn-secondario" style="font-size:13px" onclick="rimuoviFollowup(${idx})"><svg class="i"><use href="#i-trash"/></svg></button>
+          </div>
+        </div>`).join("");
+      } else {
+        sezF.classList.add("nascosto");
+        $("mg-lista-followup").innerHTML = "";
+      }
+    } catch (e) { /* localStorage non disponibile */ }
   }
 
   // coda sincronizzazione
@@ -250,6 +282,40 @@ async function disegnaGiornata() {
     fineGiornata.classList.add("nascosto");
   }
 }
+
+// follow-up: crea intervento da un follow-up pendente
+window.creaIntervnetoDaFollowup = function (idx) {
+  try {
+    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
+    const f = lista[idx];
+    if (!f) return;
+    if (typeof window.apriModuloIntervento === "function") {
+      window.apriModuloIntervento(null, {
+        cliente: f.cliente, indirizzo: f.indirizzo, cliente_id: f.cliente_id,
+        tipologia: f.tipologia, telefono: ""
+      });
+      const setData = () => {
+        const el = document.getElementById("int-data");
+        const desc = document.getElementById("int-descrizione");
+        if (el && f.data) el.value = f.data;
+        if (desc) desc.value = (f.desc || "Ritorno: completare lavoro") + (f.attivita ? "\n\nDal rapportino precedente:\n" + f.attivita : "");
+        if (f.ora) { const oraEl = document.getElementById("int-ora"); if (oraEl) oraEl.value = f.ora; }
+      };
+      setTimeout(setData, 50);
+      lista.splice(idx, 1);
+      localStorage.setItem("followup_pendenti", JSON.stringify(lista));
+    }
+  } catch (e) { alert(e.message); }
+};
+window.rimuoviFollowup = function (idx) {
+  if (!confirm("Rimuovere questo follow-up?")) return;
+  try {
+    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
+    lista.splice(idx, 1);
+    localStorage.setItem("followup_pendenti", JSON.stringify(lista));
+    disegnaGiornata();
+  } catch (e) { /* ignora */ }
+};
 
 // funzione "Registra imprevisto": apre un rapportino autonomo
 window.registraImprevisto = function () {

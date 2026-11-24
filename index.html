@@ -390,6 +390,13 @@
       </div>
       <div id="mg-lista-prossimi" data-permesso="interventi.gestisci"></div>
 
+      <!-- follow-up pendenti (ritorni rimandati) -->
+      <div class="sezione-head nascosto" id="mg-sez-followup-head" data-permesso="interventi.gestisci">
+        <h2>Ritorni da programmare</h2>
+        <span class="ag-conta" id="mg-conta-followup"></span>
+      </div>
+      <div id="mg-lista-followup" data-permesso="interventi.gestisci"></div>
+
       <!-- da inviare -->
       <div class="sezione-head nascosto" id="mg-sez-sync-head">
         <h2>Da inviare</h2>
@@ -742,15 +749,18 @@
       </div>
       <div class="campo"><label for="int-cliente">Cliente</label><input type="text" id="int-cliente" autocomplete="off" required></div>
       <div class="campo"><label for="int-indirizzo">Indirizzo</label><input type="text" id="int-indirizzo" autocomplete="off"></div>
-      <div class="campo"><label for="int-telefono">Telefono</label><input type="tel" id="int-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
       <div class="campo"><label for="int-descrizione">Descrizione</label><textarea id="int-descrizione" placeholder="Cosa c'è da fare"></textarea></div>
-      <div class="due campo">
-        <div><label for="int-priorita">Priorità</label>
-          <select id="int-priorita"><option value="bassa">Bassa</option><option value="normale" selected>Normale</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
-        <div><label for="int-tipologia">Tipologia</label>
-          <select id="int-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
-      </div>
       <div class="campo"><label>Operai assegnati</label><div id="int-operai" class="card" style="padding:4px 14px"></div></div>
+      <details class="int-avanzati" id="int-dettagli-avanzati">
+        <summary class="link-btn" style="padding:8px 0;cursor:pointer">Dettagli avanzati</summary>
+        <div class="campo"><label for="int-telefono">Telefono</label><input type="tel" id="int-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
+        <div class="due campo">
+          <div><label for="int-priorita">Priorità</label>
+            <select id="int-priorita"><option value="bassa">Bassa</option><option value="normale" selected>Normale</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
+          <div><label for="int-tipologia">Tipologia</label>
+            <select id="int-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
+        </div>
+      </details>
       <div class="msg-errore" id="int-errore" role="alert"></div>
       <div class="due" style="margin-top:12px">
         <div><button type="button" class="btn btn-secondario btn-blocco" onclick="chiudiModuloIntervento()">Annulla</button></div>
