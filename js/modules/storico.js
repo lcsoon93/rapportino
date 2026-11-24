@@ -2,6 +2,7 @@
 // Solo lettura con le API esistenti (elencoInterventi + storicoRapportini): cosa arriva lo decide RLS.
 // Dettaglio intervento e rapportino (foto, PDF) con le schermate gia' esistenti.
 import { registraVista } from "../core/navigation.js";
+import { archivioVisibile, caricaImportate } from "../services/importati.js";
 import { elencoInterventi, minutiTra, nomeOperaio, operaiAttivi, storicoRapportini } from "../services/api-lavori.js";
 import { minutiSulPosto } from "../services/calculations.js";
 import { orePerCliente } from "../core/preferenze.js";
@@ -29,7 +30,7 @@ const stessoCliente = (a, b)=>norma(a) === norma(b);
 // telefono (archivio sincronizzato per admin e company), quindi si leggono da li', senza richieste in piu'.
 // Una voce per ogni scheda cliente con nome; le ore erano per giornata, non per cliente: non si usano.
 function vecchiRapporti(dal, al){
-  const db = leggiDB(), out = [];
+  const db = archivioVisibile(), out = [];     // senza le schede gia' importate come rapportini
   Object.keys(db).filter(iso=>iso >= dal && iso <= al).sort().forEach(iso=>{
     const g = db[iso] || {};
     const tecnici = (g.operai || []).map(o=>String(o.nome || "").trim()).filter(Boolean);
@@ -121,6 +122,7 @@ export function pdfClienteStorico(btn){
 
 // ---------------------------------------------------------------- dati
 async function carica(){
+  await caricaImportate();
   const periodo = $("st-dal").value + "|" + $("st-al").value;
   if(dati.periodo === periodo) return;                 // stesso periodo: si filtra in memoria
   const n = ++richiesta;

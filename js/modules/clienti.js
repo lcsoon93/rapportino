@@ -3,6 +3,7 @@
 import { dataIt } from "../utils/dates.js";
 import { esc, euro, evidenzia, iniziali } from "../utils/formatters.js";
 import { leggiDB } from "../core/storage.js";
+import { archivioVisibile } from "../services/importati.js";
 import { registraVista } from "../core/navigation.js";
 import { icona } from "../utils/dom.js";
 import { nuovoRapportino } from "./dashboard.js";
@@ -352,7 +353,7 @@ export function nuovoPerCliente(btn){ nuovoRapportino({ nome: btn.dataset.nome, 
 
 // ---------------------------------------------------------------- vecchia app: ricerca nelle giornate
 function storicoVecchio(query, cont){
-  const db = leggiDB();
+  const db = archivioVisibile();                // le schede importate compaiono tra i rapportini
   const corrispondenze = [];
 
   Object.keys(db).sort().reverse().forEach(iso=>{

@@ -7,6 +7,7 @@ import { leggiDB } from "../core/storage.js";
 import { datiGiornata } from "./rapportini.js";
 import { elencoRapportini, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
 import { giornateUnite } from "../services/giornate-logica.js";
+import { archivioVisibile, caricaImportate } from "../services/importati.js";
 import { aggiornaOrari, orariInseriti } from "../services/orario-giornata.js";
 
 // ---- giornate del mese: vecchio foglio + rapportini + orario della giornata (8-17 salvo inserimento) ----
@@ -16,14 +17,15 @@ let meseCaricato = { mese: "", rapportini: [], utenti: [] };
 export async function caricaMese(mese){
   const giorni = giorniMese(mese);
   const [operai, rapportini] = await Promise.all([operaiAttivi().catch(()=>[]),
-    elencoRapportini({ dal: giorni[0], al: giorni[giorni.length - 1] }), aggiornaOrari()]);
+    elencoRapportini({ dal: giorni[0], al: giorni[giorni.length - 1] }), aggiornaOrari(), caricaImportate()]);
   meseCaricato = { mese, rapportini, utenti: operai.map(o=>o.nome || o.username).filter(Boolean) };
 }
 export function meseLetto(mese){ return meseCaricato.mese === mese; }
 export function giornateDelMese(mese){
   const giorni = giorniMese(mese), ok = meseLetto(mese);
   const utenti = ok ? [...new Set(meseCaricato.utenti.concat(meseCaricato.rapportini.flatMap(r=>(r.rapportino_operai || []).map(o=>nomeOperaio(o.operaio_id)))))] : [];
-  return giornateUnite(giorni, { fogli: leggiDB(), rapportini: ok ? meseCaricato.rapportini : [], inseriti: orariInseriti(giorni), nome: nomeOperaio, utenti });
+  // schede del vecchio foglio gia' importate: contano una volta, come rapportini (ore della giornata invariate)
+  return giornateUnite(giorni, { fogli: archivioVisibile(), rapportini: ok ? meseCaricato.rapportini : [], inseriti: orariInseriti(giorni), nome: nomeOperaio, utenti });
 }
 
 // saldo con segno: +1h 30m oppure -45m
