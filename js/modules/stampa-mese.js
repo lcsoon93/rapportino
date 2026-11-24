@@ -3,6 +3,7 @@
 // operaio e totale. Bozze e rapportini rimasti sul telefono sono elencati a parte, mai tra i completati.
 // Come il PDF della giornata: "Prepara" legge dati e foto, "Condividi" genera il PDF dal tocco.
 import { puo } from "../core/permessi.js";
+import { mostraVista } from "../core/navigation.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
 import { elencoRapportini, nomeOperaio, operaiAttivi, rapportiniCompletatiPeriodo } from "../services/api-lavori.js";
@@ -28,6 +29,21 @@ export function azzeraPDFMese(){
   $("rm-esito").innerHTML = "";
   $("rm-condividi").classList.add("nascosto");
   messaggio("");
+}
+// riquadro "Stampa e report" di Rapportini: Giorno (PDF della giornata) | Mese (PDF del mese, report ore)
+export function stampaPeriodo(quale){
+  const mese = quale === "mese";
+  $("sb-giorno").classList.toggle("nascosto", mese);
+  $("sb-mese").classList.toggle("nascosto", !mese);
+  $("sb-seg-giorno").setAttribute("aria-pressed", !mese);
+  $("sb-seg-mese").setAttribute("aria-pressed", mese);
+}
+// report ore del mese (ore per operaio, giornate, monte ore, PDF): stesso mese scelto qui
+export function apriReportOre(){
+  const mese = $("rm-mese").value || oggiIso().slice(0, 7);
+  const el = document.getElementById("mesedata");
+  if(el) el.value = mese;
+  mostraVista("reportmese");
 }
 export function spostaMesePDF(delta){
   const [a, m] = ($("rm-mese").value || oggiIso().slice(0, 7)).split("-").map(Number);

@@ -7,8 +7,8 @@ import { profilo } from "./sessione.js";
 
 const PERMESSI = {
   admin: [
-    "vista.home", "vista.giornata", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
-    "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino", "vista.storico",
+    "vista.giornata", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
+    "vista.utenti", "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.storico", "vista.archivio",
     "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
     "backup.esporta", "backup.importa", "report", "pdf", "pdf.opzioni",
@@ -16,16 +16,16 @@ const PERMESSI = {
     "clienti.consulta", "clienti.crea", "clienti.gestisci", "clienti.elimina",
   ],
   company: [
-    "vista.giornata", "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
-    "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario degli interventi (consultazione)
+    "vista.giornata", "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro", "vista.archivio",
+    "vista.calgiorno", "vista.sett", "vista.mese",          // Agenda degli interventi (consultazione)
     "vista.storico",                                         // Storico (consultazione)
     "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
     "ai.controllo", "ai.ricerca", "ai.assistente", "ai.predittiva",   // assistente AI (stessi permessi sul server)
     "vista.cerca", "clienti.consulta", "clienti.crea", "clienti.gestisci",   // anagrafica: gestisce, non elimina
   ],
   worker: [
-    "vista.giornata", "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
-    "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario: solo gli interventi che le policy gli mostrano
+    "vista.giornata", "vista.rapportino", "vista.rapporti", "vista.altro",
+    "vista.calgiorno", "vista.sett", "vista.mese",          // Agenda: solo gli interventi che le policy gli mostrano
     "rapportini.compila",
     "ai.rapportino", "ai.controllo", "ai.ricerca",                    // assistente nel rapportino; ricerca sui propri dati
     "vista.cerca", "clienti.consulta", "clienti.crea",                // anagrafica: consulta e aggiunge dal rapportino
@@ -34,9 +34,9 @@ const PERMESSI = {
 
 // navigazione in basso per ruolo: [id, etichetta, icona, vista]
 const NAV = {
-  admin:   [["giornata", "Giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  company: [["giornata", "Giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  worker:  [["giornata", "Giornata", "home", "giornata"], ["rapporti", "Rapportini", "file", "rapporti"], ["cal", "Calendario", "cal", "cal"], ["altro", "Altro", "grid", "altro"]],
+  admin:   [["giornata", "Giornata", "home", "giornata"], ["agenda", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  company: [["giornata", "Giornata", "home", "giornata"], ["agenda", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  worker:  [["giornata", "Giornata", "home", "giornata"], ["agenda", "Agenda", "cal", "cal"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
 };
 const VISTA_INIZIALE = { admin: "giornata", company: "giornata", worker: "giornata" };
 

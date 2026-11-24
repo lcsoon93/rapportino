@@ -277,16 +277,6 @@
           </div>
         </div>
 
-        <div class="card orario-g" id="home-orario">
-          <div class="og-testa"><h2>Orario della giornata</h2><span class="og-ore" id="og-ore">9 ore</span></div>
-          <div class="og-campi">
-            <label for="og-dalle">Dalle<input type="time" id="og-dalle" onchange="cambiaOrarioGiorno()"></label>
-            <label for="og-alle">Alle<input type="time" id="og-alle" onchange="cambiaOrarioGiorno()"></label>
-            <button type="button" class="mini nascosto" id="og-ripristina" onclick="ripristinaOrarioGiorno()">Torna a 8–17</button>
-          </div>
-          <label class="check"><input type="checkbox" id="og-escludi" onchange="cambiaOrarioGiorno()"><span>Escludi dal monte ore</span></label>
-          <div class="og-nota" id="og-nota" role="status" aria-live="polite"></div>
-        </div>
 
         <div class="home-cta">
           <button type="button" class="btn btn-primario btn-xl" id="home-nuovo-rapportino" onclick="nuovoRapportinoAutonomo()">
@@ -404,12 +394,27 @@
       </div>
       <div id="mg-lista-followup"></div>
 
-      <!-- da inviare -->
-      <div class="sezione-head nascosto" id="mg-sez-sync-head">
-        <h2>Da inviare</h2>
-        <span class="ag-conta" id="mg-conta-sync"></span>
-      </div>
-      <div id="mg-lista-sync"></div>
+      <div class="card orario-g" id="home-orario" data-permesso="report">
+          <div class="og-testa"><h2>Orario della giornata</h2><span class="og-ore" id="og-ore">9 ore</span></div>
+          <label class="og-giorno" for="og-giorno">Giorno<input type="date" id="og-giorno" onchange="disegnaOrarioGiornata()"></label>
+          <div class="og-campi">
+            <label for="og-dalle">Dalle<input type="time" id="og-dalle" onchange="cambiaOrarioGiorno()"></label>
+            <label for="og-alle">Alle<input type="time" id="og-alle" onchange="cambiaOrarioGiorno()"></label>
+            <button type="button" class="mini nascosto" id="og-ripristina" onclick="ripristinaOrarioGiorno()">Torna a 8–17</button>
+          </div>
+          <label class="check"><input type="checkbox" id="og-escludi" onchange="cambiaOrarioGiorno()"><span>Escludi dal monte ore</span></label>
+          <div class="og-nota" id="og-nota" role="status" aria-live="polite"></div>
+        </div>
+
+      <!-- da inviare: rapportini salvati sul telefono (riprova, conflitti, sincronizza ora) -->
+      <div id="lavoro-locali-box" class="nascosto">
+      <div class="sezione-head"><h2>Da inviare</h2>
+        <button type="button" class="link-btn" id="sinc-ora" onclick="sincronizzaOra()">Sincronizza ora</button></div>
+      <div class="card sinc-testa" id="sinc-testa" role="status" aria-live="polite"></div>
+      <p class="elenco-nota">Salvati su questo telefono: vengono inviati in automatico quando c'è rete e l'app è aperta
+        (anche alla riapertura). Su iPhone l'invio non continua ad app chiusa.</p>
+      <div id="lavoro-locali"></div>
+    </div>
     </div>
   </section>
 
@@ -494,8 +499,9 @@
 
   <!-- ================= CALENDARIO: selettore Settimana / Mese ================= -->
   <div id="cal-testa" class="nascosto">
-    <div class="vista-head"><div class="vh-testi"><h1>Calendario</h1><div class="vh-sub"><span data-permesso="report">Interventi, report, ore e giornate compilate</span><span class="solo-senza-report">Interventi in programma</span></div></div></div>
-    <div class="seg" role="group" aria-label="Periodo">
+    <div class="vista-head"><div class="vh-testi"><h1>Agenda</h1><div class="vh-sub">Interventi in programma</div></div></div>
+    <div class="seg" role="group" aria-label="Vista dell'agenda">
+      <button type="button" id="seg-elenco" aria-pressed="false" data-permesso="interventi.gestisci" onclick="mostraVista('interventi')">Elenco</button>
       <button type="button" id="seg-giorno" aria-pressed="false" onclick="mostraVista('calgiorno')">Giorno</button>
       <button type="button" id="seg-sett" aria-pressed="false" onclick="mostraVista('sett')">Settimana</button>
       <button type="button" id="seg-mese" aria-pressed="true" onclick="mostraVista('mese')">Mese</button>
@@ -552,6 +558,10 @@
 
   <!-- ================= MESE ================= -->
   <section id="vista-mese" class="nascosto">
+    <div class="vista-head solo-report-mese">
+      <button type="button" class="indietro" onclick="mostraVista('rapporti')" aria-label="Torna a Rapportini"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Report ore del mese</h1><div class="vh-sub">Ore per operaio, giornate e clienti, PDF</div></div>
+    </div>
     <div class="cal-griglia-layout">
       <div class="modulo m-cal">
         <div class="periodo">
@@ -574,7 +584,7 @@
 
       <div class="modulo m-sett" data-permesso="report">
         <div class="titolo" style="margin-bottom:6px"><span class="t-icona pervinca"><svg class="i"><use href="#i-chart"/></svg></span><span id="mese-titolo">Report mensile</span></div>
-        <p class="elenco-nota" style="margin:0 2px 8px">Ore della giornata 8–17 (9 ore) per ogni operaio, salvo l'orario inserito in Home. Le giornate escluse dal monte ore restano in elenco ma non si sommano.</p>
+        <p class="elenco-nota" style="margin:0 2px 8px">Ore della giornata 8–17 (9 ore) per ogni operaio, salvo l'orario inserito in Giornata. Le giornate escluse dal monte ore restano in elenco ma non si sommano.</p>
         <div class="og-nota" id="mese-nota" role="status" aria-live="polite"></div>
         <div id="meseelenco"></div>
         <div id="mesericap" style="margin-top:12px"></div>
@@ -672,42 +682,27 @@
           <div class="gruppo-tit">Amministrazione</div>
           <div class="card">
             <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Nomi, ruoli, PIN; operai: crea, disattiva, password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('interventi')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Interventi</span><span class="v-sub">Crea, assegna agli operai, stato</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('rapporti')"><span class="v-ic pervinca"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Rapportini</span><span class="v-sub">Rapportini degli operai e giornate, con PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="mostraVista('lavoro')"><span class="v-ic azzurro"><svg class="i"><use href="#i-user"/></svg></span><span class="v-testi"><span class="v-tit">Il mio lavoro</span><span class="v-sub">Interventi assegnati a te e tuoi rapportini</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
         <div class="gruppo" data-permesso="vista.storico vista.cerca">
           <div class="gruppo-tit">Consultazione</div>
           <div class="card">
-            <button type="button" class="voce" data-permesso="clienti.consulta" onclick="mostraVista('cerca')"><span class="v-ic azzurro"><svg class="i"><use href="#i-users"/></svg></span><span class="v-testi"><span class="v-tit">Anagrafica clienti</span><span class="v-sub">Schede clienti: nome, indirizzo, telefono, email, P. IVA</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
+            <button type="button" class="voce" id="altro-anagrafica" data-permesso="clienti.consulta" onclick="mostraVista('cerca')"><span class="v-ic azzurro"><svg class="i"><use href="#i-users"/></svg></span><span class="v-testi"><span class="v-tit">Anagrafica clienti</span><span class="v-sub">Schede clienti: nome, indirizzo, telefono, email, P. IVA</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
             <button type="button" class="voce" data-permesso="vista.storico" onclick="mostraVista('storico')"><span class="v-ic pervinca"><svg class="i"><use href="#i-search"/></svg></span><span class="v-testi"><span class="v-tit">Storico</span><span class="v-sub">Interventi e rapportini: filtri, ricerca, ore, foto e PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
 
-        <div class="gruppo" data-permesso="report">
-          <div class="gruppo-tit">Report</div>
-          <div class="card">
-            <button type="button" class="voce" onclick="mostraVista('mese')"><span class="v-ic pervinca"><svg class="i"><use href="#i-cal"/></svg></span><span class="v-testi"><span class="v-tit">Report mensile</span><span class="v-sub">Ore per operaio, giornate e clienti, PDF</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-          </div>
-        </div>
       </div>
       <div>
-        <div class="gruppo">
-          <div class="gruppo-tit">Archivio della vecchia app</div>
-          <div class="card m-backup">
-            <button type="button" class="voce" data-permesso="rapportino.compila" onclick="mostraVista('giorno')"><span class="v-ic"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Foglio giornaliero (vecchia app)</span><span class="v-sub" id="altro-data"></span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
-            <button type="button" class="voce" onclick="sincronizza()"><span class="v-ic"><svg class="i"><use href="#i-refresh"/></svg></span><span class="v-testi"><span class="v-tit">Aggiorna da server</span><span class="v-sub">Scarica le modifiche dell'altro telefono</span></span></button>
-            <button type="button" class="voce" data-permesso="backup.esporta" onclick="esportaBackup()"><span class="v-ic"><svg class="i"><use href="#i-download"/></svg></span><span class="v-testi"><span class="v-tit">Esporta backup</span><span class="v-sub">File .json con tutti i rapporti</span></span></button>
-            <button type="button" class="voce" data-permesso="backup.importa" onclick="document.getElementById('fileimporta').click()"><span class="v-ic att"><svg class="i"><use href="#i-upload"/></svg></span><span class="v-testi"><span class="v-tit">Importa backup</span><span class="v-sub">Da un file esportato da questa app</span></span></button>
-            <input type="file" id="fileimporta" accept=".json,application/json" class="nascosto" onchange="importaBackup(this)">
-            <div class="nota">Il foglio giornaliero della vecchia app resta consultabile; i lavori nuovi si registrano con i rapportini. Il backup riguarda solo quelle giornate.</div>
+        <div class="gruppo" data-permesso="vista.archivio">
+          <div class="gruppo-tit">Vecchia app</div>
+          <div class="card">
+            <button type="button" class="voce" onclick="mostraVista('archivio')"><span class="v-ic"><svg class="i"><use href="#i-file"/></svg></span><span class="v-testi"><span class="v-tit">Archivio vecchia app</span><span class="v-sub">Giornate del foglio giornaliero, backup (i lavori sono già tra i rapportini)</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
         </div>
         <div class="gruppo">
           <div class="gruppo-tit">Informazioni</div>
           <div class="card">
-            <div class="info-riga"><span>Giornate salvate sul telefono</span><b id="info-giorni">—</b></div>
             <div class="info-riga"><span>Sincronizzazione server</span><b id="info-sinc">—</b></div>
             <div class="info-riga"><span>Invio mail a</span><b id="info-mail">—</b></div>
           </div>
@@ -735,14 +730,6 @@
       <button type="button" class="btn btn-primario btn-xl" onclick="nuovoRapportinoAutonomo()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo rapportino</button>
     </div>
     <div class="msg-info" id="lavoro-stato" role="status" aria-live="polite"></div>
-    <div id="lavoro-locali-box" class="nascosto">
-      <div class="sezione-head"><h2>Da inviare</h2>
-        <button type="button" class="link-btn" id="sinc-ora" onclick="sincronizzaOra()">Sincronizza ora</button></div>
-      <div class="card sinc-testa" id="sinc-testa" role="status" aria-live="polite"></div>
-      <p class="elenco-nota">Salvati su questo telefono: vengono inviati in automatico quando c'è rete e l'app è aperta
-        (anche alla riapertura). Su iPhone l'invio non continua ad app chiusa.</p>
-      <div id="lavoro-locali"></div>
-    </div>
     <div class="sezione-head"><h2>I miei interventi</h2></div>
     <div id="lavoro-interventi"></div>
     <div class="sezione-head"><h2>Bozze</h2></div>
@@ -753,9 +740,6 @@
 
   <!-- ================= INTERVENTI (admin e company) ================= -->
   <section id="vista-interventi" class="nascosto">
-    <div class="vista-head">
-      <div class="vh-testi"><h1>Interventi</h1><div class="vh-sub">Crea, assegna agli operai e segui lo stato</div></div>
-    </div>
     <button type="button" class="btn btn-primario btn-xl" id="int-nuovo" onclick="apriModuloIntervento()"><svg class="i i-lg"><use href="#i-plus"/></svg>Nuovo intervento</button>
 
     <form class="modulo nascosto" id="int-form" novalidate style="margin-top:14px">
@@ -932,35 +916,7 @@
   </section>
   <!-- ================= RAPPORTINI COMPILATI (company e admin) ================= -->
   <section id="vista-rapporti" class="nascosto">
-    <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Rapportini degli operai e giornate, con PDF</div></div></div>
-    <div class="modulo rg-box">
-      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>PDF della giornata</div>
-      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del giorno in un solo PDF, con firme e foto. Bozze e rapportini non ancora inviati restano fuori (vengono elencati).</p>
-      <div class="due">
-        <div><label for="rg-data">Giorno</label><input type="date" id="rg-data" onchange="azzeraPDFGiornata();filtraGiornoRapporti(this.value)"></div>
-        <div data-permesso="rapportini.consulta"><label for="rg-operaio">Operaio</label><select id="rg-operaio" onchange="azzeraPDFGiornata()"><option value="">Tutti</option></select></div>
-      </div>
-      <div class="ai-pulsanti">
-        <button type="button" class="btn btn-secondario" id="rg-prepara" onclick="preparaPDFGiornata(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF</span></button>
-        <button type="button" class="btn btn-primario nascosto" id="rg-condividi" onclick="condividiPDFGiornata(this)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Condividi PDF</span></button>
-      </div>
-      <div class="msg-info" id="rg-msg" role="status" aria-live="polite"></div>
-      <div id="rg-esito"></div>
-    </div>
-    <div class="modulo rg-box" id="rm-box">
-      <div class="titolo"><span class="t-icona pervinca"><svg class="i"><use href="#i-printer"/></svg></span>PDF del mese</div>
-      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del mese in un solo PDF, per giorno, con firme e foto, ore per giorno e per operaio e totale. Bozze e rapportini non ancora inviati sono elencati a parte.</p>
-      <div class="due">
-        <div><label for="rm-mese">Mese e anno</label><div class="oranow"><button type="button" class="btn-ora" onclick="spostaMesePDF(-1)" aria-label="Mese precedente">‹</button><input type="month" id="rm-mese" onchange="azzeraPDFMese()"><button type="button" class="btn-ora" onclick="spostaMesePDF(1)" aria-label="Mese successivo">›</button></div></div>
-        <div data-permesso="rapportini.consulta"><label for="rm-operaio">Operaio</label><select id="rm-operaio" onchange="azzeraPDFMese()"><option value="">Tutti</option></select></div>
-      </div>
-      <div class="ai-pulsanti">
-        <button type="button" class="btn btn-secondario" id="rm-prepara" onclick="preparaPDFMese(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF del mese</span></button>
-        <button type="button" class="btn btn-primario nascosto" id="rm-condividi" onclick="condividiPDFMese(this)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Condividi PDF</span></button>
-      </div>
-      <div class="msg-info" id="rm-msg" role="status" aria-live="polite"></div>
-      <div id="rm-esito"></div>
-    </div>
+    <div class="vista-head"><div class="vh-testi"><h1>Rapportini</h1><div class="vh-sub">Elenco, PDF del giorno e del mese, report ore</div></div></div>
     <div class="periodo">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
       <input type="month" id="rap-mese" onchange="disegnaRapporti()" aria-label="Mese">
@@ -974,9 +930,67 @@
       <div data-permesso="rapportini.consulta"><label for="rap-filtro-operaio">Operaio</label><select id="rap-filtro-operaio" onchange="disegnaRapporti()"><option value="">Tutti</option></select></div>
     </div>
     <div id="rap-nuovi"></div>
-    <div data-permesso="giornate.consulta">
-      <div class="sezione-head"><h2>Giornate (foglio giornaliero)</h2></div>
-      <div id="rap-elenco"></div>
+
+    <div class="modulo rg-box" id="stampa-box">
+      <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>Stampa e report</div>
+      <div class="seg" role="group" aria-label="Periodo della stampa" style="margin:0 0 12px">
+        <button type="button" id="sb-seg-giorno" aria-pressed="true" onclick="stampaPeriodo('giorno')">Giorno</button>
+        <button type="button" id="sb-seg-mese" aria-pressed="false" onclick="stampaPeriodo('mese')">Mese</button>
+      </div>
+      <div id="sb-giorno">
+      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del giorno in un solo PDF, con firme e foto. Bozze e rapportini non ancora inviati restano fuori (vengono elencati).</p>
+      <div class="due">
+        <div><label for="rg-data">Giorno</label><input type="date" id="rg-data" onchange="azzeraPDFGiornata();filtraGiornoRapporti(this.value)"></div>
+        <div data-permesso="rapportini.consulta"><label for="rg-operaio">Operaio</label><select id="rg-operaio" onchange="azzeraPDFGiornata()"><option value="">Tutti</option></select></div>
+      </div>
+      <div class="ai-pulsanti">
+        <button type="button" class="btn btn-secondario" id="rg-prepara" onclick="preparaPDFGiornata(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF</span></button>
+        <button type="button" class="btn btn-primario nascosto" id="rg-condividi" onclick="condividiPDFGiornata(this)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Condividi PDF</span></button>
+      </div>
+      <div class="msg-info" id="rg-msg" role="status" aria-live="polite"></div>
+      <div id="rg-esito"></div>
+      </div>
+      <div id="sb-mese" class="nascosto">
+      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del mese in un solo PDF, per giorno, con firme e foto, ore per giorno e per operaio e totale. Bozze e rapportini non ancora inviati sono elencati a parte.</p>
+      <div class="due">
+        <div><label for="rm-mese">Mese e anno</label><input type="month" id="rm-mese" onchange="azzeraPDFMese()"></div>
+        <div data-permesso="rapportini.consulta"><label for="rm-operaio">Operaio</label><select id="rm-operaio" onchange="azzeraPDFMese()"><option value="">Tutti</option></select></div>
+      </div>
+      <div class="ai-pulsanti">
+        <button type="button" class="btn btn-secondario" id="rm-prepara" onclick="preparaPDFMese(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF del mese</span></button>
+        <button type="button" class="btn btn-primario nascosto" id="rm-condividi" onclick="condividiPDFMese(this)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Condividi PDF</span></button>
+      </div>
+      <div class="msg-info" id="rm-msg" role="status" aria-live="polite"></div>
+      <div id="rm-esito"></div>
+      <div class="rm-report" data-permesso="report">
+        <button type="button" class="btn btn-secondario btn-blocco" id="rm-report-ore" onclick="apriReportOre()"><svg class="i"><use href="#i-chart"/></svg><span>Report ore del mese (operai, monte ore)</span></button>
+      </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ARCHIVIO DELLA VECCHIA APP (admin, company) ================= -->
+  <section id="vista-archivio" class="nascosto">
+    <div class="vista-head">
+      <button type="button" class="indietro" onclick="mostraVista('altro')" aria-label="Torna ad Altro"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <div class="vh-testi"><h1>Archivio vecchia app</h1><div class="vh-sub">Foglio giornaliero: solo consultazione</div></div>
+    </div>
+    <p class="nota" style="padding:0 0 12px">I lavori di queste giornate sono già tra i rapportini. Qui restano le giornate originali (con l'orario della giornata, usato dal report ore) e i backup.</p>
+    <div class="periodo">
+      <button type="button" class="freccia" onclick="spostaMeseArchivio(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <input type="month" id="arc-mese" onchange="disegnaArchivio()" aria-label="Mese">
+      <button type="button" class="freccia" onclick="spostaMeseArchivio(1)" aria-label="Mese successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
+    </div>
+    <div id="rap-elenco"></div>
+    <div class="gruppo" style="margin-top:16px">
+      <div class="gruppo-tit">Strumenti</div>
+      <div class="card m-backup">
+        <div class="info-riga"><span>Giornate salvate sul telefono</span><b id="info-giorni">—</b></div>
+        <button type="button" class="voce" onclick="sincronizza()"><span class="v-ic"><svg class="i"><use href="#i-refresh"/></svg></span><span class="v-testi"><span class="v-tit">Aggiorna da server</span><span class="v-sub">Scarica le modifiche dell'altro telefono</span></span></button>
+            <button type="button" class="voce" data-permesso="backup.esporta" onclick="esportaBackup()"><span class="v-ic"><svg class="i"><use href="#i-download"/></svg></span><span class="v-testi"><span class="v-tit">Esporta backup</span><span class="v-sub">File .json con tutti i rapporti</span></span></button>
+            <button type="button" class="voce" data-permesso="backup.importa" onclick="document.getElementById('fileimporta').click()"><span class="v-ic att"><svg class="i"><use href="#i-upload"/></svg></span><span class="v-testi"><span class="v-tit">Importa backup</span><span class="v-sub">Da un file esportato da questa app</span></span></button>
+            <input type="file" id="fileimporta" accept=".json,application/json" class="nascosto" onchange="importaBackup(this)">
+      </div>
     </div>
   </section>
 
@@ -1038,7 +1052,7 @@
   <div class="dentro">
     <button type="button" class="invia" id="btn-pdf-mese" onclick="inviaPDFMese()">
       <svg class="i"><use href="#i-send"/></svg>
-      <span>PDF mese</span>
+      <span>PDF report ore</span>
     </button>
     <button type="button" class="secondario" onclick="inviaTestoMese()"><svg class="i"><use href="#i-mail"/></svg>Testo</button>
   </div>

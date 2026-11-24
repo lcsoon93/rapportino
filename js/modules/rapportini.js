@@ -15,11 +15,12 @@ import { emetti, su } from "../core/eventi.js";
 export function aggiornaTestiData(){
   const iso = document.getElementById("data").value;
   if(!iso) return;
-  document.getElementById("giorno-sottotitolo").textContent = dataLunga(iso);
-  document.getElementById("home-giorno-etichetta").textContent = etichettaGiorno(iso);
-  document.getElementById("home-data").value = iso;
-  document.getElementById("home-btn-oggi").classList.toggle("nascosto", iso === oggiIso());
-  document.getElementById("altro-data").textContent = dataLunga(iso);
+  const el = id=>document.getElementById(id) || { classList: { toggle(){} } };   // alcune etichette non ci sono piu'
+  el("giorno-sottotitolo").textContent = dataLunga(iso);
+  el("home-giorno-etichetta").textContent = etichettaGiorno(iso);
+  el("home-data").value = iso;
+  el("home-btn-oggi").classList.toggle("nascosto", iso === oggiIso());
+  el("altro-data").textContent = dataLunga(iso);
 }
 export function spostaGiorno(delta){
   const el = document.getElementById("data");

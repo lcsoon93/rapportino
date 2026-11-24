@@ -20,8 +20,9 @@ import { oraAdesso } from "../utils/dom.js";
 import { apriCambioPassword, apriPin, esciDallApp } from "../modules/accesso.js";
 import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi } from "../modules/gestione-interventi.js";
 import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, impostaModalitaRapportino, inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
-import { disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
-import { azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF } from "../modules/stampa-mese.js";
+import { disegnaArchivio, disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseArchivio, spostaMeseRapporti } from "../modules/consultazione.js";
+import { apriReportOre, azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF, stampaPeriodo } from "../modules/stampa-mese.js";
+import { disegnaOrarioGiornata } from "../modules/dashboard.js";
 import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
 import { azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico } from "../modules/storico.js";
@@ -51,8 +52,8 @@ Object.assign(window, {
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
   azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico,
-  disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseRapporti,
-  azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF,
+  disegnaArchivio, disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseArchivio, spostaMeseRapporti,
+  apriReportOre, azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF, stampaPeriodo, disegnaOrarioGiornata,
   annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal,
   apriPDFGiornata, azzeraPDFGiornata, condividiPDFGiornata, impostaPDFFoglioUnico, preparaPDFGiornata,

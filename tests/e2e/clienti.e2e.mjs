@@ -472,7 +472,7 @@ try{
     await a.page.click("#cli-chiudi");
   });
 
-  await prova("Home -> Apri giornata: interventi da eseguire, eseguiti, annullati e lavori non programmati", async()=>{
+  await prova("Agenda -> Giorno: interventi da eseguire, eseguiti, annullati e lavori non programmati", async()=>{
     const g = "2026-12-20";
     const nuovo = (cliente, stato, ora)=>{ const i = { id: uuid(), data: g, ora, cliente, indirizzo: "", telefono: "", descrizione: "", priorita: "normale", tipologia: "", stato }; DB.interventi.set(i.id, i); };
     nuovo("Programmato Fatto", "completato", "08:00:00"); nuovo("Programmato Da Fare", "pianificato", "10:00:00"); nuovo("Programmato Annullato", "annullato", "12:00:00");
@@ -481,9 +481,7 @@ try{
       rapportino_operai: [{ operaio_id: UTENTI.worker.id, dalle: "15:00", alle: "16:00" }], aggiornato_il: g + "T16:00:00Z" });
     const altro = uuid();
     DB.rapportini.set(altro, { id: altro, intervento_id: null, autore_id: UTENTI.worker.id, data: "2026-12-21", cliente: "Altro Giorno", stato: "completato", rapportino_operai: [] });
-    await a.page.evaluate(()=>window.mostraVista("home"));
-    await a.page.evaluate(g=>{ document.getElementById("home-data").value = g; }, g);
-    await a.page.click("#btn-giornata-home");
+    await a.page.evaluate(g=>window.apriGiornoCal(g), g);
     await a.page.waitForSelector("#vista-calgiorno:not(.nascosto) .ag-sez");
     await a.page.waitForFunction(()=>document.querySelectorAll("#cg-elenco .ag-sez").length === 4);
     const sezioni = await a.page.$$eval("#cg-elenco .ag-sez", ss=>ss.map(x=>[x.querySelector(".gruppo-tit").textContent.replace(/\s+/g, " ").trim(), x.querySelector(".cli-elenco").textContent]));
@@ -500,21 +498,11 @@ try{
     await a.page.waitForFunction(()=>document.getElementById("rf-cliente").value === "Lavoro Fatto A Mano");
   });
 
-  await prova("Home: riepilogo e lavori del giorno dai dati nuovi; Nuovo rapportino apre un rapportino normale", async()=>{
-    const g = "2026-12-20";
-    await a.page.evaluate(()=>window.mostraVista("home"));
-    await a.page.evaluate(g=>window.apriGiornoHome(g), g);
-    await a.page.waitForFunction(()=>document.querySelectorAll("#home-interventi .ag-sez").length === 4);
-    assert.equal(await a.page.textContent("#home-int-titolo"), "Lavori del 20/12/2026");
-    const val = id=>a.page.textContent("#" + id);
-    assert.equal(await val("st-interventi"), "3");        // 1 da eseguire + 1 eseguito + 1 non programmato
-    assert.equal(await val("st-firmati"), "2");           // eseguito + non programmato completato
-    assert.equal(await val("st-dafirmare"), "1");
-    assert.equal(await val("st-ore"), "9 ore");           // ore della giornata: 8-17 fisso, salvo orario inserito
-    assert.match(await a.page.textContent("#home-interventi"), /Lavoro Fatto A Mano/);
+  await prova("Giornata: «Registra imprevisto» apre un rapportino normale (Veloce, con anagrafica in Completo)", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("giornata"));
     assert.equal(await a.page.$('#vista-calgiorno button:has-text("foglio giornaliero")'), null, "niente pulsante del foglio vecchio");
     await foto(a.page, "home");
-    await a.page.click("#home-nuovo-rapportino");
+    await a.page.click("#mg-imprevisto");
     await a.page.waitForSelector("#vista-rapportino:not(.nascosto)");
     assert.equal(await a.page.inputValue("#rf-cliente"), "");
     assert.equal(await a.page.isVisible("#rf-telefono"), false, "rapportino nuovo: modalita' Veloce");
@@ -522,7 +510,7 @@ try{
     assert.ok(await a.page.isVisible("#rf-telefono"), "rapportino nuovo (con telefono e anagrafica)");
   });
 
-  await prova("lavori del foglio giornaliero (vecchia app) visibili in Home e in Apri giornata", async()=>{
+  await prova("lavori del foglio giornaliero (vecchia app, non importati) visibili in Agenda -> Giorno", async()=>{
     const g = "2026-11-10";
     await a.page.evaluate(g=>import("./js/core/storage.js").then(m=>{
       const db = m.leggiDB();
@@ -531,18 +519,11 @@ try{
                   { id: "x2", nome: "Francesco via cimglia", indirizzo: "Via Cimaglia", fasce: [], dettagli: "Verifica", materiali: [], foto: [], firma: "", firmatario: "" }] };
       m.scriviDB(db);
     }), g);
-    await a.page.evaluate(()=>window.mostraVista("home"));
-    await a.page.evaluate(g=>window.apriGiornoHome(g), g);
-    await a.page.waitForFunction(()=>/Foglio giornaliero/.test(document.getElementById("home-interventi").textContent));
-    const t = await a.page.textContent("#home-interventi");
+    await a.page.evaluate(g=>window.apriGiornoCal(g), g);
+    await a.page.waitForFunction(()=>/Foglio giornaliero/.test(document.getElementById("cg-elenco").textContent));
+    const t = await a.page.textContent("#cg-elenco");
     assert.match(t, /Sapori Sociali/); assert.match(t, /Via Benedetto Cozzolino · 08:00–12:00/); assert.match(t, /Francesco via cimglia/);
     assert.match(t, /Firmato/); assert.match(t, /Da firmare/);
-    assert.equal(await a.page.textContent("#st-interventi"), "2");
-    assert.equal(await a.page.textContent("#st-firmati"), "2");
-    assert.equal(await a.page.textContent("#st-ore"), "9 ore");
-    await a.page.click("#btn-giornata-home");
-    await a.page.waitForFunction(()=>/Foglio giornaliero/.test(document.getElementById("cg-elenco").textContent));
-    assert.match(await a.page.textContent("#cg-elenco"), /Sapori Sociali/);
     await a.page.click('#cg-elenco .cli-riga:has-text("Sapori Sociali")');
     await a.page.waitForSelector("#vista-giorno:not(.nascosto)");
     assert.equal(await a.page.inputValue("#data"), g);
