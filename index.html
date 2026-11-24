@@ -927,7 +927,7 @@
       <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-printer"/></svg></span>PDF della giornata</div>
       <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del giorno in un solo PDF, con firme e foto. Bozze e rapportini non ancora inviati restano fuori (vengono elencati).</p>
       <div class="due">
-        <div><label for="rg-data">Giorno</label><input type="date" id="rg-data" onchange="azzeraPDFGiornata()"></div>
+        <div><label for="rg-data">Giorno</label><input type="date" id="rg-data" onchange="azzeraPDFGiornata();filtraGiornoRapporti(this.value)"></div>
         <div data-permesso="rapportini.consulta"><label for="rg-operaio">Operaio</label><select id="rg-operaio" onchange="azzeraPDFGiornata()"><option value="">Tutti</option></select></div>
       </div>
       <div class="ai-pulsanti">
@@ -937,11 +937,27 @@
       <div class="msg-info" id="rg-msg" role="status" aria-live="polite"></div>
       <div id="rg-esito"></div>
     </div>
+    <div class="modulo rg-box" id="rm-box">
+      <div class="titolo"><span class="t-icona pervinca"><svg class="i"><use href="#i-printer"/></svg></span>PDF del mese</div>
+      <p class="nota" style="padding:0 0 10px">Tutti i rapportini <b>completati</b> del mese in un solo PDF, per giorno, con firme e foto, ore per giorno e per operaio e totale. Bozze e rapportini non ancora inviati sono elencati a parte.</p>
+      <div class="due">
+        <div><label for="rm-mese">Mese e anno</label><div class="oranow"><button type="button" class="btn-ora" onclick="spostaMesePDF(-1)" aria-label="Mese precedente">‹</button><input type="month" id="rm-mese" onchange="azzeraPDFMese()"><button type="button" class="btn-ora" onclick="spostaMesePDF(1)" aria-label="Mese successivo">›</button></div></div>
+        <div data-permesso="rapportini.consulta"><label for="rm-operaio">Operaio</label><select id="rm-operaio" onchange="azzeraPDFMese()"><option value="">Tutti</option></select></div>
+      </div>
+      <div class="ai-pulsanti">
+        <button type="button" class="btn btn-secondario" id="rm-prepara" onclick="preparaPDFMese(this)"><svg class="i"><use href="#i-file"/></svg><span>Prepara il PDF del mese</span></button>
+        <button type="button" class="btn btn-primario nascosto" id="rm-condividi" onclick="condividiPDFMese(this)"><svg class="i"><use href="#i-send"/></svg><span data-testo-computer="Stampa PDF">Condividi PDF</span></button>
+      </div>
+      <div class="msg-info" id="rm-msg" role="status" aria-live="polite"></div>
+      <div id="rm-esito"></div>
+    </div>
     <div class="periodo">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(-1)" aria-label="Mese precedente"><svg class="i"><use href="#i-chev-l"/></svg></button>
       <input type="month" id="rap-mese" onchange="disegnaRapporti()" aria-label="Mese">
       <button type="button" class="freccia" onclick="spostaMeseRapporti(1)" aria-label="Mese successivo"><svg class="i"><use href="#i-chev-r"/></svg></button>
     </div>
+    <div class="campo" style="margin-bottom:8px"><label for="rap-giorno">Solo il giorno</label>
+      <div class="oranow"><input type="date" id="rap-giorno" onchange="filtraGiornoRapporti(this.value)"><button type="button" class="btn-ora" id="rap-giorno-tutti" onclick="filtraGiornoRapporti('')">Tutto il mese</button></div></div>
     <div class="msg-info" id="rap-stato" role="status" aria-live="polite"></div>
     <div class="due" style="margin-bottom:12px">
       <div><label for="rap-filtro-stato">Stato</label><select id="rap-filtro-stato" onchange="disegnaRapporti()"><option value="">Tutti</option><option value="bozza">Bozze</option><option value="completato">Completati</option></select></div>

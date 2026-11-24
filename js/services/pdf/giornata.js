@@ -362,7 +362,7 @@ function impaginatore(doc, s, cornice, yIniziale){
 // =====================================================================================================
 // Cornice "pagina A4": prima pagina con intestazione completa, le altre con intestazione compatta e
 // filigrana. Usata dal rapportino singolo e dal foglio unico della giornata.
-function documentoPagina(titolo, info){
+export function documentoPagina(titolo, info){
   const doc = nuovoDoc();
   const ML = 18, MR = 18;
   const y0 = intestazionePDF(doc, titolo, info);

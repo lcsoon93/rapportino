@@ -157,6 +157,7 @@ select{
 }
 .int-ora small{display:block;font-weight:500;font-size:11.5px;color:var(--testo-2)}
 .int-ora.vuota{background:var(--sfondo);color:var(--testo-2);font-weight:600;font-size:12px}
+.int-ora.effettivo{background:var(--superficie);color:var(--testo);border:1px dashed var(--bordo-forte)}
 .int-corpo{flex:1;min-width:0}
 .int-cliente{font-weight:700;font-size:16.5px;line-height:1.3;word-break:break-word}
 .int-desc{color:var(--testo-2);font-size:14px;margin-top:3px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}

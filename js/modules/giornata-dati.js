@@ -48,6 +48,25 @@ export function unisciRapportini(server, locali){
   return [...perId.values()];
 }
 
+// Orario da mostrare a sinistra della scheda di un intervento (solo visualizzazione, nessun dato modificato):
+// - "programmato": l'ora dell'intervento (campo facoltativo: può mancare, anche nei dati vecchi);
+// - "effettivo": senza ora programmata, l'inizio del lavoro segnato nel rapportino (righe dell'utente,
+//   altrimenti di tutti), solo se l'orario è valido;
+// - "nessuno": nessun orario attendibile (rappresentazione neutra, mai un orologio "in attesa").
+// lavoro: intervallo effettivo "HH:MM–HH:MM" dal rapportino, se completo; lo stato non c'entra.
+const hhmm = t=>{ const v = String(t || "").slice(0, 5); return /^([01]\d|2[0-3]):[0-5]\d$/.test(v) ? v : ""; };
+export function orarioScheda(i, st, io){
+  const programmato = hhmm(i && i.ora);
+  const ore = (st && st.rapportino && st.rapportino.ore) || [];
+  const mie = ore.filter(o=>o && o.operaio_id === io && hhmm(o.dalle));
+  const righe = mie.length ? mie : ore.filter(o=>o && hhmm(o.dalle));
+  const inizi = righe.map(o=>hhmm(o.dalle)).sort(), fini = righe.map(o=>hhmm(o.alle)).filter(Boolean).sort();
+  const lavoro = inizi.length && fini.length && righe.every(o=>hhmm(o.alle)) ? inizi[0] + "–" + fini[fini.length - 1] : "";
+  if(programmato) return { tipo: "programmato", ora: programmato, lavoro };
+  if(inizi.length) return { tipo: "effettivo", ora: inizi[0], lavoro };
+  return { tipo: "nessuno", ora: "", lavoro: "" };
+}
+
 // stato visto da chi apre la giornata (io), con i propri rapportini già uniti (miei: per intervento_id)
 export function statoIntervento(i, io, miei){
   if(i.stato === "annullato") return { codice: "annullato", label: "Annullato", classe: "neutro" };
