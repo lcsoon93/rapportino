@@ -1,6 +1,7 @@
 // Ricerca per il computer (search.html): logica pura, senza DOM ne' rete (provata in tests/unit).
 // Unisce in "voci" omogenee i rapportini nuovi (tabella rapportini) e le schede cliente del vecchio
 // foglio giornaliero (tabella rapporti), poi filtra, calcola il riepilogo del mese ed esporta in CSV.
+import { schedaImportata } from "./importati-logica.js";
 
 export const norma = t=>String(t == null ? "" : t).toLocaleLowerCase("it-IT").normalize("NFD")
   .replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, " ").trim();
@@ -30,11 +31,12 @@ export function voceDaRapportino(r, nome = id=>id){
   };
 }
 // giornata del vecchio foglio (tabella "rapporti": { data, dati }) -> una voce per scheda cliente con nome
-export function vociDaGiornata(g){
+export function vociDaGiornata(g, importate){
   const d = (g && g.dati) || {};
   const nomi = (d.operai || []).map(o=>String((o && o.nome) || "").trim()).filter(Boolean);
   const tecnici = nomi.length ? nomi : String(d.tecnici || "").split(/\s*[\/,]\s*/).map(t=>t.trim()).filter(Boolean);
-  return (d.clienti || []).map((c, i)=>({ c, i })).filter(({ c })=>c && String(c.nome || "").trim() && c.nome !== "(senza nome)")
+  return (d.clienti || []).map((c, i)=>({ c, i })).filter(({ c, i })=>c && String(c.nome || "").trim() && c.nome !== "(senza nome)" &&
+      !schedaImportata(importate, g.data, c, i))   // gia' tra i rapportini (importata): una volta sola
     .map(({ c, i })=>({
       chiave: "g:" + g.data + ":" + i, fonte: "foglio", id: null, data: g.data,
       cliente: String(c.nome).trim(), indirizzo: c.indirizzo || "", telefono: c.telefono || "", tipologia: c.tipologia || "",
@@ -45,8 +47,9 @@ export function vociDaGiornata(g){
     }));
 }
 // tutte le voci, dalla piu' recente
-export function unisciVoci(rapportini, giornate, nome){
-  const voci = (rapportini || []).map(r=>voceDaRapportino(r, nome)).concat((giornate || []).flatMap(vociDaGiornata));
+// importate: Set delle schede del foglio gia' importate come rapportini (rapportini.origine)
+export function unisciVoci(rapportini, giornate, nome, importate){
+  const voci = (rapportini || []).map(r=>voceDaRapportino(r, nome)).concat((giornate || []).flatMap(g=>vociDaGiornata(g, importate)));
   return voci.sort((a, b)=>String(b.data).localeCompare(String(a.data)) || a.cliente.localeCompare(b.cliente, "it"));
 }
 

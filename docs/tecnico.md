@@ -491,3 +491,19 @@ Pubblicazione: basta fare push su `main`; GitHub Pages serve la cartella così c
 quindi funzionano anche nella sottocartella `/rapportino/`.
 
 La versione precedente in un unico file è nel ramo `versione-monolitica` e in `backup.html`.
+
+## Importazione delle giornate della vecchia app
+
+Migrazione `20261125090000_importa_rapporti_vecchi.sql` (incrementale; annullabile con
+`supabase/rollback/20261125090000_importa_rapporti_vecchi_rollback.sql`):
+- colonna facoltativa `rapportini.origine` (scheda della vecchia app da cui viene il rapportino) con indice univoco;
+- funzione `public.importa_rapporti_vecchi(autore, operai)` eseguibile solo dal pannello/SQL: ogni scheda cliente
+  con nome di `rapporti` diventa un rapportino **completato** dell'autore indicato, con id deterministici (si puo'
+  rieseguire senza doppioni) e senza notifiche. `rapporti` non viene modificata.
+- Ore: per gli operai con account (`{"luca": "<uuid>"}`) fascia oraria della scheda; se la giornata ha un solo
+  cliente, l'orario della giornata; altrimenti nessun orario (la vecchia app segnava le ore per giornata). Gli
+  operai senza account e l'orario della giornata finiscono nelle note. Un operaio aggiunto dopo si collega
+  rieseguendo la funzione con il suo uuid.
+- Nell'app le schede importate non si ripetono: report mensile, PDF della giornata, storico, ricerca, agenda e
+  ricerca clienti mostrano il rapportino e saltano la scheda del foglio (orari della giornata invariati).
+

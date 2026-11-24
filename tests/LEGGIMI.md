@@ -20,3 +20,11 @@ PDF, e intercetta la richiesta di stampa della cornice (in headless l'anteprima 
 
 Nel test E2E il service worker è bloccato (`serviceWorkers: "block"`), altrimenti scavalcherebbe le
 regole di Playwright. In WebKit va usato lo stesso contesto; in questo ambiente è installato solo Chromium.
+
+### Importazione delle giornate della vecchia app (SQL)
+`tests/sql/importa-rapporti-vecchi.sql` prova la migrazione `20261125090000_importa_rapporti_vecchi.sql` su un
+PostgreSQL locale con lo schema del repository (schemi `auth`/`storage` ridotti al minimo): conteggi, nessun doppione
+rieseguendo, ore (fascia della scheda / giornata con un solo cliente / nessuna ripartizione inventata), operai senza
+account nelle note, foto e firme, nessuna notifica, `rapporti` intatta, operaio mappato in seguito, funzione non
+eseguibile dall'app. Database vuoto -> migrazioni in ordine -> `psql -v ON_ERROR_STOP=1 -f tests/sql/importa-rapporti-vecchi.sql`.
+

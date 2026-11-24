@@ -19,6 +19,7 @@ import { rapportinoPerIntervento } from "./modulo-rapportino.js";
 import { apriGiorno } from "./rapportini.js";
 import { voceRapportino } from "./lavoro.js";
 import { leggiDB } from "../core/storage.js";
+import { caricaImportate, giornataVisibile } from "../services/importati.js";
 import { schedaCompilata, statoScheda } from "../services/stato-schede.js";
 
 const $ = id=>document.getElementById(id);
@@ -206,6 +207,7 @@ function meseDi(iso){ const m = iso.slice(0, 7), g = giorniMese(m); return [g[0]
 // Lavori di un giorno: interventi programmati divisi per stato + rapportini senza intervento
 // ("lavori non programmati", quelli che RLS mostra all'utente). Usato da Calendario -> Giorno e dalla Home.
 export async function lavoriDelGiorno(iso){
+  await caricaImportate();
   const [dal, al] = meseDi(iso);
   await operaiAttivi().catch(()=>[]);
   const [lista, autonomi] = await Promise.all([
@@ -225,7 +227,7 @@ export async function lavoriDelGiorno(iso){
 // lavori registrati nel foglio giornaliero della vecchia app per quel giorno (archivio sul telefono,
 // sincronizzato con la tabella "rapporti"): restano visibili accanto a interventi e rapportini
 function foglioDelGiorno(iso){
-  const g = leggiDB()[iso];
+  const g = giornataVisibile(iso);              // senza le schede gia' importate come rapportini
   const schede = ((g && g.clienti) || []).filter(c=>c && String(c.nome || "").trim() && c.nome !== "(senza nome)");
   return { schede, operai: (g && g.operai) || [], tecnici: (g && g.tecnici) || "" };
 }

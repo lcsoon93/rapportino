@@ -9,7 +9,7 @@
 // genera il PDF subito dal tocco (su iPhone la condivisione deve partire dal gesto dell'utente).
 import { puo } from "../core/permessi.js";
 import { mostraVista } from "../core/navigation.js";
-import { leggiDB } from "../core/storage.js";
+import { caricaImportate, giornataVisibile } from "../services/importati.js";
 import { schedaCompilata } from "../services/stato-schede.js";
 import { profilo } from "../core/sessione.js";
 import { su } from "../core/eventi.js";
@@ -66,7 +66,7 @@ export function schedaPDF(r, foto){
 export const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle + " · " + oreTesto(minutiSulPosto([o])) : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
 // schede compilate del foglio giornaliero (vecchia app) dello stesso giorno, gia' sul telefono
 function schedeFoglioGiornaliero(iso){
-  const g = leggiDB()[iso];
+  const g = giornataVisibile(iso);            // senza le schede gia' importate come rapportini
   if(!g) return { schede: [], spese: [] };
   const operai = (g.operai || []).map(o=>({ nome: String(o.nome || "").trim(), dalle: o.dalle || "", alle: o.alle || "" })).filter(o=>o.nome);
   const tecnici = String(g.tecnici || "").trim() || operai.map(o=>o.nome).join(" / ");
@@ -89,7 +89,7 @@ export async function preparaPDFGiornata(btn){
   btn.disabled = true; btn.classList.add("in-corso");
   messaggio("Preparazione: rapportini completati e foto del " + dataIt(iso) + "…");
   try{
-    await operaiAttivi().catch(()=>[]);
+    await Promise.all([operaiAttivi().catch(()=>[]), caricaImportate()]);
     const [completati, bozze, coda] = await Promise.all([
       rapportiniCompletatiDelGiorno(iso, autore),
       elencoRapportini({ dal: iso, al: iso, stato: "bozza", autore }).catch(()=>[]),

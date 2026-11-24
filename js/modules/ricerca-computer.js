@@ -72,12 +72,14 @@ async function carica(p){
     let qRap = client.from("rapporti").select("data, dati");
     let qInt = client.from("interventi").select("id, stato");
     if(dal){ qRap = qRap.gte("data", dal).lte("data", al); qInt = qInt.gte("data", dal).lte("data", al); }
-    const [rapportini, vecchi, interventi] = await Promise.all([elencoRapportini({ dal, al }), qRap, qInt]);
+    // schede del vecchio foglio gia' importate come rapportini (colonna assente = nessuna)
+    const qImp = client.from("rapportini").select("origine").not("origine", "is", null).limit(10000);
+    const [rapportini, vecchi, interventi, imp] = await Promise.all([elencoRapportini({ dal, al }), qRap, qInt, qImp]);
     if(mia !== richiesta) return;
     if(vecchi.error) throw new Error(vecchi.error.message);
     giornate = vecchi.data || [];
     interventiMese = interventi.error ? null : interventi.data || [];
-    voci = unisciVoci(rapportini, giornate, nomeOperaio);
+    voci = unisciVoci(rapportini, giornate, nomeOperaio, new Set(imp && !imp.error ? (imp.data || []).map(x=>x.origine) : []));
     stato("Aggiornato alle " + new Date().toLocaleTimeString("it-IT", { hour: "2-digit", minute: "2-digit" }) + " · " + nomePeriodo(p), "ok");
   }catch(e){
     if(mia !== richiesta) return;
