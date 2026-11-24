@@ -1,6 +1,6 @@
 // Interventi (admin e company): creazione, modifica, assegnazione a uno o piu' operai, stato e
 // rapportini collegati. I dati stanno nelle tabelle "interventi" e "intervento_operai" (RLS).
-import { registraVista } from "../core/navigation.js";
+import { registraVista, mostraVista, vistaCorrente } from "../core/navigation.js";
 import { puo } from "../core/permessi.js";
 import { annullaIntervento, elencoInterventi, eliminaIntervento, leggiIntervento, nomeOperaio, operaiAttivi, salvaIntervento } from "../services/api-lavori.js";
 import { dataIt, isoDi, oggiIso } from "../utils/dates.js";
@@ -107,6 +107,7 @@ export function spostaPeriodoInterventi(delta){
 // ---------------------------------------------------------------- modulo
 // id = intervento da modificare; cliente (facoltativo, nuovo intervento) = dati copiati da una scheda
 export async function apriModuloIntervento(id, cliente){
+  if(vistaCorrente !== "interventi") mostraVista("interventi");
   inModifica = id || null;
   $("int-errore").textContent = "";
   await caricaOperai();
