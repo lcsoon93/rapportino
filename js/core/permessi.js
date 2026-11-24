@@ -7,7 +7,7 @@ import { profilo } from "./sessione.js";
 
 const PERMESSI = {
   admin: [
-    "vista.home", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
+    "vista.home", "vista.giornata", "vista.giorno", "vista.calgiorno", "vista.sett", "vista.mese", "vista.cerca", "vista.altro",
     "vista.utenti", "vista.interventi", "vista.rapporti", "vista.lavoro", "vista.rapportino", "vista.storico",
     "rapportino.compila", "rapportino.elimina", "interventi.gestisci", "interventi.elimina", "utenti.gestisci",
     "rapportini.compila", "rapportini.consulta", "rapportini.riapri", "giornate.consulta",
@@ -16,7 +16,7 @@ const PERMESSI = {
     "clienti.consulta", "clienti.crea", "clienti.gestisci", "clienti.elimina",
   ],
   company: [
-    "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
+    "vista.giornata", "vista.interventi", "vista.rapporti", "vista.rapportino", "vista.altro",
     "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario degli interventi (consultazione)
     "vista.storico",                                         // Storico (consultazione)
     "interventi.gestisci", "rapportini.consulta", "giornate.consulta", "pdf.consulta",
@@ -24,7 +24,7 @@ const PERMESSI = {
     "vista.cerca", "clienti.consulta", "clienti.crea", "clienti.gestisci",   // anagrafica: gestisce, non elimina
   ],
   worker: [
-    "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
+    "vista.giornata", "vista.lavoro", "vista.rapportino", "vista.rapporti", "vista.altro",
     "vista.calgiorno", "vista.sett", "vista.mese",          // Calendario: solo gli interventi che le policy gli mostrano
     "rapportini.compila",
     "ai.rapportino", "ai.controllo", "ai.ricerca",                    // assistente nel rapportino; ricerca sui propri dati
@@ -34,11 +34,11 @@ const PERMESSI = {
 
 // navigazione in basso per ruolo: [id, etichetta, icona, vista]
 const NAV = {
-  admin:   [["home", "Home", "home", "home"], ["interventi", "Interventi", "file", "interventi"], ["cal", "Calendario", "cal", "cal"], ["clienti", "Clienti", "users", "cerca"], ["altro", "Altro", "grid", "altro"]],
-  company: [["interventi", "Interventi", "sliders", "interventi"], ["cal", "Calendario", "cal", "cal"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  worker:  [["lavoro", "Lavoro", "home", "lavoro"], ["cal", "Calendario", "cal", "cal"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  admin:   [["giornata", "La mia giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  company: [["giornata", "La mia giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  worker:  [["giornata", "La mia giornata", "home", "giornata"], ["rapporti", "Rapportini", "file", "rapporti"], ["cal", "Calendario", "cal", "cal"], ["altro", "Altro", "grid", "altro"]],
 };
-const VISTA_INIZIALE = { admin: "home", company: "interventi", worker: "lavoro" };
+const VISTA_INIZIALE = { admin: "giornata", company: "giornata", worker: "giornata" };
 
 export function ruolo(){ return profilo ? profilo.ruolo : null; }
 export function puo(permesso){

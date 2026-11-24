@@ -19,7 +19,7 @@ import { sincronizza } from "../services/sync.js";
 import { oraAdesso } from "../utils/dom.js";
 import { apriCambioPassword, apriPin, esciDallApp } from "../modules/accesso.js";
 import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi } from "../modules/gestione-interventi.js";
-import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
+import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, impostaModalitaRapportino, inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
 import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
 import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
@@ -46,7 +46,7 @@ Object.assign(window, {
   oraAdesso,
   apriCambioPassword, apriPin, esciDallApp,
   annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi,
-  aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino,
+  aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, impostaModalitaRapportino,
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
   azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico,

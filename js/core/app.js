@@ -29,6 +29,7 @@ import "../modules/agenda.js";
 import "../modules/storico.js";
 import "../modules/altro.js";
 import "../modules/lavoro.js";
+import "../modules/giornata.js";
 import "../modules/gestione-interventi.js";
 import "../modules/modulo-rapportino.js";
 import "../modules/consultazione.js";

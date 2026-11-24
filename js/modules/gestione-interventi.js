@@ -128,6 +128,8 @@ export async function apriModuloIntervento(id, cliente){
     : '<div class="nota" style="padding:8px 0">Nessun operaio attivo: l\'amministratore li crea da Gestione utenti.</div>';
   $("int-form").classList.remove("nascosto");
   $("int-nuovo").classList.add("nascosto");
+  const det = $("int-dettagli-avanzati");
+  if(det) det.open = !!(id || (i.telefono || i.tipologia || i.priorita !== "normale"));
   $("int-form").scrollIntoView({ block: "start" });
   if(!$("int-cliente").value) $("int-cliente").focus({ preventScroll: true });
 }

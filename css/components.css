@@ -859,3 +859,28 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .ag-sez + .ag-sez{margin-top:14px}
 .ag-sez .gruppo-tit{display:flex;align-items:center;gap:6px;margin:4px 2px 8px}
 .ag-sez-n{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:var(--sfondo);font-size:12px;color:var(--testo-2)}
+/* ================= LA MIA GIORNATA ================= */
+.mg-azioni-rapide{display:grid;gap:10px;margin:0 0 16px}
+.mg-btn-programma,.mg-btn-imprevisto{min-height:54px;font-size:16px;border-radius:16px}
+.mg-btn-imprevisto{box-shadow:none;border-color:var(--att);color:var(--att-testo);background:var(--att-chiaro)}
+.mg-btn-imprevisto:active{background:var(--att);color:#fff}
+.mg-riepilogo{margin-bottom:16px}
+.mg-intervento,.mg-bozza,.mg-prossimo{margin-bottom:10px}
+.mg-fine-giornata{padding:16px;margin:20px 0}
+.mg-fine-giornata .titolo{margin-bottom:10px}
+.mg-fine-azioni{margin-top:12px}
+@media (min-width:600px){.mg-azioni-rapide{grid-template-columns:1fr 1fr}}
+/* ================= DETTAGLI AVANZATI INTERVENTO ================= */
+.int-avanzati{margin-top:8px}
+.int-avanzati summary{font-size:14px;color:var(--brand);font-weight:500}
+.int-avanzati[open] summary{margin-bottom:8px}
+/* ================= TOGGLE MODALITÀ RAPPORTINO ================= */
+.rf-modo-toggle{display:flex;gap:6px;margin:0 0 12px;padding:4px;background:var(--sfondo);border-radius:var(--r-btn)}
+.rf-modo-btn{flex:1;display:flex;align-items:center;justify-content:center;gap:6px;min-height:42px;border:none;border-radius:calc(var(--r-btn) - 2px);background:transparent;font-size:14px;font-weight:600;color:var(--testo-2);cursor:pointer;transition:background .15s,color .15s,box-shadow .15s}
+.rf-modo-btn.attivo{background:var(--superficie);color:var(--brand);box-shadow:var(--ombra-1)}
+.rf-modo-btn:not(.attivo):hover{background:var(--bordo)}
+/* ================= FOLLOW-UP (Da ultimare) ================= */
+.rf-followup{margin-top:12px;padding:14px;background:var(--att-chiaro);border:1px solid var(--att);border-radius:var(--r-card)}
+.rf-followup-titolo{margin:0 0 8px;padding:0}
+.rf-followup .campo{margin-bottom:8px}
+.rf-followup .due{margin-bottom:8px}

@@ -332,11 +332,85 @@
     </div>
   </section>
 
+  <!-- ================= LA MIA GIORNATA ================= -->
+  <section id="vista-giornata" class="nascosto" aria-labelledby="mg-saluto">
+    <div class="colonna">
+      <div class="saluto">
+        <h1 id="mg-saluto">Buongiorno</h1>
+        <p id="mg-data-oggi"></p>
+      </div>
+
+      <!-- azioni rapide -->
+      <div class="mg-azioni-rapide">
+        <button type="button" class="btn btn-primario btn-xl mg-btn-programma" id="mg-programma" data-permesso="interventi.gestisci" onclick="apriModuloIntervento()">
+          <svg class="i i-lg"><use href="#i-cal"/></svg>Programma intervento
+        </button>
+        <button type="button" class="btn btn-secondario btn-xl mg-btn-imprevisto" id="mg-imprevisto" onclick="registraImprevisto()">
+          <svg class="i i-lg"><use href="#i-alert"/></svg>Registra imprevisto
+        </button>
+      </div>
+
+      <!-- riepilogo del giorno -->
+      <div class="card riepilogo mg-riepilogo" id="mg-riepilogo">
+        <div class="stat-griglia">
+          <div class="stat brand"><span class="stat-val" id="mg-tot">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-file"/></svg>Interventi</span></div>
+          <div class="stat ok"><span class="stat-val" id="mg-completati">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-check"/></svg>Completati</span></div>
+          <div class="stat att"><span class="stat-val" id="mg-incorso">0</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>In corso</span></div>
+          <div class="stat pervinca"><span class="stat-val" id="mg-ore">0h</span><span class="stat-lab"><svg class="i i-sm"><use href="#i-clock"/></svg>Ore lavorate</span></div>
+        </div>
+      </div>
+
+      <!-- lista interventi di oggi -->
+      <div class="sezione-head">
+        <h2 id="mg-sez-oggi">I miei interventi di oggi</h2>
+        <span class="ag-conta" id="mg-conta-oggi"></span>
+      </div>
+      <div id="mg-lista-oggi"></div>
+
+      <!-- bozze in sospeso -->
+      <div class="sezione-head nascosto" id="mg-sez-bozze-head">
+        <h2>Bozze da completare</h2>
+        <span class="ag-conta" id="mg-conta-bozze"></span>
+      </div>
+      <div id="mg-lista-bozze"></div>
+
+      <!-- riepilogo fine giornata -->
+      <div class="card mg-fine-giornata nascosto" id="mg-fine-giornata">
+        <div class="titolo">
+          <span class="t-icona"><svg class="i"><use href="#i-check"/></svg></span>
+          Riepilogo fine giornata
+        </div>
+        <div id="mg-fine-contenuto"></div>
+      </div>
+
+      <!-- prossimi giorni (admin/company) -->
+      <div class="sezione-head nascosto" id="mg-sez-prossimi-head" data-permesso="interventi.gestisci">
+        <h2>Prossimi giorni</h2>
+        <button type="button" class="link-btn" onclick="mostraVista('interventi')">Vedi tutti</button>
+      </div>
+      <div id="mg-lista-prossimi" data-permesso="interventi.gestisci"></div>
+
+      <!-- follow-up pendenti (ritorni rimandati) -->
+      <div class="sezione-head nascosto" id="mg-sez-followup-head" data-permesso="interventi.gestisci">
+        <h2>Ritorni da programmare</h2>
+        <span class="ag-conta" id="mg-conta-followup"></span>
+      </div>
+      <div id="mg-lista-followup" data-permesso="interventi.gestisci"></div>
+
+      <!-- da inviare -->
+      <div class="sezione-head nascosto" id="mg-sez-sync-head">
+        <h2>Da inviare</h2>
+        <span class="ag-conta" id="mg-conta-sync"></span>
+      </div>
+      <div id="mg-lista-sync"></div>
+    </div>
+  </section>
+
   <!-- ================= RAPPORTINO DELLA GIORNATA (editor) ================= -->
   <section id="vista-giorno" class="nascosto">
 
     <div class="vista-head">
-      <button type="button" class="indietro" onclick="mostraVista('home')" aria-label="Torna alla home"><svg class="i"><use href="#i-chev-l"/></svg></button>
+      <button type="button" class="indietro" onclick="mostraVista('giornata')" aria-label="Torna alla giornata"><svg class="i"><use href="#i-chev-l"/></svg></button>
       <div class="vh-testi">
         <h1>Rapportino</h1>
         <div class="vh-sub" id="giorno-sottotitolo"></div>
@@ -675,15 +749,18 @@
       </div>
       <div class="campo"><label for="int-cliente">Cliente</label><input type="text" id="int-cliente" autocomplete="off" required></div>
       <div class="campo"><label for="int-indirizzo">Indirizzo</label><input type="text" id="int-indirizzo" autocomplete="off"></div>
-      <div class="campo"><label for="int-telefono">Telefono</label><input type="tel" id="int-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
       <div class="campo"><label for="int-descrizione">Descrizione</label><textarea id="int-descrizione" placeholder="Cosa c'è da fare"></textarea></div>
-      <div class="due campo">
-        <div><label for="int-priorita">Priorità</label>
-          <select id="int-priorita"><option value="bassa">Bassa</option><option value="normale" selected>Normale</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
-        <div><label for="int-tipologia">Tipologia</label>
-          <select id="int-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
-      </div>
       <div class="campo"><label>Operai assegnati</label><div id="int-operai" class="card" style="padding:4px 14px"></div></div>
+      <details class="int-avanzati" id="int-dettagli-avanzati">
+        <summary class="link-btn" style="padding:8px 0;cursor:pointer">Dettagli avanzati</summary>
+        <div class="campo"><label for="int-telefono">Telefono</label><input type="tel" id="int-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
+        <div class="due campo">
+          <div><label for="int-priorita">Priorità</label>
+            <select id="int-priorita"><option value="bassa">Bassa</option><option value="normale" selected>Normale</option><option value="alta">Alta</option><option value="urgente">Urgente</option></select></div>
+          <div><label for="int-tipologia">Tipologia</label>
+            <select id="int-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
+        </div>
+      </details>
       <div class="msg-errore" id="int-errore" role="alert"></div>
       <div class="due" style="margin-top:12px">
         <div><button type="button" class="btn btn-secondario btn-blocco" onclick="chiudiModuloIntervento()">Annulla</button></div>
@@ -758,6 +835,10 @@
     <div class="card cli-scheda nascosto" id="rap-intervento"></div>
     <button type="button" class="ai-btn ai-controlla" id="rf-ai-controllo" data-permesso="ai.controllo" onclick="aiControlloRapportino()"><svg class="i"><use href="#i-check"/></svg>Controlla rapportino</button>
 
+    <div class="rf-modo-toggle rf-solo-bozza" id="rf-modo-box">
+      <button type="button" class="rf-modo-btn attivo" id="rf-modo-rapido" onclick="impostaModalitaRapportino('rapido')"><svg class="i"><use href="#i-clock"/></svg>Veloce</button>
+      <button type="button" class="rf-modo-btn" id="rf-modo-completo" onclick="impostaModalitaRapportino('completo')"><svg class="i"><use href="#i-file"/></svg>Completo</button>
+    </div>
     <form id="rap-form" novalidate>
       <div class="modulo">
         <div class="titolo"><span class="t-icona"><svg class="i"><use href="#i-file"/></svg></span>Cliente e intervento</div>
@@ -767,8 +848,8 @@
         </div>
         <div class="campo"><label for="rf-cliente">Cliente / luogo</label><input type="text" id="rf-cliente" autocomplete="off" required></div>
         <div class="campo"><label for="rf-indirizzo">Indirizzo</label><input type="text" id="rf-indirizzo" autocomplete="off"></div>
-        <div class="campo"><label for="rf-telefono">Telefono</label><input type="tel" id="rf-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
-        <div class="campo"><label for="rf-tipologia">Tipologia</label>
+        <div class="campo rf-extra"><label for="rf-telefono">Telefono</label><input type="tel" id="rf-telefono" inputmode="tel" autocomplete="off" maxlength="60"></div>
+        <div class="campo rf-extra"><label for="rf-tipologia">Tipologia</label>
           <select id="rf-tipologia"><option value="">—</option><option>Manutenzione ordinaria</option><option>Guasto / straordinaria</option><option>Nuovo impianto</option><option>Garanzia</option></select></div>
         <div class="campo"><label for="rf-attivita">Attività svolte</label><textarea id="rf-attivita" placeholder="Cosa avete fatto (anche appunti veloci: l'assistente può scrivere la descrizione)" rows="4"></textarea>
           <div class="ai-barra rf-solo-bozza" data-permesso="ai.rapportino" role="group" aria-label="Assistente AI">
@@ -777,9 +858,18 @@
             <button type="button" class="ai-btn" id="rf-ai-correggi" onclick="aiTestoRapportino('correggi')">Correggi</button>
             <button type="button" class="ai-btn" id="rf-ai-suggerimenti" onclick="aiSuggerimentiRapportino()">Suggerimenti</button>
           </div></div>
-        <div class="campo"><label>Materiale utilizzato</label><div id="rf-materiali"></div>
+        <div class="campo rf-extra"><label>Materiale utilizzato</label><div id="rf-materiali"></div>
           <button type="button" class="mat-add" onclick="aggiungiMaterialeRapportino()"><svg class="i"><use href="#i-plus"/></svg>Riga materiale</button></div>
-        <div class="campo"><label for="rf-note">Note</label><textarea id="rf-note" rows="2"></textarea></div>
+        <div class="campo rf-extra"><label for="rf-note">Note</label><textarea id="rf-note" rows="2"></textarea></div>
+        <div id="rf-followup" class="rf-followup nascosto">
+          <div class="titolo rf-followup-titolo"><span class="t-icona att"><svg class="i"><use href="#i-clock"/></svg></span>Lavoro da ultimare</div>
+          <div class="campo"><label for="rf-followup-desc">Cosa resta da fare</label><textarea id="rf-followup-desc" rows="2" placeholder="Descrivi brevemente il lavoro rimanente"></textarea></div>
+          <div class="due">
+            <div><label for="rf-followup-data">Data ritorno</label><input type="date" id="rf-followup-data"></div>
+            <div><label for="rf-followup-ora">Ora</label><input type="time" id="rf-followup-ora"></div>
+          </div>
+          <label class="check rf-solo-bozza"><input type="checkbox" id="rf-followup-crea" checked><span>Crea intervento di ritorno al completamento</span></label>
+        </div>
       </div>
 
       <div class="modulo">
@@ -788,7 +878,7 @@
         <button type="button" class="aggiungi" onclick="aggiungiOreRapportino()"><svg class="i"><use href="#i-plus"/></svg>Aggiungi operaio</button>
       </div>
 
-      <div class="modulo">
+      <div class="modulo rf-extra">
         <div class="titolo"><span class="t-icona azzurro"><svg class="i"><use href="#i-camera"/></svg></span>Foto</div>
         <div class="foto-galleria" id="rf-foto"></div>
         <input type="file" id="rf-foto-file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple style="display:none" onchange="aggiungiFotoRapportino(this)">
@@ -802,7 +892,7 @@
         <button type="button" class="mat-add nascosto" id="rf-foto-invia" onclick="inviaFotoOra()"><svg class="i"><use href="#i-upload"/></svg>Invia foto</button>
       </div>
 
-      <div class="modulo">
+      <div class="modulo rf-extra">
         <div class="titolo"><span class="t-icona att"><svg class="i"><use href="#i-pen"/></svg></span>Firma del cliente</div>
         <div class="cliente" id="rf-firma-box" style="border:none;background:none;padding:0;margin:0">
           <div class="firma-anteprima" onclick="if(!this.closest('form').classList.contains('sola-lettura')) apriFirmaOverlay(this)">
