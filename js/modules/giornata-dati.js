@@ -1,0 +1,104 @@
+// "La mia giornata": unione dei dati del server e della coda del telefono, stati e conteggi.
+// Solo calcoli (nessun DOM, nessuna rete): usato da giornata.js.
+import { avanzamento } from "../services/avanzamento.js";
+
+export function minutiTra(dalle, alle){
+  if(!dalle || !alle) return 0;
+  const m = t=>{ const p = String(t).split(":"); return +p[0] * 60 + +p[1]; };
+  return Math.max(0, m(alle) - m(dalle));
+}
+
+// copia del telefono con modifiche non ancora confermate dal server (solo foto in attesa: no)
+export const localeAttivo = v=>!!v && v.stato !== "inviato" && v.testoDaInviare !== false;
+
+// Un elenco per id: la versione del server, sostituita nei contenuti dalla copia del telefono se questa
+// ha modifiche da inviare. Completato solo se lo dice il server.
+export function unisciRapportini(server, locali){
+  const perId = new Map();
+  (server || []).forEach(r=>perId.set(r.id, {
+    id: r.id, intervento_id: r.intervento_id || null, data: r.data, cliente: r.cliente, esito: r.esito || "",
+    stato: r.stato, ore: r.rapportino_operai || [], sulServer: true, daInviare: false, conflitto: false, completaInAttesa: false,
+  }));
+  (locali || []).filter(localeAttivo).forEach(v=>{
+    const c = v.rapportino || {};
+    const s = perId.get(v.id);
+    perId.set(v.id, {
+      id: v.id, intervento_id: v.intervento_id || c.intervento_id || (s && s.intervento_id) || null,
+      data: c.data || (s && s.data) || "", cliente: c.cliente || (s && s.cliente) || "", esito: c.esito || (s && s.esito) || "",
+      stato: s && s.stato === "completato" && v.stato !== "conflitto" ? "completato" : (s ? s.stato : "bozza"),
+      ore: v.ore || (s && s.ore) || [], sulServer: !!s || !!v.salvato, daInviare: true,
+      conflitto: v.stato === "conflitto", completaInAttesa: !!v.completa,
+    });
+  });
+  return [...perId.values()];
+}
+
+// stato visto da chi apre la giornata (io), con i propri rapportini già uniti (miei: per intervento_id)
+export function statoIntervento(i, io, miei){
+  if(i.stato === "annullato") return { codice: "annullato", label: "Annullato", classe: "neutro" };
+  const mio = (miei && miei.get(i.id)) || null;
+  if(mio){
+    if(mio.stato === "completato" && !mio.daInviare) return mio.esito === "Da ultimare"
+      ? { codice: "completato", label: "Da ultimare", classe: "att", daUltimare: true, rapportino: mio }
+      : { codice: "completato", label: "Completato", classe: "ok", rapportino: mio };
+    if(mio.completaInAttesa) return { codice: "da_completare", label: "Completamento da inviare", classe: "att", rapportino: mio };
+    return { codice: "da_completare", label: mio.conflitto ? "Conflitto da risolvere" : "Bozza da completare", classe: "att", rapportino: mio };
+  }
+  const av = avanzamento(i);
+  const rapp = i.rapportini || [];
+  // proprio rapportino con data diversa da oggi: arriva solo dentro l'intervento
+  const annidato = rapp.find(r=>r.autore_id === io && r.stato === "bozza") || rapp.find(r=>r.autore_id === io);
+  if(annidato) return annidato.stato === "completato"
+    ? { codice: "completato", label: "Completato", classe: "ok", rapportino: { id: annidato.id, stato: "completato" } }
+    : { codice: "da_completare", label: "Bozza da completare", classe: "att", rapportino: { id: annidato.id, stato: "bozza" } };
+  if(!av.attivi.includes(io)){
+    // intervento di altri (vista admin/company): avanzamento complessivo
+    if(i.stato === "completato" || (av.attivi.length && !av.mancanti.length)) return { codice: "completato", label: "Completato", classe: "ok" };
+    if(i.stato === "in_corso" || rapp.length) return { codice: "in_corso", label: "In corso", classe: "pervinca" };
+    return { codice: "da_iniziare", label: "Da iniziare", classe: "neutro" };
+  }
+  if(i.stato === "completato") return { codice: "completato", label: "Completato", classe: "ok" };
+  if(i.stato === "in_corso" || av.completati.length) return { codice: "in_corso", label: "In corso", classe: "pervinca" };
+  return { codice: "da_iniziare", label: "Da iniziare", classe: "neutro" };
+}
+
+export function statoImprevisto(r){
+  if(r.stato === "completato" && !r.daInviare) return r.esito === "Da ultimare"
+    ? { codice: "completato", label: "Da ultimare", classe: "att", daUltimare: true }
+    : { codice: "completato", label: "Completato", classe: "ok" };
+  if(r.completaInAttesa) return { codice: "da_completare", label: "Completamento da inviare", classe: "att" };
+  return { codice: "da_completare", label: r.conflitto ? "Conflitto da risolvere" : "Bozza da completare", classe: "att" };
+}
+
+// Tutto il calcolo della giornata: interventi (di oggi), rapportini miei (server: oggi + bozze di ogni
+// giorno), coda del telefono. Ritorna liste già filtrate e conteggi coerenti tra loro.
+export function calcolaGiornata({ oggi, io, interventi, rapportiniServer, coda }){
+  const miei = unisciRapportini(rapportiniServer, (coda || []).filter(v=>!v.autore || v.autore === io));
+  const perIntervento = new Map();
+  miei.filter(r=>r.intervento_id).forEach(r=>{
+    const prima = perIntervento.get(r.intervento_id);
+    // più rapportini sullo stesso intervento: conta quello ancora aperto
+    if(!prima || (prima.stato === "completato" && r.stato !== "completato")) perIntervento.set(r.intervento_id, r);
+  });
+  const attivi = (interventi || []).filter(i=>i.stato !== "annullato");
+  const schede = attivi.map(i=>({ intervento: i, stato: statoIntervento(i, io, perIntervento) }));
+  const idInterventiOggi = new Set(attivi.map(i=>i.id));
+  const imprevisti = miei.filter(r=>!r.intervento_id && r.data === oggi).map(r=>({ rapportino: r, stato: statoImprevisto(r) }));
+  // bozze di ogni giorno non già mostrate tra gli interventi e gli imprevisti di oggi
+  const mostrati = new Set([...imprevisti.map(x=>x.rapportino.id),
+    ...schede.map(s=>s.stato.rapportino && s.stato.rapportino.id).filter(Boolean)]);
+  const bozze = miei.filter(r=>!mostrati.has(r.id) && !(r.stato === "completato" && !r.daInviare) &&
+      !(r.intervento_id && idInterventiOggi.has(r.intervento_id)))
+    .sort((a, b)=>String(b.data || "").localeCompare(String(a.data || "")));
+  const tutti = [...schede.map(s=>s.stato), ...imprevisti.map(x=>x.stato)];
+  const conta = c=>tutti.filter(s=>s.codice === c).length;
+  const minuti = miei.filter(r=>r.data === oggi)
+    .reduce((t, r)=>t + (r.ore || []).filter(o=>o.operaio_id === io).reduce((a, o)=>a + minutiTra(o.dalle, o.alle), 0), 0);
+  return {
+    schede, imprevisti, bozze,
+    conteggi: {
+      totale: tutti.length, completati: conta("completato"), inCorso: conta("in_corso") + conta("da_completare"),
+      daIniziare: conta("da_iniziare"), daUltimare: tutti.filter(s=>s.daUltimare).length, minuti,
+    },
+  };
+}

@@ -243,6 +243,7 @@ try{
     await page.click("#ai-coerenza");
     assert.match(await page.textContent("#ai-msg"), /Internet/);
     await page.click("#ai-azioni >> text=Chiudi");
+    await page.click("#rf-modo-completo");             // nuova UX: note e foto nella modalita' Completo
     await page.fill("#rf-note", "Scritto offline");
     await page.waitForTimeout(600);
     const b = await bozzaLocale(page, await idCorrente(page));
@@ -254,6 +255,7 @@ try{
     await page.setInputFiles("#rf-foto-file", { name: "quadro.png", mimeType: "image/png", buffer: PNG });
     await page.waitForFunction(()=>document.querySelectorAll("#rf-foto .foto-item img").length >= 1, null, { timeout: 10000 });
     sb.stato.aiRisposta = { corpo: { ok: true, descrizione: "Quadro elettrico con interruttori differenziali.", elementi: ["quadro"], materiali: ["Raccordo"], incertezze: ["marca non leggibile"] } };
+    await page.click("#rf-modo-completo");             // nuova UX: note e foto nella modalita' Completo
     await page.click("#rf-ai-foto");
     await page.waitForSelector("#ai-analizza");
     await foto(page, "3-scelta-foto");

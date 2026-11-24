@@ -1,8 +1,10 @@
 // Utilità condivise per il modulo giornata.
 export { icona } from "../utils/dom.js";
 export { esc } from "../utils/formatters.js";
+import { isoDi } from "../utils/dates.js";
 
-export function iso(d) { return d.toISOString().slice(0, 10); }
+// giorno locale (toISOString darebbe il giorno UTC: sbagliato tra mezzanotte e le 2)
+export function iso(d) { return isoDi(d); }
 
 const GIORNI = ["Domenica", "Lunedì", "Martedì", "Mercoledì", "Giovedì", "Venerdì", "Sabato"];
 const MESI = ["gennaio", "febbraio", "marzo", "aprile", "maggio", "giugno", "luglio", "agosto", "settembre", "ottobre", "novembre", "dicembre"];

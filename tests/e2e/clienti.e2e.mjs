@@ -241,6 +241,9 @@ try{
     await c.page.evaluate(()=>window.mostraVista("interventi"));
     await c.page.evaluate(()=>window.apriModuloIntervento());
     await c.page.waitForSelector("#int-form:not(.nascosto)");
+    // nuova UX: telefono, priorita' e tipologia nei "Dettagli avanzati" (chiusi per un nuovo intervento)
+    assert.equal(await c.page.isVisible("#int-telefono"), false);
+    await c.page.click("#int-dettagli-avanzati summary");
     assert.ok(await c.page.isVisible("#int-telefono"));
     await c.page.fill("#int-data", "2026-12-01");
     await c.page.fill("#int-cliente", "Mario Ro");
@@ -333,7 +336,8 @@ try{
     await pw.click('#rf-cliente-suggerimenti .cs-voce:has-text("Via Roma 10, Milano")');
     assert.equal(await pw.inputValue("#rf-cliente"), "Mario Rossi");
     assert.equal(await pw.inputValue("#rf-indirizzo"), "Via Roma 10, Milano");
-    assert.equal(await pw.inputValue("#rf-telefono"), "3331234567");
+    assert.equal(await pw.inputValue("#rf-telefono"), "3331234567");      // copiato anche in modalita' Veloce (campo nascosto)
+    await pw.click("#rf-modo-completo");
     await pw.fill("#rf-telefono", "3331234567 (portineria)");            // 8. solo per questo documento
     await pw.fill("#rf-attivita", "Controllo impianto");
     await pw.click("#rf-salva");
@@ -513,6 +517,8 @@ try{
     await a.page.click("#home-nuovo-rapportino");
     await a.page.waitForSelector("#vista-rapportino:not(.nascosto)");
     assert.equal(await a.page.inputValue("#rf-cliente"), "");
+    assert.equal(await a.page.isVisible("#rf-telefono"), false, "rapportino nuovo: modalita' Veloce");
+    await a.page.click("#rf-modo-completo");
     assert.ok(await a.page.isVisible("#rf-telefono"), "rapportino nuovo (con telefono e anagrafica)");
   });
 

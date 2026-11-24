@@ -367,6 +367,13 @@
       </div>
       <div id="mg-lista-oggi"></div>
 
+      <!-- imprevisti di oggi (rapportini senza intervento) -->
+      <div class="sezione-head nascosto" id="mg-sez-imprevisti-head">
+        <h2>Imprevisti di oggi</h2>
+        <span class="ag-conta" id="mg-conta-imprevisti"></span>
+      </div>
+      <div id="mg-lista-imprevisti"></div>
+
       <!-- bozze in sospeso -->
       <div class="sezione-head nascosto" id="mg-sez-bozze-head">
         <h2>Bozze da completare</h2>
@@ -391,11 +398,11 @@
       <div id="mg-lista-prossimi" data-permesso="interventi.gestisci"></div>
 
       <!-- follow-up pendenti (ritorni rimandati) -->
-      <div class="sezione-head nascosto" id="mg-sez-followup-head" data-permesso="interventi.gestisci">
+      <div class="sezione-head nascosto" id="mg-sez-followup-head">
         <h2>Ritorni da programmare</h2>
         <span class="ag-conta" id="mg-conta-followup"></span>
       </div>
-      <div id="mg-lista-followup" data-permesso="interventi.gestisci"></div>
+      <div id="mg-lista-followup"></div>
 
       <!-- da inviare -->
       <div class="sezione-head nascosto" id="mg-sez-sync-head">
@@ -868,7 +875,7 @@
             <div><label for="rf-followup-data">Data ritorno</label><input type="date" id="rf-followup-data"></div>
             <div><label for="rf-followup-ora">Ora</label><input type="time" id="rf-followup-ora"></div>
           </div>
-          <label class="check rf-solo-bozza"><input type="checkbox" id="rf-followup-crea" checked><span>Crea intervento di ritorno al completamento</span></label>
+          <label class="check rf-solo-bozza"><input type="checkbox" id="rf-followup-crea" checked><span>Al completamento proponi di creare l'intervento di ritorno (chiede conferma)</span></label>
         </div>
       </div>
 

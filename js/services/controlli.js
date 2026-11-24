@@ -2,6 +2,7 @@
 // Restituisce un elenco di segnalazioni { livello: "errore" | "attenzione" | "info", campo, messaggio }.
 // "errore" = il server rifiuterebbe il completamento (stesse regole di salva/completa; le ore non sono obbligatorie);
 // "attenzione" = probabile dimenticanza; "info" = suggerimento. Nessun dato viene modificato.
+import { oggiIso } from "../utils/dates.js";
 
 const LIVELLI = { errore: 0, attenzione: 1, info: 2 };
 const minuti = hhmm=>{ const m = /^(\d{1,2}):(\d{2})/.exec(String(hhmm || "")); return m ? +m[1] * 60 + +m[2] : null; };
@@ -15,7 +16,7 @@ export function controllaRapportino(dati){
   const r = (dati && dati.rapportino) || {};
   const ore = (dati && dati.ore) || [];
   const foto = (dati && dati.foto) || {};
-  const oggi = (dati && dati.oggi) || new Date().toISOString().slice(0, 10);
+  const oggi = (dati && dati.oggi) || oggiIso();
   const s = [];
   const add = (livello, campo, messaggio)=>s.push({ livello, campo, messaggio });
 

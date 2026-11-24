@@ -1,6 +1,7 @@
 // Interventi (admin e company): creazione, modifica, assegnazione a uno o piu' operai, stato e
 // rapportini collegati. I dati stanno nelle tabelle "interventi" e "intervento_operai" (RLS).
 import { registraVista, mostraVista, vistaCorrente } from "../core/navigation.js";
+import { emetti } from "../core/eventi.js";
 import { puo } from "../core/permessi.js";
 import { annullaIntervento, elencoInterventi, eliminaIntervento, leggiIntervento, nomeOperaio, operaiAttivi, salvaIntervento } from "../services/api-lavori.js";
 import { dataIt, isoDi, oggiIso } from "../utils/dates.js";
@@ -106,8 +107,11 @@ export function spostaPeriodoInterventi(delta){
 
 // ---------------------------------------------------------------- modulo
 // id = intervento da modificare; cliente (facoltativo, nuovo intervento) = dati copiati da una scheda
-export async function apriModuloIntervento(id, cliente){
+// extra (facoltativo, nuovo intervento): { data, ora, descrizione, operai, origine }; origine torna nell'evento "intervento-salvato"
+let origineModulo = null;
+export async function apriModuloIntervento(id, cliente, extra){
   if(vistaCorrente !== "interventi") mostraVista("interventi");
+  origineModulo = (!id && extra && extra.origine) || null;
   inModifica = id || null;
   $("int-errore").textContent = "";
   await caricaOperai();
@@ -122,7 +126,12 @@ export async function apriModuloIntervento(id, cliente){
   $("int-cliente").value = i.cliente; $("int-indirizzo").value = i.indirizzo; $("int-telefono").value = i.telefono || "";
   sceltaCliente.imposta(i.cliente_id || null);
   $("int-descrizione").value = i.descrizione; $("int-priorita").value = i.priorita; $("int-tipologia").value = i.tipologia;
-  const assegnati = new Set(avanzamento(i).attivi);
+  if(!id && extra){
+    if(extra.data) $("int-data").value = extra.data;
+    if(extra.ora) $("int-ora").value = oraBreve(extra.ora);
+    if(extra.descrizione) $("int-descrizione").value = extra.descrizione;
+  }
+  const assegnati = new Set(!id && extra && extra.operai ? extra.operai : avanzamento(i).attivi);
   $("int-operai").innerHTML = operai.length ? operai.map(o=>
     '<label class="spunta-operaio"><input type="checkbox" value="' + o.id + '"' + (assegnati.has(o.id) ? " checked" : "") + '>' +
     '<span>' + esc(o.nome || o.username) + ' <small>@' + esc(o.username) + '</small></span></label>').join("")
@@ -135,6 +144,7 @@ export async function apriModuloIntervento(id, cliente){
   if(!$("int-cliente").value) $("int-cliente").focus({ preventScroll: true });
 }
 export function chiudiModuloIntervento(){
+  origineModulo = null;
   inModifica = null;
   interventoAperto = null;
   $("int-form").classList.add("nascosto");
@@ -157,11 +167,12 @@ $("int-form").addEventListener("submit", async e=>{
   try{
     // una scheda cliente creata al volo (ancora sul telefono) va prima al server: cosi' il collegamento arriva
     if(sceltaCliente.id()) await sincronizzaClienti().catch(()=>{});
-    await salvaIntervento({ id: inModifica, data: $("int-data").value, ora: $("int-ora").value, cliente,
+    const salvatoId = await salvaIntervento({ id: inModifica, data: $("int-data").value, ora: $("int-ora").value, cliente,
       indirizzo: $("int-indirizzo").value.trim(), telefono: $("int-telefono").value.trim(), cliente_id: sceltaCliente.id(),
       descrizione: $("int-descrizione").value.trim(),
       priorita: $("int-priorita").value, tipologia: $("int-tipologia").value }, scelti);
     const nuovo = !inModifica;
+    if(nuovo) emetti("intervento-salvato", { id: salvatoId, origine: origineModulo });
     chiudiModuloIntervento();
     if(nuovo && $("int-data").value < $("int-dal").value) $("int-dal").value = $("int-data").value;
     await disegnaInterventi();
