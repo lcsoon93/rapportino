@@ -17,7 +17,8 @@ import { elencoAllegati, elencoRapportini, nomeOperaio, operaiAttivi, rapportini
 import { elencoCoda } from "../services/sinc-rapportini.js";
 import { blobInDataUrl } from "../services/immagini.js";
 import { condividi } from "../services/condivisione.js";
-import { generaPDFPerCliente } from "../services/pdf/giornata.js";
+import { generaPDFFoglioUnico, generaPDFPerCliente } from "../services/pdf/giornata.js";
+import { leggiPrefFoglioUnico, salvaPrefFoglioUnico } from "../core/preferenze.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { minutiSulPosto } from "../services/calculations.js";
@@ -151,6 +152,8 @@ export async function preparaPDFGiornata(btn){
       elencoEsclusi;
     messaggio((mancanti ? mancanti + (mancanti === 1 ? " foto non disponibile verrà saltata. " : " foto non disponibili verranno saltate. ") : "") +
       (fotoNonLette ? "Foto non lette per " + fotoNonLette + " rapportini. " : "") + (sulComputer() ? "Pronto: clicca «Stampa PDF»." : "Pronto: tocca «Condividi PDF»."), mancanti || fotoNonLette ? "att" : "");
+    $("rg-esito").insertAdjacentHTML("afterbegin", '<p class="nota" id="rg-formato" style="padding:0 0 8px"></p>');
+    aggiornaEtichettaFormato();
     $("rg-condividi").classList.remove("nascosto");
     $("rg-condividi").querySelector("span").textContent = (sulComputer() ? "Stampa PDF (" : "Condividi PDF (") + tutte.length + ")";
   }catch(e){
@@ -158,10 +161,29 @@ export async function preparaPDFGiornata(btn){
   }finally{ btn.disabled = false; btn.classList.remove("in-corso"); }
 }
 
+// impostazione (Altro -> PDF della giornata): con piu' interventi, foglio unico A4 con tutti i lavori di
+// seguito ("RAPPORTO DI LAVORO GIORNALIERO") invece di un rapportino A5 per intervento, due per foglio.
+// Nel foglio unico ogni lavoro riporta i propri tecnici con orari e durata.
+export function datiFoglioUnico(dati){
+  return { ...dati, clienti: dati.clienti.map(c=>({ ...c, orariTecnici: orariScheda(c) })) };
+}
 export function condividiPDFGiornata(btn){
   if(!preparato) return;
   const { dati, iso, nome } = preparato;
-  return condividi(btn, ()=>generaPDFPerCliente(dati, iso), nome);
+  const unico = leggiPrefFoglioUnico() && dati.clienti.length > 1;
+  return condividi(btn, ()=>unico ? generaPDFFoglioUnico(datiFoglioUnico(dati), iso) : generaPDFPerCliente(dati, iso), nome);
+}
+// stessa preferenza del vecchio foglio giornaliero (casella "PDF a foglio unico"): restano allineate
+export function impostaPDFFoglioUnico(v){
+  salvaPrefFoglioUnico(v);
+  const vecchia = document.getElementById("pdf-foglio-unico");
+  if(vecchia) vecchia.checked = !!v;
+  if(preparato) aggiornaEtichettaFormato();
+}
+function aggiornaEtichettaFormato(){
+  const el = $("rg-formato");
+  if(el) el.textContent = preparato && preparato.dati.clienti.length > 1
+    ? (leggiPrefFoglioUnico() ? "Formato: foglio unico A4 (impostazione in Altro)" : "Formato: un rapportino A5 per intervento, due per foglio (in Altro: «Foglio unico»)") : "";
 }
 
 // "Invia PDF della giornata" (Altro, Home, Apri giornata): il PDF del giorno indicato (da "Apri giornata")

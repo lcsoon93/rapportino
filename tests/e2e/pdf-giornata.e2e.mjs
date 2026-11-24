@@ -211,6 +211,34 @@ try{
     assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
   });
 
+  await prova("impostazione 'Foglio unico' (Altro): più interventi in un solo A4, ognuno con i suoi tecnici; spenta torna A5", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("altro"));
+    assert.equal(await a.page.isChecked("#pref-pdf-foglio-unico"), false, "spenta di serie");
+    await a.page.check("#pref-pdf-foglio-unico");
+    assert.equal(await a.page.evaluate(()=>localStorage.getItem("pdfFoglioUnico")), "1");
+    assert.equal(await a.page.isChecked("#pdf-foglio-unico"), true, "stessa preferenza del vecchio foglio");
+    await a.page.evaluate(()=>window.mostraVista("rapporti"));
+    await a.page.fill("#rg-data", GIORNO);
+    await a.page.click("#rg-prepara");
+    await a.page.waitForSelector("#rg-condividi:not(.nascosto)", { timeout: 15000 });
+    assert.match(await a.page.textContent("#rg-formato"), /foglio unico A4/);
+    const { nome, testo } = await scaricaPDF(a.page);
+    assert.equal(nome, "Rapportini_2026-11-13.pdf");
+    assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
+    assert.ok(testo.includes("RAPPORTO DI LAVORO GIORNALIERO") && !testo.includes("TAGLIA QUI"), "foglio unico, niente A5 da tagliare");
+    for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Tecnici: Mario Bianchi 08:00", "10:30", "2h 30m", "Anna Verdi dalle 14:00"])
+      assert.ok(testo.includes(t), "manca nel PDF: " + t);
+    assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "solo i completati");
+    // spenta: di nuovo due rapportini A5 per foglio
+    await a.page.evaluate(()=>window.mostraVista("altro"));
+    await a.page.uncheck("#pref-pdf-foglio-unico");
+    await a.page.evaluate(()=>window.mostraVista("rapporti"));
+    assert.match(await a.page.textContent("#rg-formato"), /due per foglio/);
+    const dopo = await scaricaPDF(a.page);
+    assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(dopo.testo) && dopo.testo.includes("TAGLIA QUI"), "A5 su A4 orizzontale");
+    assert.ok(!dopo.testo.includes("Tecnici: Mario"), "riga tecnici solo nel foglio unico");
+  });
+
   await prova("filtro operaio: un solo rapportino = rapportino A4 di quell'operaio", async()=>{
     await a.page.selectOption("#rg-operaio", UTENTI.anna.id);
     assert.ok(await a.page.isHidden("#rg-condividi"), "cambiando filtro si prepara di nuovo");

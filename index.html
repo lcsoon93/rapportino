@@ -638,6 +638,16 @@
             <button type="button" class="voce" onclick="esciDallApp()"><span class="v-ic att"><svg class="i"><use href="#i-logout"/></svg></span><span class="v-testi"><span class="v-tit">Esci</span><span class="v-sub">Prima invia al server le modifiche</span></span></button>
           </div>
         </div>
+        <div class="gruppo" data-permesso="vista.rapporti">
+          <div class="gruppo-tit">PDF della giornata</div>
+          <div class="card">
+            <label class="check" style="padding:14px 16px">
+              <input type="checkbox" id="pref-pdf-foglio-unico" onchange="impostaPDFFoglioUnico(this.checked)">
+              <span>Foglio unico: tutti gli interventi del giorno di seguito in un solo documento A4 (anche se sono più di uno)<br>
+                <small class="nota" style="padding:0">Spento: un rapportino A5 per intervento, due per foglio da tagliare. Vale per questo telefono.</small></span>
+            </label>
+          </div>
+        </div>
         <div class="gruppo" data-permesso="ai.ricerca ai.assistente">
           <div class="gruppo-tit">Assistente AI</div>
           <div class="card ai-card">

@@ -195,6 +195,8 @@ document.addEventListener("change", e=>{
   }
   if(e.target.id === "pdf-foglio-unico"){
     salvaPrefFoglioUnico(e.target.checked);
+    const nuova = document.getElementById("pref-pdf-foglio-unico");
+    if(nuova) nuova.checked = e.target.checked;
     return;
   }
   if(e.target.closest("#vista-giorno") && e.target.id !== "data") salvaGiornata();
