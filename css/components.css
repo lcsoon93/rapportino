@@ -868,7 +868,12 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .mg-intervento,.mg-bozza,.mg-prossimo{margin-bottom:10px}
 .mg-fine-giornata{padding:16px;margin:20px 0}
 .mg-fine-giornata .titolo{margin-bottom:10px}
-.mg-fine-azioni{margin-top:12px}
+.mg-fine-azioni{margin-top:12px;display:flex;gap:8px;flex-wrap:wrap}
+.mg-fine-azioni .btn{flex:1;min-width:140px}
+.mg-fine-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bordo)}
+.mg-fine-item span{flex:1;font-weight:500;min-width:0;overflow-wrap:anywhere}
+.mg-fine-item .btn{min-height:40px;padding:6px 14px;font-size:14px}
+.mg-imprevisto{border-left:4px solid var(--att)}
 @media (min-width:600px){.mg-azioni-rapide{grid-template-columns:1fr 1fr}}
 /* ================= DETTAGLI AVANZATI INTERVENTO ================= */
 .int-avanzati{margin-top:8px}

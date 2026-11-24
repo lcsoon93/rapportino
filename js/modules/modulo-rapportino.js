@@ -21,6 +21,7 @@ import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { controllaRapportino, elencoTesto } from "../services/controlli.js";
 import { collegaSceltaCliente } from "./scelta-cliente.js";
+import { followupDelRapportino, rimuoviFollowup, salvaFollowup, segnaProgrammato } from "../services/followup.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
@@ -489,8 +490,20 @@ async function salva(completa){
     // controllo automatico (senza rete): le possibili dimenticanze compaiono nella conferma
     const avvisi = elencoTesto(controlloRapportinoAperto(), ["attenzione"]);
     if(!confirm((avvisi ? "Prima di completare controlla:\n" + avvisi + "\n\n" : "") + "Completare il rapportino? Dopo non potrai più modificarlo.")) return false;
+    // il ritorno si registra subito sul telefono: non si perde anche se l'invio avviene più tardi
+    registraFollowup(rapportino, ore);
   }
   return invia(completa);
+}
+function registraFollowup(r, ore){
+  const esistente = followupDelRapportino(corrente.id);
+  if(r.esito !== "Da ultimare"){
+    if(esistente && esistente.stato !== "programmato") rimuoviFollowup(esistente.id);
+    return;
+  }
+  salvaFollowup({ rapportino_id: corrente.id, data_rapportino: r.data, cliente: r.cliente, indirizzo: r.indirizzo, telefono: r.telefono,
+    cliente_id: r.cliente_id || null, tipologia: r.tipologia, desc: r.followup_desc, data: r.followup_data, ora: r.followup_ora,
+    attivita: (r.attivita || "").slice(0, 300), operai: [...new Set(ore.map(o=>o.operaio_id).filter(Boolean))] });
 }
 async function invia(completa){
   const pulsanti = [$("rf-salva"), $("rf-completa")];
@@ -526,60 +539,29 @@ function applicaServer(s){
   if(!s) return;
   corrente = Object.assign(corrente, { id: s.id, salvato: true, versione: s.versione, stato: s.stato, autore_id: s.autore_id, aggiornato_il: s.aggiornato_il });
 }
-async function creaInterventoRitorno(){
-  if($("rf-esito").value !== "Da ultimare") return;
-  if(!puo("interventi.gestisci")) return;
-  const desc = $("rf-followup-desc").value.trim();
-  const data = $("rf-followup-data").value;
-  const crea = $("rf-followup-crea").checked;
-  if(!crea && !data) return;
-  if(!crea){
-    salvaDatiFollowup();
-    return;
-  }
-  if(!data){
-    if(confirm("Non hai indicato una data di ritorno. Vuoi creare comunque l'intervento per domani?")){
-      const domani = new Date(); domani.setDate(domani.getDate() + 1);
-      $("rf-followup-data").value = domani.toISOString().slice(0, 10);
-    } else {
-      salvaDatiFollowup();
-      messaggio("Rapportino completato. Il follow-up è stato conservato: lo trovi nella dashboard.", "att");
-      return;
-    }
-  }
-  const dataRitorno = $("rf-followup-data").value;
-  const { rapportino: r } = leggiModulo();
-  const testoConferma = "Creare un intervento di ritorno per " + dataRitorno + " presso " + (r.cliente || "il cliente") + "?";
-  if(!confirm(testoConferma)){
-    salvaDatiFollowup();
-    messaggio("Rapportino completato. Il follow-up è stato conservato: lo trovi nella dashboard.", "att");
-    return;
-  }
-  try{
-    const operaiIds = [...new Set([...document.querySelectorAll("#rf-ore .rf-ore-riga")].map(el=>el.querySelector(".rf-operaio").value).filter(Boolean))];
-    await salvaIntervento({
-      data: dataRitorno, ora: $("rf-followup-ora").value || null,
-      cliente: r.cliente, indirizzo: r.indirizzo, cliente_id: r.cliente_id || null,
-      tipologia: r.tipologia,
-      descrizione: (desc || "Ritorno: completare lavoro") + (r.attivita ? "\n\nDal rapportino precedente:\n" + r.attivita.slice(0, 200) : ""),
-      priorita: "normale",
-    }, operaiIds);
-    messaggio("Rapportino completato. Intervento di ritorno creato per " + dataRitorno + ".");
-  }catch(e){
-    salvaDatiFollowup();
-    messaggio("Rapportino completato, ma non è stato possibile creare l'intervento di ritorno: " + e.message + ". Il follow-up è stato conservato.", "att");
-  }
+// rapportino completato con esito "Da ultimare": il ritorno è già registrato sul telefono
+// (registraFollowup). Qui si propone di programmarlo subito, sempre con conferma esplicita.
+export function testoDescrizioneRitorno(f){
+  return (f.desc || "Ritorno: completare il lavoro") + (f.attivita ? "\n\nDal rapportino precedente:\n" + f.attivita.slice(0, 200) : "");
 }
-function salvaDatiFollowup(){
+async function proponiRitorno(){
+  const f = followupDelRapportino(corrente.id);
+  if(!f) return;
+  const rimandato = "Rapportino completato. Il ritorno da programmare resta nella dashboard (\"Ritorni da programmare\").";
+  if(f.stato === "programmato"){ messaggio("Rapportino completato. Il ritorno è già stato programmato."); return; }
+  if(!puo("interventi.gestisci") || !$("rf-followup-crea").checked){ messaggio(rimandato, "att"); return; }
+  if(!f.data){ messaggio("Rapportino completato. Data di ritorno non indicata: programma il ritorno dalla dashboard.", "att"); return; }
+  if(!confirm("Creare ora l'intervento di ritorno presso " + (f.cliente || "il cliente") + " per il " + dataIt(f.data) + (f.ora ? " alle " + f.ora : "") + "?")){
+    messaggio(rimandato, "att"); return;
+  }
   try{
-    const dati = { desc: $("rf-followup-desc").value.trim(), data: $("rf-followup-data").value, ora: $("rf-followup-ora").value,
-      cliente: $("rf-cliente").value.trim(), indirizzo: $("rf-indirizzo").value.trim(), cliente_id: sceltaCliente.id(),
-      tipologia: $("rf-tipologia").value, attivita: $("rf-attivita").value.trim().slice(0, 300),
-      salvato: new Date().toISOString() };
-    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
-    lista.push(dati);
-    localStorage.setItem("followup_pendenti", JSON.stringify(lista.slice(-20)));
-  }catch(e){ /* localStorage non disponibile */ }
+    const id = await salvaIntervento({ data: f.data, ora: f.ora || null, cliente: f.cliente, indirizzo: f.indirizzo, telefono: f.telefono,
+      cliente_id: f.cliente_id || null, tipologia: f.tipologia, descrizione: testoDescrizioneRitorno(f), priorita: "normale" }, f.operai || []);
+    segnaProgrammato(f.id, id);
+    messaggio("Rapportino completato. Intervento di ritorno creato per il " + dataIt(f.data) + ".");
+  }catch(e){
+    messaggio("Rapportino completato, ma l'intervento di ritorno non è stato creato (" + e.message + "). Lo trovi nella dashboard tra i ritorni da programmare.", "att");
+  }
 }
 async function mostraEsito(res, completa){
   const nFoto = n=>n === 1 ? "1 foto" : n + " foto";
@@ -591,7 +573,7 @@ async function mostraEsito(res, completa){
     aggiornaStatoUI();
     if(corrente.stato === "completato"){
       messaggio("Rapportino completato e inviato.");
-      await creaInterventoRitorno();
+      await proponiRitorno();
     } else {
       messaggio(res.fotoInviate && res.fotoInviate.length ? "Bozza salvata con le foto." : "Bozza salvata.");
     }

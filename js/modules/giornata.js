@@ -1,346 +1,206 @@
 // "La mia giornata": dashboard principale per tutti i ruoli.
-// Mostra gli interventi di oggi con il loro stato, le bozze in sospeso,
-// le azioni rapide (programma intervento / registra imprevisto) e il riepilogo di fine giornata.
+// Interventi di oggi, imprevisti (rapportini autonomi) di oggi, bozze di ogni giorno (server + telefono),
+// ritorni da programmare, invii in attesa e riepilogo di fine giornata. Calcoli in giornata-dati.js.
 import { profilo } from "../core/sessione.js";
 import { puo } from "../core/permessi.js";
-import { registraVista, mostraVista } from "../core/navigation.js";
-import { su, emetti } from "../core/eventi.js";
-import { elencoInterventi, interventiPeriodo, invalidaInterventi, contaRapportini } from "../services/api-lavori.js";
-import { avanzamento } from "../services/avanzamento.js";
-import { nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
-import { elencoCoda, connessione, messaggioConnessione } from "../services/sinc-rapportini.js";
-import { bozzeDi, leggiBozza } from "../services/coda-locale.js";
-import { icona, esc, iso, formattaData, formattaOra, minutiAOre } from "./giornata-utils.js";
+import { registraVista, vistaCorrente } from "../core/navigation.js";
+import { su } from "../core/eventi.js";
+import { elencoInterventi, elencoRapportini, interventiPeriodo, invalidaInterventi, operaiAttivi } from "../services/api-lavori.js";
+import { elencoCoda, messaggioConnessione } from "../services/sinc-rapportini.js";
+import { elencoFollowup, leggiFollowup, rimuoviFollowup, segnaProgrammato } from "../services/followup.js";
+import { apriModuloIntervento } from "./gestione-interventi.js";
+import { apriRapportino, nuovoRapportinoAutonomo, rapportinoPerIntervento, testoDescrizioneRitorno } from "./modulo-rapportino.js";
+import { calcolaGiornata } from "./giornata-dati.js";
+import { isoDi, oggiIso } from "../utils/dates.js";
+import { esc, formattaData, minutiAOre } from "./giornata-utils.js";
 
-const $ = id => document.getElementById(id);
+const $ = id=>document.getElementById(id);
+const sposta = (iso, giorni)=>{ const d = new Date(iso + "T12:00:00"); d.setDate(d.getDate() + giorni); return isoDi(d); };
+const mostra = (id, si)=>$(id).classList.toggle("nascosto", !si);
 
-function oggi() { return new Date().toISOString().slice(0, 10); }
-
-// stati derivati dell'intervento per la vista operaio
-function statoIntervento(i, io) {
-  const rapp = i.rapportini || [];
-  const mioRap = rapp.find(r => r.autore_id === io);
-  const av = avanzamento(i);
-  if (i.stato === "annullato") return { codice: "annullato", label: "Annullato", classe: "neutro" };
-  if (mioRap && mioRap.stato === "completato") return { codice: "completato", label: "Completato", classe: "ok" };
-  if (mioRap && mioRap.stato === "bozza") return { codice: "da_completare", label: "Da completare", classe: "att" };
-  if (i.stato === "in_corso" || av.completati.length > 0) return { codice: "in_corso", label: "In corso", classe: "pervinca" };
-  return { codice: "da_iniziare", label: "Da iniziare", classe: "neutro" };
+function bottone(testo, azione, primario, icona){
+  return `<button type="button" class="btn ${primario ? "btn-primario" : "btn-secondario"}" onclick="${azione}">` +
+    (icona ? `<svg class="i"><use href="#i-${icona}"/></svg>` : "") + testo + `</button>`;
 }
+function card({ ora, oraIcona, titolo, sotto, badge, azioni, classe }){
+  return `<div class="card intervento mg-intervento ${classe || ""}">
+    <div class="int-top">
+      <div class="int-ora${ora ? "" : " vuota"}">${ora || `<svg class="i i-sm"><use href="#i-${oraIcona || "clock"}"/></svg>`}</div>
+      <div class="int-corpo">
+        <div class="int-cliente">${esc(titolo || "Senza cliente")}</div>
+        ${sotto ? `<div class="int-desc">${sotto}</div>` : ""}
+        <div class="int-badge">${badge}</div>
+      </div>
+    </div>
+    ${azioni ? `<div class="int-azioni">${azioni}</div>` : ""}
+  </div>`;
+}
+const badge = (testo, classe)=>`<span class="badge ${classe}">${esc(testo)}</span>`;
 
-function cardIntervento(i, io) {
-  const st = statoIntervento(i, io);
-  const rapp = (i.rapportini || []).find(r => r.autore_id === io);
-  const ora = i.ora ? i.ora.slice(0, 5) : "";
-
+function cardIntervento({ intervento: i, stato: st }){
   let azione = "";
-  if (st.codice === "da_iniziare" || st.codice === "in_corso") {
-    azione = `<button type="button" class="btn btn-primario" onclick="compilaRapportinoIntervento('${i.id}')">
-      <svg class="i"><use href="#i-pen"/></svg>Compila rapportino</button>`;
-  } else if (st.codice === "da_completare") {
-    azione = `<button type="button" class="btn btn-primario" onclick="compilaRapportinoIntervento('${i.id}')">
-      <svg class="i"><use href="#i-pen"/></svg>Riprendi bozza</button>`;
-  } else if (st.codice === "completato") {
-    azione = `<button type="button" class="btn btn-secondario" onclick="apriRapportino('${rapp.id}')">
-      <svg class="i"><use href="#i-file"/></svg>Vedi rapportino</button>`;
-  }
-  const dettaglio = puo("interventi.gestisci")
-    ? `<button type="button" class="btn btn-secondario btn-dettagli" onclick="apriDettaglioIntervento('${i.id}')">
-      <svg class="i"><use href="#i-search"/></svg></button>` : "";
-
-  return `<div class="card intervento mg-intervento ${st.codice === "annullato" ? "annullato" : ""}">
-    <div class="int-top">
-      <div class="int-ora${ora ? "" : " vuota"}">${ora || '<svg class="i i-sm"><use href="#i-clock"/></svg>'}</div>
-      <div class="int-corpo">
-        <div class="int-cliente">${esc(i.cliente || "Senza cliente")}</div>
-        ${i.descrizione ? `<div class="int-desc">${esc(i.descrizione)}</div>` : ""}
-        <div class="int-badge">
-          <span class="badge ${st.classe}">${st.label}</span>
-          ${i.priorita === "urgente" ? '<span class="badge err">Urgente</span>' : ""}
-          ${i.tipologia ? `<span class="badge neutro">${esc(i.tipologia)}</span>` : ""}
-        </div>
-      </div>
-    </div>
-    ${azione || dettaglio ? `<div class="int-azioni">${azione}${dettaglio}</div>` : ""}
-  </div>`;
+  const rap = st.rapportino;
+  if(st.codice === "completato" && rap) azione = bottone("Vedi rapportino", `apriRapportino('${rap.id}')`, false, "file");
+  else if(st.codice === "da_completare") azione = bottone("Riprendi rapportino", `compilaRapportinoIntervento('${i.id}')`, true, "pen");
+  else if(st.codice !== "completato" && puo("rapportini.compila")) azione = bottone("Compila rapportino", `compilaRapportinoIntervento('${i.id}')`, true, "pen");
+  const dettaglio = `<button type="button" class="btn btn-secondario btn-dettagli" aria-label="Dettagli" onclick="apriDettaglioIntervento('${i.id}')"><svg class="i"><use href="#i-search"/></svg></button>`;
+  return card({ ora: i.ora ? i.ora.slice(0, 5) : "", titolo: i.cliente, sotto: i.descrizione ? esc(i.descrizione) : "",
+    badge: badge("Programmato", "neutro") + badge(st.label, st.classe) + (i.priorita === "urgente" ? badge("Urgente", "err") : ""),
+    azioni: azione + dettaglio });
+}
+function cardImprevisto({ rapportino: r, stato: st }){
+  return card({ oraIcona: "alert", titolo: r.cliente, classe: "mg-imprevisto",
+    sotto: r.daInviare ? "Modifiche sul telefono, non ancora inviate" : "",
+    badge: badge("Imprevisto", "att") + badge(st.label, st.classe),
+    azioni: st.codice === "completato" ? bottone("Vedi rapportino", `apriRapportino('${r.id}')`, false, "file")
+      : bottone("Riprendi", `apriRapportino('${r.id}')`, true, "pen") });
+}
+function cardBozza(r){
+  const tipo = r.intervento_id ? "Intervento" : "Imprevisto";
+  const dove = !r.sulServer ? badge("Solo sul telefono", "att") : r.daInviare ? badge("Modifiche da inviare", "att") : badge("Bozza sul server", "neutro");
+  return card({ oraIcona: "pen", titolo: r.cliente, classe: "mg-bozza",
+    sotto: (r.data ? formattaData(r.data) : "Data non indicata") + " · " + tipo,
+    badge: (r.conflitto ? badge("Conflitto", "err") : r.completaInAttesa ? badge("Completamento da inviare", "att") : badge("Bozza", "att")) + dove,
+    azioni: bottone("Riprendi", `apriRapportino('${r.id}')`, true, "pen") });
+}
+function cardFollowup(f){
+  const gestisce = puo("interventi.gestisci");
+  return card({ oraIcona: "clock", titolo: f.cliente, classe: "mg-bozza",
+    sotto: esc(f.desc || "Lavoro da ultimare") + (f.data ? " · ritorno proposto: " + esc(formattaData(f.data)) : " · data di ritorno da decidere"),
+    badge: badge("Da programmare", "att") + (f.data_rapportino ? badge("Rapportino del " + formattaData(f.data_rapportino), "neutro") : ""),
+    azioni: (gestisce ? bottone("Programma", `programmaFollowup('${esc(f.id)}')`, true, "cal") : `<span class="nota" style="padding:0">Da comunicare a chi programma gli interventi</span>`) +
+      (f.rapportino_id ? bottone("Rapportino", `apriRapportino('${esc(f.rapportino_id)}')`, false, "file") : "") +
+      `<button type="button" class="btn btn-secondario" aria-label="Elimina" onclick="eliminaFollowup('${esc(f.id)}')"><svg class="i"><use href="#i-trash"/></svg></button>` });
 }
 
-function cardBozza(b) {
-  const cl = b.rapportino?.cliente || "Senza cliente";
-  const data = b.rapportino?.data || "";
-  return `<div class="card intervento mg-bozza">
-    <div class="int-top">
-      <div class="int-ora vuota"><svg class="i i-sm"><use href="#i-pen"/></svg></div>
-      <div class="int-corpo">
-        <div class="int-cliente">${esc(cl)}</div>
-        <div class="int-desc">${data ? formattaData(data) : "Data non indicata"}${b.intervento ? " · " + esc(b.intervento) : ""}</div>
-        <div class="int-badge"><span class="badge att">Bozza</span></div>
-      </div>
-    </div>
-    <div class="int-azioni">
-      <button type="button" class="btn btn-primario" onclick="apriRapportino('${b.id}')">
-        <svg class="i"><use href="#i-pen"/></svg>Completa</button>
-    </div>
-  </div>`;
+let inDisegno = null;
+function disegnaGiornata(){
+  if(!inDisegno) inDisegno = disegna().finally(()=>{ inDisegno = null; });
+  return inDisegno;
 }
-
-function cardProssimo(i, dataStr) {
-  const ora = i.ora ? i.ora.slice(0, 5) : "";
-  return `<div class="card intervento mg-prossimo" style="cursor:pointer" onclick="apriDettaglioIntervento('${i.id}')">
-    <div class="int-top">
-      <div class="int-ora${ora ? "" : " vuota"}">${ora || formattaData(dataStr).slice(0, 5)}</div>
-      <div class="int-corpo">
-        <div class="int-cliente">${esc(i.cliente || "Senza cliente")}</div>
-        <div class="int-desc">${formattaData(i.data)}${i.descrizione ? " · " + esc(i.descrizione) : ""}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-async function disegnaGiornata() {
-  if (!profilo) return;
+async function disegna(){
+  if(!profilo) return;
   const io = profilo.id;
-  const oggiStr = oggi();
-  const isAdmin = puo("interventi.gestisci");
+  const oggi = oggiIso();
+  const gestisce = puo("interventi.gestisci");
+  const ora = new Date().getHours();
+  $("mg-saluto").textContent = (ora < 13 ? "Buongiorno" : ora < 18 ? "Buon pomeriggio" : "Buonasera") + (profilo.nome ? ", " + profilo.nome.split(" ")[0] : "");
+  $("mg-data-oggi").textContent = formattaData(oggi);
+  await operaiAttivi().catch(()=>{});
 
-  // saluto
-  const ore = new Date().getHours();
-  const saluto = ore < 13 ? "Buongiorno" : ore < 18 ? "Buon pomeriggio" : "Buonasera";
-  $("mg-saluto").textContent = saluto + (profilo.nome ? ", " + profilo.nome.split(" ")[0] : "");
-  $("mg-data-oggi").textContent = formattaData(oggiStr);
+  let errore = "";
+  const [interventi, rapOggi, rapBozze, coda] = await Promise.all([
+    elencoInterventi({ dal: oggi, al: oggi, soloMiei: !gestisce }).catch(e=>{ errore = e.message; return []; }),
+    elencoRapportini({ dal: oggi, al: oggi, autore: io }).catch(()=>[]),
+    elencoRapportini({ stato: "bozza", autore: io }).catch(()=>[]),
+    elencoCoda().catch(()=>({ voci: [], conteggi: { attesa: 0, conflitti: 0, falliti: 0 }, connessione: { stato: "offline" } })),
+  ]);
+  const server = [...new Map([...rapOggi, ...rapBozze].map(r=>[r.id, r])).values()];
+  const g = calcolaGiornata({ oggi, io, interventi, rapportiniServer: server, coda: coda.voci });
+  const c = g.conteggi;
 
-  await operaiAttivi().catch(() => {});
+  $("mg-tot").textContent = c.totale;
+  $("mg-completati").textContent = c.completati;
+  $("mg-incorso").textContent = c.inCorso;
+  $("mg-ore").textContent = minutiAOre(c.minuti);
 
-  // interventi di oggi
-  let interventiOggi = [];
-  try {
-    const tutti = await elencoInterventi({ dal: oggiStr, al: oggiStr, soloMiei: !isAdmin });
-    interventiOggi = tutti.filter(i => i.stato !== "annullato");
-  } catch (e) {
-    $("mg-lista-oggi").innerHTML = `<div class="vuoto"><p>${esc(e.message)}</p></div>`;
+  // interventi programmati di oggi: prima quelli da riprendere
+  const ordine = { da_completare: 0, in_corso: 1, da_iniziare: 2, completato: 3 };
+  g.schede.sort((a, b)=>(ordine[a.stato.codice] ?? 5) - (ordine[b.stato.codice] ?? 5));
+  $("mg-conta-oggi").textContent = g.schede.length ? g.schede.length + (g.schede.length === 1 ? " intervento" : " interventi") : "";
+  $("mg-lista-oggi").innerHTML = errore && !g.schede.length
+    ? `<div class="vuoto"><p>${esc(errore)}</p><p>Imprevisti e bozze salvati sul telefono restano disponibili qui sotto.</p></div>`
+    : g.schede.length ? g.schede.map(cardIntervento).join("")
+    : `<div class="vuoto"><div class="v-icona"><svg class="i"><use href="#i-cal"/></svg></div><h3>Nessun intervento programmato per oggi</h3>
+        <p>${gestisce ? "Programma un intervento o registra un imprevisto" : "Per un lavoro non programmato usa \"Registra imprevisto\""}</p></div>`;
+
+  mostra("mg-sez-imprevisti-head", g.imprevisti.length);
+  $("mg-conta-imprevisti").textContent = g.imprevisti.length || "";
+  $("mg-lista-imprevisti").innerHTML = g.imprevisti.map(cardImprevisto).join("");
+
+  mostra("mg-sez-bozze-head", g.bozze.length);
+  $("mg-conta-bozze").textContent = g.bozze.length || "";
+  $("mg-lista-bozze").innerHTML = g.bozze.map(cardBozza).join("");
+
+  const ritorni = elencoFollowup();
+  mostra("mg-sez-followup-head", ritorni.length);
+  $("mg-conta-followup").textContent = ritorni.length || "";
+  $("mg-lista-followup").innerHTML = ritorni.map(cardFollowup).join("");
+
+  if(gestisce){
+    try{
+      const prossimi = (await interventiPeriodo(sposta(oggi, 1), sposta(oggi, 7))).filter(i=>i.stato !== "annullato");
+      mostra("mg-sez-prossimi-head", prossimi.length);
+      $("mg-lista-prossimi").innerHTML = prossimi.slice(0, 5).map(i=>`<div class="card intervento mg-prossimo" style="cursor:pointer" onclick="apriDettaglioIntervento('${i.id}')">
+        <div class="int-top"><div class="int-ora${i.ora ? "" : " vuota"}">${i.ora ? i.ora.slice(0, 5) : '<svg class="i i-sm"><use href="#i-cal"/></svg>'}</div>
+        <div class="int-corpo"><div class="int-cliente">${esc(i.cliente || "Senza cliente")}</div>
+        <div class="int-desc">${esc(formattaData(i.data))}${i.descrizione ? " · " + esc(i.descrizione) : ""}</div></div></div></div>`).join("");
+    }catch(e){ /* non essenziale */ }
   }
 
-  // statistiche
-  let completati = 0, inCorso = 0, oreTotali = 0, daUltimare = 0;
-  for (const i of interventiOggi) {
-    const st = statoIntervento(i, io);
-    if (st.codice === "completato") completati++;
-    else if (st.codice === "in_corso" || st.codice === "da_completare") inCorso++;
-    for (const r of (i.rapportini || [])) {
-      if (r.autore_id === io) {
-        if (r.esito === "Da ultimare") daUltimare++;
-        if (r.rapportino_operai) {
-          for (const o of r.rapportino_operai) {
-            if (o.operaio_id === io && o.dalle && o.alle) {
-              oreTotali += minutiTra(o.dalle, o.alle);
-            }
-          }
-        }
-      }
-    }
-  }
-  $("mg-tot").textContent = interventiOggi.length;
-  $("mg-completati").textContent = completati;
-  $("mg-incorso").textContent = inCorso + (daUltimare ? " (" + daUltimare + " da ultimare)" : "");
-  $("mg-ore").textContent = minutiAOre(oreTotali);
+  const n = coda.conteggi.attesa + coda.conteggi.conflitti + coda.conteggi.falliti;
+  mostra("mg-sez-sync-head", n);
+  $("mg-conta-sync").textContent = n || "";
+  const st = coda.connessione && coda.connessione.stato;
+  $("mg-lista-sync").innerHTML = n ? `<div class="card sinc-testa">
+      <div class="sinc-conn"><span class="sinc-punto ${st === "online" ? "ok" : st === "offline" ? "err" : "att"}"></span>${esc(messaggioConnessione(st))}</div>
+      <div class="sinc-conti">${coda.conteggi.attesa ? `<span>In attesa: <b>${coda.conteggi.attesa}</b></span>` : ""}
+        ${coda.conteggi.conflitti ? `<span>Conflitti: <b>${coda.conteggi.conflitti}</b></span>` : ""}
+        ${coda.conteggi.falliti ? `<span>Falliti: <b>${coda.conteggi.falliti}</b></span>` : ""}</div>
+      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:10px" onclick="mostraVista('${puo("vista.lavoro") ? "lavoro" : "rapporti"}')"><svg class="i"><use href="#i-send"/></svg>Gestisci invii</button>
+    </div>` : "";
 
-  // lista interventi di oggi
-  $("mg-conta-oggi").textContent = interventiOggi.length ? interventiOggi.length + " interventi" : "";
-  if (interventiOggi.length) {
-    // ordine: da_completare > in_corso > da_iniziare > completato
-    const ordine = { da_completare: 0, in_corso: 1, da_iniziare: 2, completato: 3, annullato: 4 };
-    interventiOggi.sort((a, b) => {
-      const sa = statoIntervento(a, io), sb = statoIntervento(b, io);
-      return (ordine[sa.codice] ?? 5) - (ordine[sb.codice] ?? 5);
-    });
-    $("mg-lista-oggi").innerHTML = interventiOggi.map(i => cardIntervento(i, io)).join("");
-  } else {
-    $("mg-lista-oggi").innerHTML = `<div class="vuoto">
-      <div class="v-icona"><svg class="i"><use href="#i-cal"/></svg></div>
-      <h3>Nessun intervento per oggi</h3>
-      <p>${isAdmin ? "Programma un intervento o registra un imprevisto" : "Al momento non hai interventi assegnati"}</p>
-    </div>`;
-  }
-
-  // bozze locali non legate a un intervento di oggi
-  try {
-    const bozze = await bozzeDi(io);
-    const bozzeOggiIds = new Set(interventiOggi.flatMap(i => (i.rapportini || []).filter(r => r.autore_id === io && r.stato === "bozza").map(r => r.id)));
-    const bozzeExtra = bozze.filter(b => b.stato !== "inviato" && b.stato !== "in_sincronizzazione" && !bozzeOggiIds.has(b.id));
-    const sez = $("mg-sez-bozze-head");
-    if (bozzeExtra.length) {
-      sez.classList.remove("nascosto");
-      $("mg-conta-bozze").textContent = bozzeExtra.length;
-      $("mg-lista-bozze").innerHTML = bozzeExtra.map(cardBozza).join("");
-    } else {
-      sez.classList.add("nascosto");
-      $("mg-lista-bozze").innerHTML = "";
-    }
-  } catch (e) { /* offline: le bozze si vedranno al prossimo caricamento */ }
-
-  // prossimi giorni (admin/company)
-  if (isAdmin) {
-    try {
-      const fra7 = new Date(); fra7.setDate(fra7.getDate() + 7);
-      const domani = new Date(); domani.setDate(domani.getDate() + 1);
-      const prossimi = await interventiPeriodo(domani.toISOString().slice(0, 10), fra7.toISOString().slice(0, 10));
-      const attivi = prossimi.filter(i => i.stato !== "annullato");
-      const sezP = $("mg-sez-prossimi-head");
-      if (attivi.length) {
-        sezP.classList.remove("nascosto");
-        $("mg-lista-prossimi").innerHTML = attivi.slice(0, 5).map(i => cardProssimo(i, i.data)).join("");
-      } else {
-        sezP.classList.add("nascosto");
-        $("mg-lista-prossimi").innerHTML = "";
-      }
-    } catch (e) { /* non critico */ }
-  }
-
-  // follow-up pendenti (ritorni rimandati)
-  if (isAdmin) {
-    try {
-      const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
-      const sezF = $("mg-sez-followup-head");
-      if (lista.length) {
-        sezF.classList.remove("nascosto");
-        $("mg-conta-followup").textContent = lista.length;
-        $("mg-lista-followup").innerHTML = lista.map((f, idx) => `<div class="card intervento mg-bozza" style="margin-bottom:10px">
-          <div class="int-top">
-            <div class="int-ora vuota"><svg class="i i-sm"><use href="#i-clock"/></svg></div>
-            <div class="int-corpo">
-              <div class="int-cliente">${esc(f.cliente || "Senza cliente")}</div>
-              <div class="int-desc">${f.desc ? esc(f.desc) : "Lavoro da ultimare"}${f.data ? " · Ritorno: " + formattaData(f.data) : ""}</div>
-              <div class="int-badge"><span class="badge att">Da programmare</span></div>
-            </div>
-          </div>
-          <div class="int-azioni">
-            <button type="button" class="btn btn-primario" style="font-size:13px" onclick="creaIntervnetoDaFollowup(${idx})"><svg class="i"><use href="#i-cal"/></svg>Programma</button>
-            <button type="button" class="btn btn-secondario" style="font-size:13px" onclick="rimuoviFollowup(${idx})"><svg class="i"><use href="#i-trash"/></svg></button>
-          </div>
-        </div>`).join("");
-      } else {
-        sezF.classList.add("nascosto");
-        $("mg-lista-followup").innerHTML = "";
-      }
-    } catch (e) { /* localStorage non disponibile */ }
-  }
-
-  // coda sincronizzazione
-  try {
-    const coda = await elencoCoda();
-    const sezS = $("mg-sez-sync-head");
-    const inAttesa = coda.conteggi.attesa + coda.conteggi.conflitti + coda.conteggi.falliti;
-    if (inAttesa > 0) {
-      sezS.classList.remove("nascosto");
-      $("mg-conta-sync").textContent = inAttesa;
-      $("mg-lista-sync").innerHTML = `<div class="card sinc-testa">
-        <div class="sinc-conn">
-          <span class="sinc-punto ${coda.connessione.stato === "online" ? "ok" : coda.connessione.stato === "offline" ? "err" : "att"}"></span>
-          ${messaggioConnessione(coda.connessione.stato)}
-        </div>
-        <div class="sinc-conti">
-          ${coda.conteggi.attesa ? `<span>In attesa: <b>${coda.conteggi.attesa}</b></span>` : ""}
-          ${coda.conteggi.conflitti ? `<span>Conflitti: <b>${coda.conteggi.conflitti}</b></span>` : ""}
-          ${coda.conteggi.falliti ? `<span>Falliti: <b>${coda.conteggi.falliti}</b></span>` : ""}
-        </div>
-        <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:10px" onclick="mostraVista('rapporti')">
-          <svg class="i"><use href="#i-send"/></svg>Gestisci invii</button>
-      </div>`;
-    } else {
-      sezS.classList.add("nascosto");
-      $("mg-lista-sync").innerHTML = "";
-    }
-  } catch (e) { /* non critico */ }
-
-  // riepilogo fine giornata: visibile se ci sono interventi completati e l'ora > 16
-  const oraCorrente = new Date().getHours();
-  const fineGiornata = $("mg-fine-giornata");
-  if (completati > 0 && oraCorrente >= 16) {
-    const mancanti = interventiOggi.length - completati;
-    const daFare = interventiOggi.filter(i => {
-      const s = statoIntervento(i, io);
-      return s.codice !== "completato" && s.codice !== "annullato";
-    });
-    fineGiornata.classList.remove("nascosto");
+  // fine giornata: dalle 16, se c'è stato lavoro
+  const fine = c.totale > 0 && ora >= 16;
+  mostra("mg-fine-giornata", fine);
+  if(fine){
+    const daFare = [...g.schede.filter(s=>s.stato.codice !== "completato").map(s=>({ nome: s.intervento.cliente, azione: `compilaRapportinoIntervento('${s.intervento.id}')` })),
+      ...g.imprevisti.filter(x=>x.stato.codice !== "completato").map(x=>({ nome: x.rapportino.cliente + " (imprevisto)", azione: `apriRapportino('${x.rapportino.id}')` }))];
     $("mg-fine-contenuto").innerHTML = `
       <div class="stat-griglia" style="margin-bottom:12px">
-        <div class="stat ok"><span class="stat-val">${completati}</span><span class="stat-lab">Completati</span></div>
-        <div class="stat ${mancanti ? "att" : "ok"}"><span class="stat-val">${mancanti}</span><span class="stat-lab">Da completare</span></div>
-        <div class="stat"><span class="stat-val">${minutiAOre(oreTotali)}</span><span class="stat-lab">Ore lavorate</span></div>
+        <div class="stat ok"><span class="stat-val">${c.completati}</span><span class="stat-lab">Completati</span></div>
+        <div class="stat ${daFare.length ? "att" : "ok"}"><span class="stat-val">${daFare.length}</span><span class="stat-lab">Da completare</span></div>
+        <div class="stat att"><span class="stat-val">${c.daUltimare}</span><span class="stat-lab">Da ultimare</span></div>
+        <div class="stat pervinca"><span class="stat-val">${minutiAOre(c.minuti)}</span><span class="stat-lab">Ore lavorate</span></div>
       </div>
-      ${mancanti ? `<p class="elenco-nota" style="margin:0 0 8px">Interventi ancora da completare:</p>
-        ${daFare.map(i => `<div class="mg-fine-item" style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--bordo)">
-          <span style="flex:1;font-weight:500">${esc(i.cliente || "Senza cliente")}</span>
-          <button type="button" class="btn btn-primario" style="min-height:36px;padding:6px 12px;font-size:13px" onclick="compilaRapportinoIntervento('${i.id}')">Compila</button>
-        </div>`).join("")}` : `<p class="elenco-nota" style="margin:0 0 8px;color:var(--ok-testo)">Tutti gli interventi di oggi sono completati!</p>`}
-      <div class="mg-fine-azioni" style="display:flex;gap:8px;flex-wrap:wrap">
-        <button type="button" class="btn btn-secondario" onclick="apriPDFGiornata()" style="flex:1;min-width:140px"><svg class="i"><use href="#i-file"/></svg>PDF giornata</button>
-        <button type="button" class="btn btn-secondario" onclick="mostraVista('rapporti')" style="flex:1;min-width:140px"><svg class="i"><use href="#i-send"/></svg>Rapportini</button>
-      </div>
-    `;
-  } else {
-    fineGiornata.classList.add("nascosto");
+      ${daFare.length ? `<p class="elenco-nota" style="margin:0 0 8px">Ancora da completare:</p>` + daFare.map(x=>`<div class="mg-fine-item">
+          <span>${esc(x.nome || "Senza cliente")}</span>${bottone("Riprendi", x.azione, true)}</div>`).join("")
+        : `<p class="elenco-nota" style="margin:0 0 8px;color:var(--ok-testo)">Tutto il lavoro di oggi è completato.</p>`}
+      ${ritorni.length ? `<p class="elenco-nota" style="margin:8px 0">${ritorni.length === 1 ? "1 ritorno" : ritorni.length + " ritorni"} da programmare (vedi sotto).</p>` : ""}
+      ${coda.conteggi.attesa ? `<p class="elenco-nota" style="margin:8px 0">${coda.conteggi.attesa} rapportini ancora da inviare dal telefono.</p>` : ""}
+      <div class="mg-fine-azioni">
+        ${bottone("PDF giornata", "apriPDFGiornata()", false, "file")}
+        ${bottone("Rapportini", "mostraVista('rapporti')", false, "send")}
+      </div>`;
   }
 }
 
-// follow-up: crea intervento da un follow-up pendente
-window.creaIntervnetoDaFollowup = function (idx) {
-  try {
-    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
-    const f = lista[idx];
-    if (!f) return;
-    if (typeof window.apriModuloIntervento === "function") {
-      window.apriModuloIntervento(null, {
-        cliente: f.cliente, indirizzo: f.indirizzo, cliente_id: f.cliente_id,
-        tipologia: f.tipologia, telefono: ""
-      });
-      const setData = () => {
-        const el = document.getElementById("int-data");
-        const desc = document.getElementById("int-descrizione");
-        if (el && f.data) el.value = f.data;
-        if (desc) desc.value = (f.desc || "Ritorno: completare lavoro") + (f.attivita ? "\n\nDal rapportino precedente:\n" + f.attivita : "");
-        if (f.ora) { const oraEl = document.getElementById("int-ora"); if (oraEl) oraEl.value = f.ora; }
-      };
-      setTimeout(setData, 50);
-      lista.splice(idx, 1);
-      localStorage.setItem("followup_pendenti", JSON.stringify(lista));
-    }
-  } catch (e) { alert(e.message); }
-};
-window.rimuoviFollowup = function (idx) {
-  if (!confirm("Rimuovere questo follow-up?")) return;
-  try {
-    const lista = JSON.parse(localStorage.getItem("followup_pendenti") || "[]");
-    lista.splice(idx, 1);
-    localStorage.setItem("followup_pendenti", JSON.stringify(lista));
-    disegnaGiornata();
-  } catch (e) { /* ignora */ }
-};
+// ---------------------------------------------------------------- azioni
+window.registraImprevisto = ()=>nuovoRapportinoAutonomo();
+window.compilaRapportinoIntervento = id=>rapportinoPerIntervento(id);
+window.apriRapportinoGiornata = id=>apriRapportino(id);
 
-// funzione "Registra imprevisto": apre un rapportino autonomo
-window.registraImprevisto = function () {
-  if (typeof window.nuovoRapportinoAutonomo === "function") {
-    window.nuovoRapportinoAutonomo();
-  } else {
-    mostraVista("rapportino");
-  }
+// Programmare un ritorno: il modulo intervento si apre precompilato; il follow-up diventa
+// "programmato" solo quando il server conferma il salvataggio (evento "intervento-salvato").
+window.programmaFollowup = async id=>{
+  const f = leggiFollowup(id);
+  if(!f) return disegnaGiornata();
+  if(f.stato === "programmato"){ alert("Questo ritorno è già stato programmato."); return disegnaGiornata(); }
+  await apriModuloIntervento(null,
+    { cliente: f.cliente, indirizzo: f.indirizzo || "", telefono: f.telefono || "", cliente_id: f.cliente_id || null, tipologia: f.tipologia || "" },
+    { data: f.data || sposta(oggiIso(), 1), ora: f.ora || "", descrizione: testoDescrizioneRitorno(f), operai: f.operai, origine: "followup:" + f.id });
 };
-
-// funzione per compilare rapportino da un intervento
-window.compilaRapportinoIntervento = function (interventoId) {
-  if (typeof window.rapportinoPerIntervento === "function") {
-    window.rapportinoPerIntervento(interventoId);
-  }
+window.eliminaFollowup = id=>{
+  if(!confirm("Eliminare questo ritorno da programmare? Il rapportino di origine non cambia.")) return;
+  rimuoviFollowup(id);
+  disegnaGiornata();
 };
-
-function minutiTra(dalle, alle) {
-  if (!dalle || !alle) return 0;
-  const [a, b] = [dalle, alle].map(t => { const p = t.split(":"); return +p[0] * 60 + +p[1]; });
-  return Math.max(0, b - a);
-}
+su("intervento-salvato", ({ id, origine } = {})=>{
+  if(origine && origine.startsWith("followup:")) segnaProgrammato(origine.slice(9), id);
+});
 
 registraVista("giornata", disegnaGiornata);
-
-su("rapportino-sincronizzato", () => { invalidaInterventi(); disegnaGiornata(); });
-su("coda-aggiornata", disegnaGiornata);
-su("coda-sincronizzata", disegnaGiornata);
+const ridisegna = ()=>{ if(vistaCorrente === "giornata") disegnaGiornata(); };
+su("rapportino-sincronizzato", ()=>{ invalidaInterventi(); ridisegna(); });
+su("coda-aggiornata", ridisegna);
+su("coda-sincronizzata", ridisegna);
