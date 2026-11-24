@@ -56,7 +56,13 @@ export async function disegnaHome(){
   cont.innerHTML = htmlLavoriGiorno(g, iso);
 }
 // ---- orario della giornata (Home): 08:00-17:00 per tutti salvo inserimento; "escludi dal monte ore" ----
-const giornoHome = ()=>document.getElementById("data").value || oggiIso();
+// giorno dell'orario: campo nel riquadro di Giornata (oggi se vuoto)
+const giornoHome = ()=>{ const el = document.getElementById("og-giorno"); return (el && el.value) || oggiIso(); };
+export function disegnaOrarioGiornata(){
+  const el = document.getElementById("og-giorno");
+  if(el && !el.value) el.value = oggiIso();
+  aggiornaOrari().then(()=>disegnaOrarioHome(giornoHome())).catch(()=>disegnaOrarioHome(giornoHome()));
+}
 function disegnaOrarioHome(iso, nota){
   const o = orarioDelGiorno(iso);
   document.getElementById("og-dalle").value = o.dalle;
@@ -77,7 +83,8 @@ async function salvaOrarioHome(valore){
     await salvaOrarioGiorno(iso, valore);
     if(giornoHome() !== iso) return;
     const o = disegnaOrarioHome(iso, { testo: "Salvato ✓" });
-    document.getElementById("st-ore").textContent = oreTesto(lavoriHome ? o.minuti : 0);
+    const st = document.getElementById("st-ore");
+    if(st) st.textContent = oreTesto(lavoriHome ? o.minuti : 0);
   }catch(e){
     if(giornoHome() === iso) disegnaOrarioHome(iso, { testo: /policy|row-level|permission|42501/i.test(e.message) ? "Solo l'amministratore può cambiare l'orario." : "Non salvato: " + e.message, errore: true });
   }

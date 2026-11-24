@@ -179,7 +179,7 @@ export async function eliminaBozzaLocale(id){
 // la coda cambia (invio, errore, connessione): si aggiorna solo questa sezione; a fine giro, se e'
 // stato inviato qualcosa, anche le liste del server
 let ritardo = null;
-const ridisegna = ()=>{ clearTimeout(ritardo); ritardo = setTimeout(()=>{ if(vistaCorrente === "lavoro") disegnaDaInviare(); }, 150); };
+const ridisegna = ()=>{ clearTimeout(ritardo); ritardo = setTimeout(()=>{ if(vistaCorrente === "lavoro" || vistaCorrente === "giornata") disegnaDaInviare(); }, 150); };
 su("coda-aggiornata", ridisegna);
 su("connessione-cambiata", ridisegna);
 su("coda-sincronizzata", r=>{ if(r && r.inviati && vistaCorrente === "lavoro") disegnaLavoro(); });

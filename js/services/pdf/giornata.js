@@ -25,7 +25,8 @@ const TITOLO_GIORNATA = "RAPPORTO DI LAVORO GIORNALIERO";
 const W = 210;
 const statiCliente = c=>[c.urgente ? "URGENZA" : "", c.stato === "Da ultimare" ? "DA ULTIMARE" : ""].filter(Boolean);
 const datiSede = c=>[c.indirizzo, c.tipologia ? "Tipologia: " + c.tipologia : "", c.fatturare ? "Fatturare a: " + c.fatturare : "",
-  c.oreLavoro ? "Ore di lavoro: " + oreTesto(c.oreLavoro) : ""].filter(Boolean);
+  c.oreLavoro ? "Ore di lavoro: " + oreTesto(c.oreLavoro) : "",
+  c.orariTecnici ? "Tecnici: " + c.orariTecnici : ""].filter(Boolean);     // solo foglio unico dei rapportini
 // spunta "solo ore per cliente": niente orario dei tecnici; per ogni cliente le ore di lavoro (tempo sul posto)
 // I PDF dei rapportini (dati.soloIntervalli) stampano solo l'intervallo segnato (dalle-alle), mai il totale
 // delle ore: l'opzione non si applica a loro.

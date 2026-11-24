@@ -145,6 +145,7 @@ const attendiElenco = (page, attesi)=>page.waitForFunction(a=>{
   return JSON.stringify(v) === JSON.stringify(a);
 }, [...attesi].sort(), { timeout: 10000 });
 const preparaMese = async (page, mese, operaio = "")=>{
+  await page.click("#sb-seg-mese");
   await page.fill("#rm-mese", mese);
   await page.selectOption("#rm-operaio", operaio);
   await page.click("#rm-prepara");
@@ -169,7 +170,9 @@ try{
   const { page, sb, errori } = await apri(browser, base, immagini);
   await metteSospeso(page, A.id, "2026-11-13");
   await page.evaluate(()=>window.mostraVista("rapporti"));
-  await page.waitForSelector("#rm-prepara");
+  // "Stampa e report": il PDF del mese e' nella scheda "Mese"
+  await page.click("#sb-seg-mese");
+  await page.waitForSelector("#rm-prepara:visible");
 
   await prova("mese predefinito = mese locale (00:30 dell'1/12 a Roma -> dicembre, non novembre UTC)", async()=>{
     assert.equal(await page.inputValue("#rap-mese"), "2026-12");
@@ -181,6 +184,7 @@ try{
     await page.fill("#rap-mese", "2026-11"); await page.dispatchEvent("#rap-mese", "change");
     await attendiElenco(page, ["Alfa Srl", "Beta Spa", "Bozza Novembre", "Delta Sas", "Epsilon Srl", "Eta Srl", "Gamma Snc", "Zeta Spa"]);
     // il giorno scelto nel PDF della giornata filtra anche l'elenco
+    await page.click("#sb-seg-giorno");
     await page.fill("#rg-data", "2026-11-13"); await page.dispatchEvent("#rg-data", "change");
     await attendiElenco(page, ["Epsilon Srl", "Zeta Spa"]);
     assert.equal(await page.inputValue("#rap-giorno"), "2026-11-13");
@@ -229,6 +233,7 @@ try{
   });
 
   await prova("PDF della giornata: fascia oraria distinta dalle ore effettive (sovrapposte e contigue)", async()=>{
+    await page.click("#sb-seg-giorno");
     await page.fill("#rg-data", "2026-11-03"); await page.dispatchEvent("#rg-data", "change");
     await page.click("#rg-prepara");
     await page.waitForSelector("#rg-condividi:not(.nascosto)", { timeout: 15000 });
@@ -307,6 +312,23 @@ try{
     assert.equal(c.nome, "Rapportini_2026-11_Mario_Bianchi.pdf");
     assert.equal(c.tipo, "application/pdf");
     assert.ok(c.dim > 2000);
+  });
+
+  await prova("Rapportini -> Mese -> Report ore del mese: apre il report dello stesso mese, con il ritorno a Rapportini", async()=>{
+    await page.click("#sb-seg-mese");
+    await page.fill("#rm-mese", "2026-11");
+    await page.click("#rm-report-ore");
+    await page.waitForSelector("#vista-mese:not(.nascosto)");
+    assert.equal(await page.inputValue("#mesedata"), "2026-11");
+    assert.ok(await page.isVisible("#vista-mese .m-sett"), "report ore visibile");
+    assert.ok(await page.isVisible("#btn-pdf-mese"), "PDF report ore");
+    assert.ok(await page.isHidden("#cal-testa"), "non è l'Agenda");
+    await page.click("#vista-mese .solo-report-mese .indietro");
+    await page.waitForSelector("#vista-rapporti:not(.nascosto)");
+    // dall'Agenda la stessa vista mese mostra solo il calendario
+    await page.evaluate(()=>mostraVista("mese"));
+    assert.ok(await page.isVisible("#cal-testa") && await page.isHidden("#vista-mese .m-sett") && await page.isHidden("#btn-pdf-mese"));
+    await page.evaluate(()=>mostraVista("rapporti"));
   });
 
   await prova("nessun errore JavaScript", async()=>{ assert.deepEqual(errori, []); });

@@ -211,6 +211,34 @@ try{
     assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(testo), "due rapportini A5 su A4 orizzontale");
   });
 
+  await prova("impostazione 'Foglio unico' (Altro): più interventi in un solo A4, ognuno con i suoi tecnici; spenta torna A5", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("altro"));
+    assert.equal(await a.page.isChecked("#pref-pdf-foglio-unico"), false, "spenta di serie");
+    await a.page.check("#pref-pdf-foglio-unico");
+    assert.equal(await a.page.evaluate(()=>localStorage.getItem("pdfFoglioUnico")), "1");
+    assert.equal(await a.page.isChecked("#pdf-foglio-unico"), true, "stessa preferenza del vecchio foglio");
+    await a.page.evaluate(()=>window.mostraVista("rapporti"));
+    await a.page.fill("#rg-data", GIORNO);
+    await a.page.click("#rg-prepara");
+    await a.page.waitForSelector("#rg-condividi:not(.nascosto)", { timeout: 15000 });
+    assert.match(await a.page.textContent("#rg-formato"), /foglio unico A4/);
+    const { nome, testo } = await scaricaPDF(a.page);
+    assert.equal(nome, "Rapportini_2026-11-13.pdf");
+    assert.ok(/\/MediaBox \[0 0 595\.2\d* 841\.8\d*\]/.test(testo), "A4 verticale");
+    assert.ok(testo.includes("RAPPORTO DI LAVORO GIORNALIERO") && !testo.includes("TAGLIA QUI"), "foglio unico, niente A5 da tagliare");
+    for(const t of ["Rossi Srl", "Condominio Verdi", "Pulizia bruciatore", "Sostituzione valvola", "Tecnici: Mario Bianchi 08:00", "10:30", "2h 30m", "Anna Verdi dalle 14:00"])
+      assert.ok(testo.includes(t), "manca nel PDF: " + t);
+    assert.ok(!testo.includes("Bozza Spa") && !testo.includes("Sospeso Snc"), "solo i completati");
+    // spenta: di nuovo due rapportini A5 per foglio
+    await a.page.evaluate(()=>window.mostraVista("altro"));
+    await a.page.uncheck("#pref-pdf-foglio-unico");
+    await a.page.evaluate(()=>window.mostraVista("rapporti"));
+    assert.match(await a.page.textContent("#rg-formato"), /due per foglio/);
+    const dopo = await scaricaPDF(a.page);
+    assert.ok(/\/MediaBox \[0 0 841\.8\d* 595\.2\d*\]/.test(dopo.testo) && dopo.testo.includes("TAGLIA QUI"), "A5 su A4 orizzontale");
+    assert.ok(!dopo.testo.includes("Tecnici: Mario"), "riga tecnici solo nel foglio unico");
+  });
+
   await prova("filtro operaio: un solo rapportino = rapportino A4 di quell'operaio", async()=>{
     await a.page.selectOption("#rg-operaio", UTENTI.anna.id);
     assert.ok(await a.page.isHidden("#rg-condividi"), "cambiando filtro si prepara di nuovo");
@@ -229,7 +257,7 @@ try{
     assert.equal(volte("Luca Admin"), 0, "chi non ha segnato l'orario non compare nella tabella degli orari");
   });
 
-  await prova("Home -> Invia PDF: rapportini completati + schede compilate del foglio giornaliero del giorno scelto", async()=>{
+  await prova("Agenda -> Giorno -> Invia PDF: rapportini completati + schede compilate del foglio giornaliero del giorno scelto", async()=>{
     await a.page.evaluate(giorno=>import("./js/core/storage.js").then(m=>{
       const db = m.leggiDB();
       db[giorno] = { tecnici: "Luca Admin", escludi: false, spese: [], operai: [{ nome: "Luca Admin", dalle: "11:00", alle: "12:30" }],
@@ -237,9 +265,10 @@ try{
                   { id: "v2", nome: "Scheda Vuota", indirizzo: "", fasce: [], dettagli: "", materiali: [], foto: [], firma: "", firmatario: "" }] };
       m.scriviDB(db);
     }), GIORNO);
-    await a.page.evaluate(giorno=>{ window.apriGiornoHome(giorno); window.mostraVista("home"); }, GIORNO);
+    await a.page.evaluate(g=>window.apriGiornoCal(g), GIORNO);
+    await a.page.waitForSelector("#vista-calgiorno:not(.nascosto) #cg-pdf");
     assert.equal(await a.page.locator('#vista-altro .voce:has-text("PDF della giornata")').count(), 0, "in Altro non c'e' piu' il doppione");
-    await a.page.click("#btn-pdf-home");
+    await a.page.click("#cg-pdf");
     await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
     assert.equal(await a.page.inputValue("#rg-data"), GIORNO);
     const nomi = await a.page.$$eval("#rg-esito .cli-elenco .cli-nome", e=>e.map(x=>x.textContent));
@@ -262,16 +291,18 @@ try{
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(3\)/);
   });
 
-  await prova("Home: orario della giornata 8-17 salvo inserimento; escludi dal monte ore; non compare nel PDF", async()=>{
+  await prova("Giornata: orario della giornata 8-17 salvo inserimento; escludi dal monte ore; non compare nel PDF", async()=>{
+    await a.page.evaluate(()=>window.mostraVista("giornata"));
+    const giorno = async iso=>{ await a.page.fill("#og-giorno", iso); await a.page.dispatchEvent("#og-giorno", "change"); };
     // giorno senza nulla di inserito: 08:00-17:00, 9 ore
-    await a.page.evaluate(()=>{ window.apriGiornoHome("2026-11-12"); window.mostraVista("home"); });
+    await giorno("2026-11-12");
     await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "9 ore");
     assert.equal(await a.page.inputValue("#og-dalle"), "08:00");
     assert.equal(await a.page.inputValue("#og-alle"), "17:00");
     assert.match(await a.page.textContent("#og-nota"), /Orario fisso 8–17/);
     assert.ok(await a.page.isHidden("#og-ripristina"));
     // giorno con il vecchio foglio: propone l'orario segnato li' finche' non se ne inserisce uno
-    await a.page.evaluate(g=>window.apriGiornoHome(g), GIORNO);
+    await giorno(GIORNO);
     await a.page.waitForFunction(()=>/foglio giornaliero/.test(document.getElementById("og-nota").textContent));
     assert.equal(await a.page.inputValue("#og-dalle"), "11:00");
     // inserisco io l'orario: 08:00-13:00 = 5 ore, salvato per quel giorno (non per gli altri)
@@ -281,13 +312,11 @@ try{
     await a.page.fill("#og-alle", "13:00");
     await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore");
     assert.deepEqual(a.sb.stato.impostazioni.find(x=>x.chiave === "giornata:" + GIORNO).valore, { escludi: false, dalle: "08:00", alle: "13:00" });
-    assert.equal(await a.page.textContent("#st-ore"), "5 ore", "riepilogo della Home: ore della giornata");
     await a.page.check("#og-escludi");
     await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore · esclusa");
     assert.equal(a.sb.stato.impostazioni.find(x=>x.chiave === "giornata:" + GIORNO).valore.escludi, true);
-    // il giorno della Home vale anche per Calendario -> Giorno e per il PDF della giornata
-    assert.equal(await a.page.inputValue("#cg-data"), GIORNO);
-    await a.page.click("#btn-pdf-home");
+    // PDF della giornata: l'orario compare nell'anteprima, non nel PDF
+    await a.page.evaluate(g=>window.apriPDFGiornata(g), GIORNO);
     await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
     assert.match(await a.page.textContent("#rg-orario"), /08:00–13:00 \(5 ore\).*esclusa dal monte ore/);
     const { testo } = await scaricaPDF(a.page);
@@ -295,7 +324,7 @@ try{
   });
 
   await prova("Report mensile: rapportini + foglio, ore per operaio, giornata esclusa non sommata", async()=>{
-    await a.page.evaluate(()=>{ document.getElementById("mesedata").value = "2026-11"; window.mostraVista("mese"); });
+    await a.page.evaluate(()=>{ document.getElementById("mesedata").value = "2026-11"; window.mostraVista("reportmese"); });
     await a.page.waitForFunction(()=>/Rossi Srl/.test(document.getElementById("meseelenco").textContent), null, { timeout: 15000 });
     const riga = await a.page.textContent("#meseelenco");
     assert.match(riga, /13\/11\/2026 · 08:00–13:00/);
@@ -308,11 +337,11 @@ try{
     assert.doesNotMatch(ricap, /Luca Admin|Mario Bianchi/, "giornata esclusa: nessuna ora sommata agli operai");
     assert.ok(await a.page.isHidden("#nascondi-ore-mese") && await a.page.isHidden("#ore-cliente-mese"), "niente opzioni di stampa");
     assert.equal(await a.page.locator('#vista-altro .voce:has-text("Report settimanale")').count(), 0);
-    // tolgo "escludi" dalla Home: le ore entrano nel conteggio per operaio
-    await a.page.evaluate(()=>window.mostraVista("home"));
+    // tolgo "escludi" in Giornata: le ore entrano nel conteggio per operaio
+    await a.page.evaluate(()=>window.mostraVista("giornata"));
     await a.page.uncheck("#og-escludi");
     await a.page.waitForFunction(()=>document.getElementById("og-ore").textContent === "5 ore");
-    await a.page.evaluate(()=>window.mostraVista("mese"));
+    await a.page.evaluate(()=>window.mostraVista("reportmese"));
     await a.page.waitForFunction(()=>/Mario Bianchi \(1 g\.\)/.test(document.getElementById("mesericap").textContent));
     ricap = await a.page.textContent("#mesericap");
     for(const t of ["Luca Admin (1 g.)5 ore", "Mario Bianchi (1 g.)5 ore", "Anna Verdi (1 g.)5 ore"]) assert.ok(ricap.includes(t), "manca: " + t + " in " + ricap);

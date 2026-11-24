@@ -49,6 +49,7 @@ const prefExtra = leggiPrefExtra();
   document.getElementById(id).checked = prefExtra;
 });
 document.getElementById("pdf-foglio-unico").checked = leggiPrefFoglioUnico();
+document.getElementById("pref-pdf-foglio-unico").checked = leggiPrefFoglioUnico();
 document.getElementById("nascondi-ore-giorno").checked = leggiPrefNascondiOre();
 document.getElementById("nascondi-ore-mese").checked = leggiPrefNascondiOreMese();
 aggiornaSpunteOreCliente();                     // ultimo valore noto; poi si aggiorna dal server

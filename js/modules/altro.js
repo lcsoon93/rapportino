@@ -2,6 +2,7 @@
 import { DESTINATARIO, SINC_ATTIVA } from "../core/config.js";
 import { leggiDB } from "../core/storage.js";
 import { mostraVista, registraVista } from "../core/navigation.js";
+import { vocinav } from "../core/permessi.js";
 import { aggiornaTestiData } from "./rapportini.js";
 import { haRuolo, nomeCompleto, profilo } from "../core/sessione.js";
 import { attivaNotifiche, disattivaNotifiche, provaNotifica, statoNotifiche } from "../services/notifiche.js";
@@ -19,6 +20,9 @@ export function aggiornaAltro(){
   document.getElementById("info-mail").textContent = DESTINATARIO;
   document.getElementById("altro-utente").textContent = profilo ? nomeCompleto(profilo) + " (@" + profilo.username + ")" : "—";
   aggiornaNotificheUI();
+  // "Anagrafica clienti" in Altro solo per chi non ha "Clienti" nella barra in basso
+  const ana = document.getElementById("altro-anagrafica");
+  if(ana) ana.classList.toggle("nascosto", vocinav().some(v=>v[0] === "clienti"));
 }
 
 // ---------------------------------------------------------------- notifiche

@@ -43,7 +43,6 @@ export function disegnaRapporti(){
   if(!$("rap-mese").value) $("rap-mese").value = oggiIso().slice(0, 7);
   $("rap-giorno-tutti").classList.toggle("nascosto", !$("rap-giorno").value);
   disegnaRapportiniOperai();
-  if(puo("giornate.consulta")) disegnaGiornate();
 }
 let richiesta = 0;     // solo l'ultima lettura aggiorna l'elenco (filtri cambiati mentre si caricava)
 async function disegnaRapportiniOperai(){
@@ -65,9 +64,22 @@ async function disegnaRapportiniOperai(){
     if(n === richiesta) $("rap-nuovi").innerHTML = '<div class="card nota">' + esc(e.message) + '</div>';
   }
 }
+// ---------------------------------------------------------------- archivio della vecchia app
+// giornate del foglio giornaliero (consultazione e PDF), per mese; i lavori sono gia' tra i rapportini
+export function disegnaArchivio(){
+  if(!$("arc-mese").value) $("arc-mese").value = $("rap-mese").value || oggiIso().slice(0, 7);
+  $("info-giorni").textContent = Object.keys(leggiDB()).length;
+  disegnaGiornate();
+}
+export function spostaMeseArchivio(delta){
+  const [a, m] = ($("arc-mese").value || oggiIso().slice(0, 7)).split("-").map(Number);
+  const d = new Date(a, m - 1 + delta, 1);
+  $("arc-mese").value = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+  disegnaGiornate();
+}
 function disegnaGiornate(){
   const db = leggiDB(), ass = leggiMappa("assegnazioni");
-  const giorni = periodo().giorni.filter(g=>db[g]).reverse();
+  const giorni = giorniMese($("arc-mese").value || oggiIso().slice(0, 7)).filter(g=>db[g]).reverse();
   $("rap-elenco").innerHTML = giorni.length ? giorni.map(g=>{
     const clienti = db[g].clienti || [];
     const conPdf = clienti.some(schedaCompilata);
@@ -96,6 +108,7 @@ export function pdfRapporto(btn, giorno){
   inviaPDF(btn);
 }
 
-registraVista("rapporti", ()=>{ inizializzaPDFGiornata(); inizializzaPDFMese(); disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
+registraVista("rapporti", ()=>{ inizializzaPDFGiornata(); inizializzaPDFMese(); disegnaRapporti(); });
+registraVista("archivio", ()=>{ disegnaArchivio(); sincronizza(true); });
 su("uscita", ()=>{ $("rap-giorno").value = ""; });
-su("sincronizzato", ()=>{ if(vistaCorrente === "rapporti" && puo("giornate.consulta")) disegnaGiornate(); });
+su("sincronizzato", ()=>{ if(vistaCorrente === "archivio") disegnaArchivio(); });

@@ -890,3 +890,13 @@ body[data-ruolo="admin"] .solo-senza-report{display:none}
 .rf-followup-titolo{margin:0 0 8px;padding:0}
 .rf-followup .campo{margin-bottom:8px}
 .rf-followup .due{margin-bottom:8px}
+
+/* Agenda: la vista Mese mostra solo il calendario; "Report ore del mese" (da Rapportini) anche il report */
+.solo-report-mese{display:none}
+body.mese-report .solo-report-mese{display:flex}
+body.mese-agenda #vista-mese .m-sett{display:none}
+/* Giornata: giorno dell'orario della giornata */
+.og-giorno{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--testo-2);margin:4px 0 8px}
+.og-giorno input{flex:1;max-width:180px}
+/* Rapportini: riquadro unico "Stampa e report" */
+#stampa-box .rm-report{margin-top:12px}

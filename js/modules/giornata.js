@@ -9,6 +9,8 @@ import { controllaInterventoPrevisto, elencoInterventi, elencoRapportini, interv
 import { elencoCoda, messaggioConnessione } from "../services/sinc-rapportini.js";
 import { elencoFollowup, idInterventoPrevisto, leggiFollowup, rimuoviFollowup, segnaProgrammato } from "../services/followup.js";
 import { apriModuloIntervento } from "./gestione-interventi.js";
+import { disegnaDaInviare } from "./lavoro.js";
+import { disegnaOrarioGiornata } from "./dashboard.js";
 import { apriRapportino, nuovoRapportinoAutonomo, rapportinoPerIntervento, testoDescrizioneRitorno } from "./modulo-rapportino.js";
 import { calcolaGiornata, orarioScheda } from "./giornata-dati.js";
 import { isoDi, oggiIso } from "../utils/dates.js";
@@ -159,17 +161,9 @@ async function disegna(){
     }catch(e){ /* non essenziale */ }
   }
 
-  const n = coda.conteggi.attesa + coda.conteggi.conflitti + coda.conteggi.falliti;
-  mostra("mg-sez-sync-head", n);
-  $("mg-conta-sync").textContent = n || "";
-  const st = coda.connessione && coda.connessione.stato;
-  $("mg-lista-sync").innerHTML = n ? `<div class="card sinc-testa">
-      <div class="sinc-conn"><span class="sinc-punto ${st === "online" ? "ok" : st === "offline" ? "err" : "att"}"></span>${esc(messaggioConnessione(st))}</div>
-      <div class="sinc-conti">${coda.conteggi.attesa ? `<span>In attesa: <b>${coda.conteggi.attesa}</b></span>` : ""}
-        ${coda.conteggi.conflitti ? `<span>Conflitti: <b>${coda.conteggi.conflitti}</b></span>` : ""}
-        ${coda.conteggi.falliti ? `<span>Falliti: <b>${coda.conteggi.falliti}</b></span>` : ""}</div>
-      <button type="button" class="btn btn-secondario btn-blocco" style="margin-top:10px" onclick="mostraVista('${puo("vista.lavoro") ? "lavoro" : "rapporti"}')"><svg class="i"><use href="#i-send"/></svg>Gestisci invii</button>
-    </div>` : "";
+  // da inviare: coda completa del telefono (riprova, conflitti, elimina, sincronizza ora)
+  disegnaDaInviare().catch(()=>{});
+  if(puo("report")) disegnaOrarioGiornata();
 
   // fine giornata: dalle 16, se c'è stato lavoro
   const fine = c.totale > 0 && ora >= 16;
