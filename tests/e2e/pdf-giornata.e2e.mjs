@@ -186,7 +186,9 @@ try{
     assert.match(esito, /Bozza Spa — in bozza: non completato/);
     assert.match(esito, /Sospeso Snc — completato sul telefono ma non ancora inviato/);
     assert.match(esito, /Mario Bianchi 08:00–10:30 · 2h 30m/, "orario e ore passate dal cliente");
-    assert.match(esito, /Orario della giornata: 08:00–17:00 · 9 ore/);
+    // fascia oraria della giornata distinta dalle ore effettive dei rapportini (Mario 08:00-10:30)
+    assert.match(esito, /Fascia oraria della giornata: 08:00–17:00 \(9 ore\)/);
+    assert.match(esito, /Ore effettivamente lavorate nei rapportini: 2h 30m/);
     assert.match(esito, /Anna Verdi dalle 14:00, Luca Admin(?! \d)/);
     assert.match(await a.page.textContent("#rg-condividi"), /Condividi PDF \(2\)/);
     const q = a.sb.stato.query.find(s=>/stato=eq.completato/.test(s));
@@ -287,7 +289,7 @@ try{
     assert.equal(await a.page.inputValue("#cg-data"), GIORNO);
     await a.page.click("#btn-pdf-home");
     await a.page.waitForSelector("#vista-rapporti:not(.nascosto) #rg-condividi:not(.nascosto)", { timeout: 15000 });
-    assert.match(await a.page.textContent("#rg-orario"), /08:00–13:00 · 5 ore.*esclusa dal monte ore/);
+    assert.match(await a.page.textContent("#rg-orario"), /08:00–13:00 \(5 ore\).*esclusa dal monte ore/);
     const { testo } = await scaricaPDF(a.page);
     assert.ok(!testo.includes("esclusa dal monte ore") && !testo.includes("RIEPILOGO DELLA GIORNATA"), "il PDF non riporta l'orario della giornata");
   });

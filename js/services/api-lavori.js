@@ -211,6 +211,14 @@ export async function rapportiniCompletatiDelGiorno(data, autore){
     return q.order("completato_il", { ascending: true });
   });
 }
+// rapportini completati di un periodo (date incluse), con firma: PDF del mese
+export async function rapportiniCompletatiPeriodo(dal, al, autore){
+  return leggiConRipiego(async campi=>{
+    let q = client.from("rapportini").select(campi(CAMPI_RAPPORTINO)).gte("data", dal).lte("data", al).eq("stato", "completato");
+    if(autore) q = q.eq("autore_id", autore);
+    return q.order("data", { ascending: true }).order("completato_il", { ascending: true });
+  });
+}
 export async function leggiRapportino(id){
   return leggiConRipiego(campi=>client.from("rapportini").select(campi(CAMPI_RAPPORTINO)).eq("id", id).maybeSingle());
 }

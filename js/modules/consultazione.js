@@ -14,6 +14,7 @@ import { puo } from "../core/permessi.js";
 import { elencoRapportini, nomeOperaio, operaiAttivi } from "../services/api-lavori.js";
 import { voceRapportino } from "./lavoro.js";
 import { inizializzaPDFGiornata } from "./stampa-giornata.js";
+import { inizializzaPDFMese } from "./stampa-mese.js";
 
 const $ = id=>document.getElementById(id);
 const BADGE = {
@@ -22,30 +23,51 @@ const BADGE = {
   dafare: '<span class="badge neutro">' + icona("file") + 'Da compilare</span>',
 };
 
+// periodo dell'elenco: il giorno scelto ("Solo il giorno") oppure tutto il mese. Date locali "AAAA-MM-GG",
+// estremi inclusi, nessuna conversione UTC.
+function periodo(){
+  const giorno = $("rap-giorno").value;
+  if(giorno && giorno.slice(0, 7) !== $("rap-mese").value) $("rap-giorno").value = "";   // mese cambiato: tutto il mese
+  const g = $("rap-giorno").value;
+  if(g) return { dal: g, al: g, giorni: [g], giorno: g };
+  const giorni = giorniMese($("rap-mese").value);
+  return { dal: giorni[0], al: giorni[giorni.length - 1], giorni, giorno: null };
+}
+// un giorno scelto (qui o nel PDF della giornata): l'elenco mostra solo quel giorno; "" = tutto il mese
+export function filtraGiornoRapporti(iso){
+  $("rap-giorno").value = iso || "";
+  if(iso) $("rap-mese").value = iso.slice(0, 7);
+  disegnaRapporti();
+}
 export function disegnaRapporti(){
   if(!$("rap-mese").value) $("rap-mese").value = oggiIso().slice(0, 7);
+  $("rap-giorno-tutti").classList.toggle("nascosto", !$("rap-giorno").value);
   disegnaRapportiniOperai();
   if(puo("giornate.consulta")) disegnaGiornate();
 }
+let richiesta = 0;     // solo l'ultima lettura aggiorna l'elenco (filtri cambiati mentre si caricava)
 async function disegnaRapportiniOperai(){
-  const mese = $("rap-mese").value, giorni = giorniMese(mese);
+  const p = periodo(), n = ++richiesta;
   $("rap-nuovi").innerHTML = '<div class="card nota">Caricamento…</div>';
   try{
     const operai = await operaiAttivi().catch(()=>[]);
     const filtro = $("rap-filtro-operaio");
     if(filtro.options.length <= 1) operai.forEach(o=>filtro.insertAdjacentHTML("beforeend", '<option value="' + o.id + '">' + esc(o.nome || o.username) + '</option>'));
-    const elenco = await elencoRapportini({ dal: giorni[0], al: giorni[giorni.length - 1],
-      stato: $("rap-filtro-stato").value || null, autore: puo("rapportini.consulta") ? ($("rap-filtro-operaio").value || null) : null });
+    const stato = $("rap-filtro-stato").value || null, autore = puo("rapportini.consulta") ? ($("rap-filtro-operaio").value || null) : null;
+    const letti = await elencoRapportini({ dal: p.dal, al: p.al, stato, autore });
+    if(n !== richiesta) return;
+    // stessi filtri anche sui dati ricevuti: mai rapportini di altri giorni, stati o operai
+    const elenco = letti.filter(r=>r.data >= p.dal && r.data <= p.al && (!stato || r.stato === stato) && (!autore || r.autore_id === autore));
     $("rap-nuovi").innerHTML = elenco.length
       ? '<div class="card cli-elenco">' + elenco.map(r=>voceRapportino(r, puo("rapportini.consulta") ? nomeOperaio : null)).join("") + '</div>'
-      : '<div class="card nota">Nessun rapportino in questo mese.</div>';
+      : '<div class="card nota">' + (p.giorno ? "Nessun rapportino il " + esc(dataLunga(p.giorno).toLowerCase()) + "." : "Nessun rapportino in questo mese.") + '</div>';
   }catch(e){
-    $("rap-nuovi").innerHTML = '<div class="card nota">' + esc(e.message) + '</div>';
+    if(n === richiesta) $("rap-nuovi").innerHTML = '<div class="card nota">' + esc(e.message) + '</div>';
   }
 }
 function disegnaGiornate(){
   const db = leggiDB(), ass = leggiMappa("assegnazioni");
-  const giorni = giorniMese($("rap-mese").value).filter(g=>db[g]).reverse();
+  const giorni = periodo().giorni.filter(g=>db[g]).reverse();
   $("rap-elenco").innerHTML = giorni.length ? giorni.map(g=>{
     const clienti = db[g].clienti || [];
     const conPdf = clienti.some(schedaCompilata);
@@ -74,5 +96,6 @@ export function pdfRapporto(btn, giorno){
   inviaPDF(btn);
 }
 
-registraVista("rapporti", ()=>{ inizializzaPDFGiornata(); disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
+registraVista("rapporti", ()=>{ inizializzaPDFGiornata(); inizializzaPDFMese(); disegnaRapporti(); if(puo("giornate.consulta")) sincronizza(true); });
+su("uscita", ()=>{ $("rap-giorno").value = ""; });
 su("sincronizzato", ()=>{ if(vistaCorrente === "rapporti" && puo("giornate.consulta")) disegnaGiornate(); });

@@ -22,6 +22,7 @@ import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { minutiSulPosto } from "../services/calculations.js";
 import { aggiornaOrari, orarioDelGiorno } from "../services/orario-giornata.js";
+import { minutiPerOperaio } from "../services/rapportini-mese-logica.js";
 import { sulComputer } from "../utils/dispositivo.js";
 import { icona } from "../utils/dom.js";
 
@@ -38,7 +39,7 @@ export function azzeraPDFGiornata(){
   messaggio("");
 }
 
-async function fotoDi(r){
+export async function fotoDi(r){
   const allegati = await elencoAllegati(r.id).catch(()=>null);
   if(!allegati) return { foto: [], mancanti: 0, errore: true };
   const foto = [];
@@ -52,7 +53,7 @@ async function fotoDi(r){
   return { foto, mancanti };
 }
 // scheda del PDF per un rapportino (stesso formato del PDF del singolo rapportino)
-function schedaPDF(r, foto){
+export function schedaPDF(r, foto){
   const operai = (r.rapportino_operai || []).map(o=>({ nome: nomeOperaio(o.operaio_id), dalle: ora(o.dalle), alle: ora(o.alle) }));
   return {
     id: r.id, nome: r.cliente, indirizzo: [r.indirizzo, r.telefono ? "Tel. " + r.telefono : ""].filter(Boolean).join(" · "),
@@ -62,7 +63,7 @@ function schedaPDF(r, foto){
   };
 }
 // come nel PDF: tecnico e intervallo segnato (dalle-alle), senza il totale delle ore
-const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle + " · " + oreTesto(minutiSulPosto([o])) : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
+export const orariScheda = c=>c.operai.map(o=>o.nome + (o.dalle && o.alle ? " " + o.dalle + "–" + o.alle + " · " + oreTesto(minutiSulPosto([o])) : o.dalle ? " dalle " + o.dalle : o.alle ? " fino alle " + o.alle : "")).join(", ");
 // schede compilate del foglio giornaliero (vecchia app) dello stesso giorno, gia' sul telefono
 function schedeFoglioGiornaliero(iso){
   const g = leggiDB()[iso];
@@ -134,8 +135,13 @@ export async function preparaPDFGiornata(btn){
     };
     const chi = autore && puo("rapportini.consulta") ? "_" + nomeOperaio(autore).replace(/[^\w]+/g, "_").slice(0, 30) : "";
     preparato = { iso, dati, nome: "Rapportini_" + iso + chi + ".pdf" };
-    $("rg-esito").innerHTML = '<div class="card nota" id="rg-orario">Orario della giornata: <b>' + orario.dalle + '–' + orario.alle + ' · ' + oreTesto(orario.minuti) + '</b>' +
-        (orario.escludi ? ' (esclusa dal monte ore)' : '') + '</div>' +
+    // ore effettive: per operaio, unione dei suoi intervalli nei rapportini completati (sovrapposizioni una volta)
+    const perOp = minutiPerOperaio(completati, autore && puo("rapportini.consulta") ? autore : null);
+    const effettive = Object.values(perOp).reduce((a, m)=>a + m, 0);
+    const dettOre = Object.entries(perOp).map(([id, m])=>nomeOperaio(id) + " " + oreTesto(m)).join(", ");
+    $("rg-esito").innerHTML = '<div class="card nota" id="rg-orario">Fascia oraria della giornata: <b>' + orario.dalle + '–' + orario.alle + '</b> (' + oreTesto(orario.minuti) + ')' +
+        (orario.escludi ? ' (esclusa dal monte ore)' : '') +
+        '<br>Ore effettivamente lavorate nei rapportini: <b id="rg-ore-effettive">' + oreTesto(effettive) + '</b>' + (dettOre ? ' (' + esc(dettOre) + ')' : '') + '</div>' +
       '<div class="ai-sez-tit">Nel PDF (' + tutte.length + (tutte.length === 1 ? " scheda" : " schede") + ')</div>' +
       '<div class="card cli-elenco">' + tutte.map((c, i)=>'<div class="st-rap" style="cursor:default"><span class="cli-testi">' +
         '<span class="cli-nome" style="display:block">' + (i + 1) + '. ' + esc(c.nome) + '</span>' +

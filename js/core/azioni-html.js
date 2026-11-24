@@ -20,7 +20,8 @@ import { oraAdesso } from "../utils/dom.js";
 import { apriCambioPassword, apriPin, esciDallApp } from "../modules/accesso.js";
 import { annullaInterventoUI, apriModuloIntervento, chiudiModuloIntervento, disegnaInterventi, eliminaInterventoUI, spostaPeriodoInterventi } from "../modules/gestione-interventi.js";
 import { aggiungiFotoRapportino, aggiungiMaterialeRapportino, aggiungiOreRapportino, apriRapportino, chiudiRapportino, completaRapportino, impostaModalitaRapportino, inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino } from "../modules/modulo-rapportino.js";
-import { disegnaRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
+import { disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseRapporti } from "../modules/consultazione.js";
+import { azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF } from "../modules/stampa-mese.js";
 import { annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente } from "../modules/utenti.js";
 import { eliminaBozzaLocale, riprovaInvio, sincronizzaOra } from "../modules/lavoro.js";
 import { azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico } from "../modules/storico.js";
@@ -50,7 +51,8 @@ Object.assign(window, {
   inviaFotoOra, nuovoRapportinoAutonomo, pdfRapportino, rapportinoPerIntervento, riapriRapportinoAperto, risolviConflitto, salvaBozzaRapportino,
   eliminaBozzaLocale, riprovaInvio, sincronizzaOra,
   azzeraFiltriStorico, cambiaDateStorico, cercaStorico, disegnaStorico, pdfClienteStorico, scegliMeseStorico,
-  disegnaRapporti, pdfRapporto, spostaMeseRapporti,
+  disegnaRapporti, filtraGiornoRapporti, pdfRapporto, spostaMeseRapporti,
+  azzeraPDFMese, condividiPDFMese, preparaPDFMese, spostaMesePDF,
   annullaModificaUtente, azioneUtente, generaPasswordIniziale, modificaUtente,
   apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal,
   apriPDFGiornata, azzeraPDFGiornata, condividiPDFGiornata, preparaPDFGiornata,
