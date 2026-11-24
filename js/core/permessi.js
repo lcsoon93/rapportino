@@ -34,9 +34,9 @@ const PERMESSI = {
 
 // navigazione in basso per ruolo: [id, etichetta, icona, vista]
 const NAV = {
-  admin:   [["giornata", "La mia giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  company: [["giornata", "La mia giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
-  worker:  [["giornata", "La mia giornata", "home", "giornata"], ["rapporti", "Rapportini", "file", "rapporti"], ["cal", "Calendario", "cal", "cal"], ["altro", "Altro", "grid", "altro"]],
+  admin:   [["giornata", "Giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["clienti", "Clienti", "users", "cerca"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  company: [["giornata", "Giornata", "home", "giornata"], ["interventi", "Agenda", "cal", "interventi"], ["rapporti", "Rapportini", "file", "rapporti"], ["altro", "Altro", "grid", "altro"]],
+  worker:  [["giornata", "Giornata", "home", "giornata"], ["rapporti", "Rapportini", "file", "rapporti"], ["cal", "Calendario", "cal", "cal"], ["altro", "Altro", "grid", "altro"]],
 };
 const VISTA_INIZIALE = { admin: "giornata", company: "giornata", worker: "giornata" };
 

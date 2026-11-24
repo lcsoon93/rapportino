@@ -66,6 +66,7 @@
   flex:1;min-width:0;border:none;background:transparent;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
   color:#7A8494;font-size:11.5px;font-weight:600;position:relative;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;   /* etichette su una riga: icone sempre allineate */
 }
 .nav-btn .i{width:24px;height:24px}
 .nav-btn .nav-pill{
