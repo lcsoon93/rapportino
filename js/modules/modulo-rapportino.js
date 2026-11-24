@@ -21,7 +21,7 @@ import { condividi } from "../services/condivisione.js";
 import { generaPDFPerCliente } from "../services/pdf/giornata.js";
 import { controllaRapportino, elencoTesto } from "../services/controlli.js";
 import { collegaSceltaCliente } from "./scelta-cliente.js";
-import { followupDelRapportino, rimuoviFollowup, salvaFollowup, segnaProgrammato } from "../services/followup.js";
+import { followupDelRapportino, idInterventoPrevisto, rimuoviFollowup, salvaFollowup, segnaProgrammato } from "../services/followup.js";
 import { dataIt, oggiIso } from "../utils/dates.js";
 import { esc, oreTesto } from "../utils/formatters.js";
 import { icona } from "../utils/dom.js";
@@ -411,11 +411,14 @@ export async function apriRapportino(id){
 // dall'intervento: riapre la propria bozza se c'e', altrimenti ne prepara una nuova
 export async function rapportinoPerIntervento(interventoId){
   try{
-    const miei = await elencoRapportini({ intervento: interventoId, autore: profilo.id });
+    // prima la copia sul telefono (anche senza rete): mai un secondo rapportino dello stesso operaio
+    const locale = (await bozzeLocali()).find(b=>b.intervento_id === interventoId && (!b.autore || b.autore === profilo.id) && b.stato !== "inviato");
+    if(locale) return apriRapportino(locale.id);
+    let miei;
+    try{ miei = await elencoRapportini({ intervento: interventoId, autore: profilo.id }); }
+    catch(e){ throw new Error("Senza connessione non si può verificare se hai già un rapportino per questo intervento: riprova quando torna la rete."); }
     const bozza = miei.find(r=>r.stato === "bozza") || miei[0];
     if(bozza) return apriRapportino(bozza.id);
-    const locale = (await bozzeLocali()).find(b=>b.intervento_id === interventoId && b.stato !== "inviato");
-    if(locale) return apriRapportino(locale.id);
     const i = await leggiIntervento(interventoId);
     await prepara();
     corrente = { id: nuovoId(), salvato: false, versione: null, intervento_id: interventoId, intervento: i, stato: "bozza", autore_id: profilo.id };
@@ -555,12 +558,12 @@ async function proponiRitorno(){
     messaggio(rimandato, "att"); return;
   }
   try{
-    const id = await salvaIntervento({ data: f.data, ora: f.ora || null, cliente: f.cliente, indirizzo: f.indirizzo, telefono: f.telefono,
+    const id = await salvaIntervento({ idNuovo: idInterventoPrevisto(f.id), data: f.data, ora: f.ora || null, cliente: f.cliente, indirizzo: f.indirizzo, telefono: f.telefono,
       cliente_id: f.cliente_id || null, tipologia: f.tipologia, descrizione: testoDescrizioneRitorno(f), priorita: "normale" }, f.operai || []);
     segnaProgrammato(f.id, id);
     messaggio("Rapportino completato. Intervento di ritorno creato per il " + dataIt(f.data) + ".");
   }catch(e){
-    messaggio("Rapportino completato, ma l'intervento di ritorno non è stato creato (" + e.message + "). Lo trovi nella dashboard tra i ritorni da programmare.", "att");
+    messaggio("Rapportino completato, ma l'intervento di ritorno non è stato creato (" + e.message + "). Lo trovi nella dashboard tra i ritorni da programmare: riprovando non verrà creato due volte.", "att");
   }
 }
 async function mostraEsito(res, completa){
@@ -575,7 +578,7 @@ async function mostraEsito(res, completa){
       messaggio("Rapportino completato e inviato.");
       await proponiRitorno();
     } else {
-      messaggio(res.fotoInviate && res.fotoInviate.length ? "Bozza salvata con le foto." : "Bozza salvata.");
+      messaggio(res.fotoInviate && res.fotoInviate.length ? "Bozza salvata sul server, con le foto." : "Bozza salvata sul server.");
     }
     return true;
   }
@@ -600,7 +603,7 @@ async function mostraEsito(res, completa){
       : "Bozza salvata, ma " + nFoto(res.rimaste) + " non ancora inviate (" + res.errore + "): restano sul telefono e verranno inviate automaticamente; puoi anche usare \"Invia foto\".", completa ? "err" : "att");
     return false;
   }
-  messaggio(res.errore + (rete
+  messaggio((rete ? "Salvato solo sul telefono, non ancora sul server. " : "") + res.errore + (rete
     ? " Le modifiche restano sul telefono e verranno inviate automaticamente quando la connessione torna" + (completa ? " (il completamento verrà fatto all'invio)." : ".")
     : ""), "err");
   return false;

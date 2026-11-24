@@ -127,9 +127,18 @@ async function scriviIntervento(dati, operai){
     descrizione: dati.descrizione || "", priorita: dati.priorita || "normale", tipologia: dati.tipologia || "" };
   // copia dei dati del cliente nel documento + collegamento alla scheda (se il database li ha)
   if(colonneClienti){ campi.telefono = dati.telefono || ""; campi.cliente_id = dati.cliente_id || null; }
-  const scrivi = c=>dati.id ? client.from("interventi").update(c).eq("id", dati.id).select("id").single()
-    : client.from("interventi").insert(c).select("id").single();
+  // idNuovo: id scelto dal telefono per un nuovo intervento (es. ritorno). Se un tentativo precedente
+  // l'ha gia' creato ma la risposta si e' persa, si aggiorna quello invece di crearne un secondo.
+  let idEsistente = dati.id || null;
+  if(!idEsistente && dati.idNuovo){
+    const c = controlla(await client.from("interventi").select("id").eq("id", dati.idNuovo).limit(1));
+    if(c.length) idEsistente = dati.idNuovo;
+  }
+  const scrivi = c=>idEsistente ? client.from("interventi").update(c).eq("id", idEsistente).select("id").single()
+    : client.from("interventi").insert(dati.idNuovo ? Object.assign({ id: dati.idNuovo }, c) : c).select("id").single();
   let r = await scrivi(campi);
+  // inserimento gia' avvenuto (risposta persa tra la verifica e ora): si passa all'aggiornamento
+  if(r.error && !idEsistente && dati.idNuovo && r.error.code === "23505"){ idEsistente = dati.idNuovo; r = await scrivi(campi); }
   if(r.error && colonneClienti && colonnaMancante(r.error)){
     colonneClienti = false;
     delete campi.telefono; delete campi.cliente_id;
@@ -144,6 +153,15 @@ async function scriviIntervento(dati, operai){
   if(daTogliere.length) controlla(await client.from("intervento_operai").delete().eq("intervento_id", intervento.id).in("operaio_id", daTogliere));
   if(daAggiungere.length) controlla(await client.from("intervento_operai").insert(daAggiungere.map(o=>({ intervento_id: intervento.id, operaio_id: o }))));
   return intervento.id;
+}
+// l'intervento esiste sul server e con quali operai attivi? null = non verificabile (es. senza rete)
+export async function controllaInterventoPrevisto(id){
+  try{
+    const r = await client.from("interventi").select("id, intervento_operai(operaio_id, rimosso_il)").eq("id", id).limit(1);
+    if(r.error) return null;
+    if(!r.data.length) return { esiste: false, operai: [] };
+    return { esiste: true, operai: (r.data[0].intervento_operai || []).filter(o=>!o.rimosso_il).map(o=>o.operaio_id) };
+  }catch(e){ return null; }
 }
 export async function annullaIntervento(id, annullato){
   try{ controlla(await client.from("interventi").update({ stato: annullato ? "annullato" : "pianificato" }).eq("id", id)); }finally{ dopoScrittura(); }
