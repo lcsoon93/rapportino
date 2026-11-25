@@ -43,9 +43,9 @@ test("solo rapportini: operai dei rapportini con 8-17, clienti con l'orario pass
   ], nome, utenti });
   assert.deepEqual(g.operai, [{ nome: "Luca Bianchi", dalle: "08:00", alle: "17:00" }, { nome: "Francesco Neri", dalle: "08:00", alle: "17:00" }]);
   assert.deepEqual(g.clienti, [
-    { nome: "Rossi Srl", bozza: false, fasce: [{ d: "08:00", a: "10:30" }, { d: "09:00", a: "10:30" }] },
-    { nome: "Bar Centrale", bozza: true, fasce: [] },
-    { nome: "Senza ore", bozza: false, fasce: [] },
+    { nome: "Rossi Srl", bozza: false, fasce: [{ d: "08:00", a: "10:30" }, { d: "09:00", a: "10:30" }], sintesi: "", materiali: [] },
+    { nome: "Bar Centrale", bozza: true, fasce: [], sintesi: "", materiali: [] },
+    { nome: "Senza ore", bozza: false, fasce: [], sintesi: "", materiali: [] },
   ]);
   assert.equal(g.escludi, false);
 });
@@ -69,4 +69,17 @@ test("giorni senza lavoro esclusi: foglio con i soli operai proposti in automati
     rapportini: [R("Rossi Srl", [{ operaio_id: "u1", dalle: "08:00", alle: "09:00" }])], inseriti: { "2026-11-14": { escludi: true } }, nome, utenti });
   assert.deepEqual(Object.keys(u), ["2026-11-14", "2026-11-15"]);
   assert.equal(u["2026-11-14"].escludi, true);
+});
+
+test("report del mese: sintesi dell'intervento e materiale da rapportini e vecchio foglio", ()=>{
+  const foglio = { clienti: [{ nome: "Hotel Lago", dettagli: "  Sostituito\n quadro ", materiali: [{ a: "Interruttore", q: 2 }, { a: " " }] }] };
+  const g = giornataUnita({ foglio, rapportini: [
+    R("Rossi Srl", [], { attivita: "Riparata perdita", materiali: [{ a: "Raccordo 1/2", q: "3" }] }),
+    R("Importato", [], { attivita: "Attività non indicata nella vecchia app.", materiali: null }),
+  ], nome, utenti });
+  assert.deepEqual(g.clienti.map(c=>[c.nome, c.sintesi, c.materiali]), [
+    ["Hotel Lago", "Sostituito quadro", [{ a: "Interruttore", q: "2" }]],
+    ["Rossi Srl", "Riparata perdita", [{ a: "Raccordo 1/2", q: "3" }]],
+    ["Importato", "", []],
+  ]);
 });

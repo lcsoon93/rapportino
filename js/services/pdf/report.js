@@ -101,64 +101,62 @@ export function generaPDFMese(){
   doc.text("Mese: " + s.etichetta, ML, y);
   y += 11;
 
-  // elenco operai comparsi nel mese (anche nei giorni esclusi dal monte ore): una colonna ciascuno
-  const nomiOperai = [];
-  s.righe.forEach(r=>{
-    (r.operai || []).forEach(o=>{ if(!nomiOperai.includes(o.nome)) nomiOperai.push(o.nome); });
-  });
-  nomiOperai.sort();
-
-  const colGiorno = 13, colData = 20;
-  let colOperaio = 32, colClienti = CW - colGiorno - colData - colOperaio * nomiOperai.length;
-  if(colClienti < 42){
-    colClienti = 42;
-    colOperaio = (CW - colGiorno - colData - colClienti) / Math.max(1, nomiOperai.length);
-  }
-  const xGiorno = ML, xData = xGiorno + colGiorno, xOperai = xData + colData,
-        xClienti = xOperai + colOperaio * nomiOperai.length;
-
+  // per ogni giorno: data e nome del giorno, poi una riga per cliente con la sintesi dell'intervento e il
+  // materiale usato (le ore per operaio sono nel riepilogo in fondo)
+  const colCliente = 44, colMateriale = 48, colSintesi = CW - colCliente - colMateriale;
+  const xCliente = ML, xSintesi = xCliente + colCliente, xMateriale = xSintesi + colSintesi;
+  const LH = 4.3;
   function intestazioneTabella(){
     doc.setFillColor(230,231,232);
     doc.rect(ML, y - 5, CW, 8, "F");
     doc.setFont("helvetica","bold");
     doc.setFontSize(9.5);
-    doc.text("Giorno", xGiorno + 1.5, y);
-    doc.text("Data", xData + 1.5, y);
-    nomiOperai.forEach((n,i)=>{
-      const righeNome = doc.splitTextToSize(n, colOperaio - 3);
-      doc.text(righeNome[0], xOperai + i * colOperaio + 1.5, y);
-    });
-    doc.text("Clienti (ore dal cliente)", xClienti + 1.5, y);
+    doc.text("Cliente", xCliente + 1.5, y);
+    doc.text("Intervento", xSintesi + 1.5, y);
+    doc.text("Materiale utilizzato", xMateriale + 1.5, y);
     y += 8;
     doc.setFont("helvetica","normal");
-    doc.setFontSize(9.5);
   }
   intestazioneTabella();
 
   if(s.righe.length === 0){
-    doc.text("Nessun rapporto in questo mese.", ML + 2, y);
+    doc.setFontSize(9.5);
+    doc.text("Nessun lavoro in questo mese.", ML + 2, y);
     y += 8;
   }
   let cEscluse = false;
   s.righe.forEach(r=>{
-    if(y > 262){ doc.addPage(); y = 22; intestazioneTabella(); }
     if(r.escluso) cEscluse = true;
-    const testoClienti = clientiConOre(r);
-    const clientiRighe = doc.splitTextToSize(testoClienti || "—", colClienti - 3);
-    const altezza = Math.max(clientiRighe.length * 5, 7);
-
-    doc.text(r.nome, xGiorno + 1.5, y);
-    doc.text(dataIt(r.iso) + (r.escluso ? " *" : ""), xData + 1.5, y);
-    nomiOperai.forEach((n,i)=>{
-      const op = r.operai.find(o=>o.nome === n);
-      doc.text(op && op.minuti ? oreTesto(op.minuti) : "-", xOperai + i * colOperaio + 1.5, y);
+    doc.setFontSize(9.5);
+    const lavori = r.lavori.map(l=>{
+      const cli = doc.splitTextToSize(l.cliente || "—", colCliente - 3);
+      const sin = doc.splitTextToSize(l.sintesi || "—", colSintesi - 3);
+      const mat = doc.splitTextToSize(l.materiali.length ? l.materiali.map(m=>m.q ? m.a + " (" + m.q + ")" : m.a).join(", ") : "—", colMateriale - 3);
+      return { cli, sin, mat, h: Math.max(cli.length, sin.length, mat.length) * LH + 2.5 };
     });
-    doc.text(clientiRighe, xClienti + 1.5, y);
-
-    y += altezza + 2.5;
-    doc.setDrawColor(200,205,210);
-    doc.setLineWidth(0.2);
-    doc.line(ML, y - 4.5, W - MR, y - 4.5);
+    // la riga del giorno non resta sola in fondo alla pagina
+    if(y + 7 + (lavori[0] ? lavori[0].h : 0) > 275){ doc.addPage(); y = 22; intestazioneTabella(); }
+    doc.setFillColor(243,244,246);
+    doc.rect(ML, y - 4.2, CW, 6.2, "F");
+    doc.setFont("helvetica","bold");
+    doc.setFontSize(10);
+    doc.text(dataIt(r.iso) + " " + r.nomeEsteso + (r.escluso ? " *" : ""), ML + 1.5, y);
+    doc.setFont("helvetica","normal");
+    y += 6.5;
+    doc.setFontSize(9.5);
+    lavori.forEach(l=>{
+      if(y + l.h > 280){ doc.addPage(); y = 22; intestazioneTabella(); }
+      doc.setFont("helvetica","bold");
+      doc.text(l.cli, xCliente + 1.5, y);
+      doc.setFont("helvetica","normal");
+      doc.text(l.sin, xSintesi + 1.5, y);
+      doc.text(l.mat, xMateriale + 1.5, y);
+      y += l.h;
+      doc.setDrawColor(215,219,223);
+      doc.setLineWidth(0.15);
+      doc.line(ML, y - 3.6, W - MR, y - 3.6);
+    });
+    y += 2;
   });
 
   if(cEscluse){

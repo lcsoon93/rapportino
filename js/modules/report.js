@@ -196,6 +196,8 @@ export function testoSettimana(){
   righe.push("TOTALE: " + oreTesto(s.totGenerale));
   return righe.join("\n");
 }
+const GIORNI_ESTESI = ["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"];
+export const materialeTesto = m=>(m || []).map(testoMateriale).join(", ");
 export function datiMese(){
   const iso = document.getElementById("mesedata").value;
   const db = giornateDelMese(iso);
@@ -223,6 +225,9 @@ export function datiMese(){
     return {
       iso: g,
       nome: GIORNI[(data.getDay() + 6) % 7],
+      nomeEsteso: GIORNI_ESTESI[data.getDay()],
+      // report del mese: per ogni cliente del giorno sintesi dell'intervento e materiale usato
+      lavori: d.clienti.map(c=>({ cliente: c.nome, sintesi: c.sintesi || "", materiali: c.materiali || [] })),
       operai, totGiorno,
       escluso: !!d.escludi,
       orario: d.orario.dalle + "–" + d.orario.alle,
@@ -251,10 +256,14 @@ export function testoMese(){
   const righe = [];
   righe.push("REPORT MENSILE - " + s.etichetta.toUpperCase());
   righe.push("");
+  // per ogni giorno: data e nome del giorno, poi i clienti con sintesi dell'intervento e materiale
   s.righe.forEach(r=>{
-    const opTesto = r.operai.map(o=>o.nome + ": " + oreTesto(o.minuti)).join(" · ");
-    righe.push(r.nome + " " + dataIt(r.iso) + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : "") +
-               "  —  " + opTesto + (r.clientiOre.length ? "  —  " + clientiConOre(r) : ""));
+    righe.push(dataIt(r.iso) + " " + r.nomeEsteso + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : ""));
+    r.lavori.forEach(l=>{
+      righe.push("  - " + l.cliente + (l.sintesi ? ": " + l.sintesi : ""));
+      if(l.materiali.length) righe.push("    Materiale: " + materialeTesto(l.materiali));
+    });
+    righe.push("");
   });
   righe.push("");
   righe.push("GIORNI LAVORATI: " + s.giorniLavorati + (s.giorniLavorati - s.giorniConteggiati ? " (di cui " + (s.giorniLavorati - s.giorniConteggiati) + " esclusi dal monte ore)" : ""));
