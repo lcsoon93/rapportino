@@ -58,10 +58,15 @@ export function nomeCanonico(nome, utenti = []){
 }
 
 // Giornata unita (stessa forma del vecchio foglio, cosi' report e PDF esistenti la leggono):
-//   { operai: [{ nome, dalle, alle }], clienti: [{ nome, fasce: [{ d, a }] }], escludi, spese, orario }
+//   { operai: [{ nome, dalle, alle }], clienti: [{ nome, fasce: [{ d, a }], sintesi, materiali: [{ a, q }] }], escludi, spese, orario }
 // rapportini: righe con cliente e rapportino_operai; nome(id) = nome leggibile; utenti = nomi noti.
 // Restituisce null se quel giorno non c'e' lavoro: nessun rapportino e, nel vecchio foglio, nessuna scheda
 // con il nome del cliente ne' spese (un foglio con i soli operai proposti in automatico non conta).
+// sintesi dell'intervento (attivita' svolta) e materiale usato, per il report del mese
+const SENZA_ATTIVITA = "Attività non indicata nella vecchia app.";
+export const sintesiLavoro = t=>{ const x = String(t || "").replace(/\s+/g, " ").trim(); return x === SENZA_ATTIVITA ? "" : x; };
+export const materialiPuliti = m=>(Array.isArray(m) ? m : []).filter(x=>x && String(x.a || "").trim())
+  .map(x=>({ a: String(x.a).trim(), q: String(x.q == null ? "" : x.q).trim() }));
 const schedeConNome = foglio=>((foglio && foglio.clienti) || []).filter(c=>c && String(c.nome || "").trim() && c.nome !== "(senza nome)");
 export function giornataUnita({ foglio, rapportini = [], inserito, nome = id=>id, utenti = [] }){
   const lavoroNelFoglio = schedeConNome(foglio).length > 0 || ((foglio && foglio.spese) || []).length > 0;
@@ -85,9 +90,11 @@ export function giornataUnita({ foglio, rapportini = [], inserito, nome = id=>id
     (righe.length ? righe.map(o=>o.operaio_id) : [r.autore_id]).filter(Boolean).forEach(id=>aggiungi(nome(id), null));
   });
   const clienti = schedeConNome(foglio)
-    .map(c=>({ nome: String(c.nome).trim(), fasce: (c.fasce && c.fasce.length ? c.fasce : [{ d: c.dalle, a: c.alle }]).filter(f=>f && f.d && f.a) }))
+    .map(c=>({ nome: String(c.nome).trim(), fasce: (c.fasce && c.fasce.length ? c.fasce : [{ d: c.dalle, a: c.alle }]).filter(f=>f && f.d && f.a),
+      sintesi: sintesiLavoro(c.dettagli), materiali: materialiPuliti(c.materiali) }))
     .concat(rapportini.filter(r=>String(r.cliente || "").trim()).map(r=>({ nome: String(r.cliente).trim(), bozza: r.stato !== "completato",
-      fasce: (r.rapportino_operai || []).filter(o=>valida(o.dalle) && valida(o.alle)).map(o=>({ d: hm(o.dalle), a: hm(o.alle) })) })));
+      fasce: (r.rapportino_operai || []).filter(o=>valida(o.dalle) && valida(o.alle)).map(o=>({ d: hm(o.dalle), a: hm(o.alle) })),
+      sintesi: sintesiLavoro(r.attivita), materiali: materialiPuliti(r.materiali) })));
   return {
     orario, escludi: orario.escludi, spese: (foglio && foglio.spese) || [], clienti,
     operai: operai.map(o=>({ nome: o.nome, dalle: o.suoi ? o.dalle : orario.dalle, alle: o.suoi ? o.alle : orario.alle })),

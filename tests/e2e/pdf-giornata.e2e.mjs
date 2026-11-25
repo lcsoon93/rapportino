@@ -348,8 +348,13 @@ try{
     // la griglia del mese segna il giorno con una bozza
     assert.ok(await a.page.$eval('#mese-griglia [data-giorno="2026-11-13"]', el=>el.classList.contains("dafirmare")));
     const [dl] = await Promise.all([a.page.waitForEvent("download", { timeout: 20000 }), a.page.click("#btn-pdf-mese")]);
+    if(process.env.SALVA_PDF_MESE) fs.copyFileSync(await dl.path(), process.env.SALVA_PDF_MESE);   // anteprima a mano
     const pdf = fs.readFileSync(await dl.path()).toString("latin1");
-    for(const t of ["REPORT MENSILE", "Novembre 2026", "Mario Bianchi (1 g.)", "5 ore", "Rossi Srl", "2h 30m", "Clienti (ore dal cliente)"]) assert.ok(pdf.includes(t.replace(/[()]/g, "\\$&")), "manca nel PDF del mese: " + t);   // nel PDF le parentesi sono precedute da \\
+    // per giorno: data e nome del giorno, cliente, sintesi dell'intervento, materiale (ore per operaio in fondo)
+    for(const t of ["REPORT MENSILE", "Novembre 2026", "13/11/2026 Venerd\xec", "Cliente", "Intervento", "Materiale utilizzato",
+      "Rossi Srl", "Pulizia bruciatore", "Ugello 0.6 (1)", "Condominio Verdi", "Sostituzione valvola", "Foglio Vecchio Snc", "Verifica caldaia",
+      "Mario Bianchi (1 g.)", "5 ore"]) assert.ok(pdf.includes(t.replace(/[()]/g, "\\$&")), "manca nel PDF del mese: " + t);   // nel PDF le parentesi sono precedute da \\
+    assert.ok(!pdf.includes("Clienti \\(ore dal cliente\\)"), "niente piu' colonne di ore per giorno");
   });
 
   await prova("giorno senza completati e offline: messaggi chiari, niente PDF", async()=>{
