@@ -124,9 +124,7 @@ export function generaPDFMese(){
     doc.text("Nessun lavoro in questo mese.", ML + 2, y);
     y += 8;
   }
-  let cEscluse = false;
   s.righe.forEach(r=>{
-    if(r.escluso) cEscluse = true;
     doc.setFontSize(9.5);
     const lavori = r.lavori.map(l=>{
       const cli = doc.splitTextToSize(l.cliente || "—", colCliente - 3);
@@ -140,7 +138,7 @@ export function generaPDFMese(){
     doc.rect(ML, y - 4.2, CW, 6.2, "F");
     doc.setFont("helvetica","bold");
     doc.setFontSize(10);
-    doc.text(dataIt(r.iso) + " " + r.nomeEsteso + (r.escluso ? " *" : ""), ML + 1.5, y);
+    doc.text(dataIt(r.iso) + " " + r.nomeEsteso, ML + 1.5, y);
     doc.setFont("helvetica","normal");
     y += 6.5;
     doc.setFontSize(9.5);
@@ -159,47 +157,12 @@ export function generaPDFMese(){
     y += 2;
   });
 
-  if(cEscluse){
-    if(y > 260){ doc.addPage(); y = 22; }
-    doc.setFontSize(8.5);
-    doc.setTextColor(130,135,140);
-    doc.text("* giornata esclusa dal monte ore", ML, y + 2);
-    doc.setTextColor(0,0,0);
-    y += 8;
-  }
-
-  if(y > 235){ doc.addPage(); y = 22; }
-  y += 5;
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(10.5);
-  doc.text("Giorni lavorati", ML + 2, y);
-  doc.text(String(s.giorniLavorati), W - MR - 3, y, {align:"right"});
-  y += 6;
-  if(s.giorniLavorati - s.giorniConteggiati > 0){
-    doc.text("di cui esclusi dal monte ore", ML + 2, y);
-    doc.text(String(s.giorniLavorati - s.giorniConteggiati), W - MR - 3, y, {align:"right"});
-    y += 6;
-  }
-  if(confrontoAttivo()){
-    doc.text("Monte ore del mese (" + monteOreMese().giorni + " giorni lavorativi x 9 ore)", ML + 2, y);
-    doc.text(oreTesto(monteOreMese().minuti), W - MR - 3, y, {align:"right"});
-    y += 6;
-  }
-  Object.keys(s.operaiTotali).sort().forEach(n=>{
-    const info = s.operaiTotali[n];
-    doc.text(n + " (" + info.giorni + " g.)", ML + 2, y);
-    doc.text(oreMeseTesto(info), W - MR - 3, y, {align:"right"});
-    y += 6;
-    if(confrontoAttivo()){
-      const dd = info.minuti - monteOreMese().minuti;
-      doc.setFontSize(9.5);
-      doc.text("Confronto con monte ore (" + oreTesto(monteOreMese().minuti) + "): " + oreTesto(info.minuti) + " lavorate", ML + 6, y);
-      doc.text(dd === 0 ? "pari" : saldoTesto(dd), W - MR - 3, y, {align:"right"});
-      doc.setFontSize(10.5);
-      y += 6;
-    }
-  });
+  // niente riepilogo delle ore degli operai: il report del mese e' l'elenco dei lavori
   if(s.totSpese){
+    if(y > 262){ doc.addPage(); y = 22; }
+    y += 5;
+    doc.setFont("helvetica","normal");
+    doc.setFontSize(10.5);
     doc.text("Spese anticipate", ML + 2, y);
     doc.text(euro(s.totSpese), W - MR - 3, y, {align:"right"});
     y += 6;

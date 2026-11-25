@@ -258,21 +258,14 @@ export function testoMese(){
   righe.push("");
   // per ogni giorno: data e nome del giorno, poi i clienti con sintesi dell'intervento e materiale
   s.righe.forEach(r=>{
-    righe.push(dataIt(r.iso) + " " + r.nomeEsteso + (r.escluso ? " [ESCLUSA DAL MONTE ORE]" : ""));
+    righe.push(dataIt(r.iso) + " " + r.nomeEsteso);
     r.lavori.forEach(l=>{
       righe.push("  - " + l.cliente + (l.sintesi ? ": " + l.sintesi : ""));
       if(l.materiali.length) righe.push("    Materiale: " + materialeTesto(l.materiali));
     });
     righe.push("");
   });
-  righe.push("");
-  righe.push("GIORNI LAVORATI: " + s.giorniLavorati + (s.giorniLavorati - s.giorniConteggiati ? " (di cui " + (s.giorniLavorati - s.giorniConteggiati) + " esclusi dal monte ore)" : ""));
-  if(confrontoAttivo()) righe.push(descrizioneMonte().toUpperCase());
-  Object.keys(s.operaiTotali).sort().forEach(n=>{
-    const info = s.operaiTotali[n];
-    righe.push(n.toUpperCase() + " (" + info.giorni + " g.): " + oreMeseTesto(info));
-    if(confrontoAttivo()) righe.push("   " + confrontoTesto(info.minuti));
-  });
+  // niente riepilogo delle ore degli operai: il report del mese e' l'elenco dei lavori
   if(s.totSpese) righe.push("SPESE ANTICIPATE: " + euro(s.totSpese));
   return righe.join("\n");
 }
