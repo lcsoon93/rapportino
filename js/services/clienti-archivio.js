@@ -10,7 +10,7 @@
 // - Il nome non identifica mai un cliente: tutto passa dall'id.
 import { client, profilo } from "../core/sessione.js";
 import { emetti } from "../core/eventi.js";
-import { CAMPI_CLIENTE, erroriCliente, pulisciCliente, unisciModifiche } from "./clienti-logica.js";
+import { CAMPI_CLIENTE, CAMPI_SCHEDA_ESTESA, campiConfrontabili, erroriCliente, pulisciCliente, stessoCampo, unisciModifiche } from "./clienti-logica.js";
 
 const DB_NOME = "rapportino-clienti", CLIENTI = "clienti", CODA = "coda", META = "meta";
 let dbPromessa = null;
@@ -55,8 +55,10 @@ const svuota = store=>op(store, "readwrite", (st, mem)=>mem ? mem.clear() : st.c
 const leggi = (store, k)=>op(store, "readonly", (st, mem)=>mem ? mem.get(k) : st.get(k));
 
 // ---------------------------------------------------------------- stato
-export const statoAnagrafica = { attiva: true, aggiornata: null, errore: "" };   // attiva=false: tabella non ancora creata
+export const statoAnagrafica = { attiva: true, aggiornata: null, errore: "", estesa: null };   // estesa=false: server senza i campi della scheda evoluta   // attiva=false: tabella non ancora creata
 const erroreRete = e=>/fetch|network|abort|timeout|Load failed|connessione/i.test(String((e && (e.message || e)) || ""));
+const CAMPI_LETTURA = "id, nome, indirizzo, telefono, email, partita_iva, note, archiviato, versione, creato_da, creato_il, aggiornato_il";
+const colonnaMancante = e=>/42703|PGRST204|column .* does not exist|Could not find the .* column/i.test(String((e && (e.code || "")) + " " + ((e && e.message) || "")));
 const tabellaMancante = e=>/PGRST20[25]|42P01|42883|does not exist|Could not find the (table|function)/i.test(String((e && (e.code || "")) + " " + ((e && e.message) || "")));
 
 // la copia sul telefono appartiene a un utente: se entra un altro si riparte da zero (la coda di un
@@ -92,7 +94,13 @@ export function aggiornaClienti(){
     await controllaProprietario();
     if(navigator.onLine === false) return elencoClienti();
     try{
-      const { data, error } = await client.from("clienti").select("id, nome, indirizzo, telefono, email, partita_iva, note, archiviato, versione, creato_da, creato_il, aggiornato_il").order("nome");
+      // campi della scheda estesa (migrazione 20261128090000); senza la migrazione si leggono i soli campi base
+      let { data, error } = await client.from("clienti").select(CAMPI_LETTURA + ", " + CAMPI_SCHEDA_ESTESA.join(", ") + ", aggiornato_da").order("nome");
+      statoAnagrafica.estesa = true;
+      if(error && colonnaMancante(error)){
+        statoAnagrafica.estesa = false;
+        ({ data, error } = await client.from("clienti").select(CAMPI_LETTURA).order("nome"));
+      }
       if(error) throw error;
       await svuota(CLIENTI);
       for(const c of data || []) await metti(CLIENTI, c);
@@ -205,7 +213,7 @@ async function invia(){
       // conflitto: creazione gia' arrivata (risposta persa) o versione superata
       if(!srv){ await metti(CODA, { ...v, stato: "errore", errore: "Risposta del server non valida." }); break; }
       const mia = pulisciCliente(v.dati);
-      const uguale = CAMPI_CLIENTE.every(k=>String(mia[k] ?? "") === String(srv[k] ?? ""));
+      const uguale = campiConfrontabili(srv).every(k=>stessoCampo(mia[k], srv[k]));
       if(uguale){ await metti(CLIENTI, srv); await togli(CODA, v.id); inviate++; break; }
       if(v.tipo === "crea"){
         // la creazione era arrivata: le modifiche successive partono da quella versione

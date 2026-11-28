@@ -11,11 +11,12 @@ import { su } from "../core/eventi.js";
 import { mostraVista } from "../core/navigation.js";
 import { puo } from "../core/permessi.js";
 import { aggiornaClienti, archiviaCliente, elencoClienti, eliminaCliente, leggiCliente, risolviConflittoCliente, salvaCliente, scartaModifica, statoAnagrafica } from "../services/clienti-archivio.js";
-import { CAMPI_CLIENTE, candidatiImportazione, cercaClienti, datiPerDocumento, erroriCliente, etichettaCliente, omonimi } from "../services/clienti-logica.js";
+import { CAMPI_CLIENTE, STATI_CLIENTE, TIPOLOGIE_CLIENTE, campiConfrontabili, candidatiImportazione, cercaClienti, datiPerDocumento, erroriCliente, etichettaCliente, omonimi, pulisciSedi, stessoCampo, valoreCampo } from "../services/clienti-logica.js";
 import { elencoInterventi, elencoRapportini } from "../services/api-lavori.js";
 import { registraSchedaCliente } from "./scelta-cliente.js";
 import { nuovoRapportinoAutonomo } from "./modulo-rapportino.js";
 import { apriModuloIntervento } from "./gestione-interventi.js";
+import { avviaScheda, chiudiScheda, testaSchedaHtml } from "./scheda-cliente.js";
 
 export function aggiornaClientiNoti(){
   const db = leggiDB();
@@ -188,34 +189,40 @@ export function chiudiSchedaCliente(){
   $("cli-foglio").classList.add("nascosto");
   document.body.classList.remove("foglio-aperto");
   schedaAperta = null;
+  chiudiScheda();
   if(focusPrima && document.contains(focusPrima)) focusPrima.focus({ preventScroll: true });
   focusPrima = null;
 }
-const CAMPI_SCHEDA = [["nome", "Nome e cognome / ragione sociale"], ["indirizzo", "Indirizzo"], ["telefono", "Telefono"], ["email", "Email"], ["partita_iva", "Partita IVA"], ["note", "Note"]];
+const CAMPI_SCHEDA = [["nome", "Nome e cognome / ragione sociale"], ["tipologia", "Tipologia"], ["stato", "Stato cliente"], ["referente", "Referente principale"],
+  ["telefono", "Telefono"], ["email", "Email"], ["indirizzo", "Indirizzo principale"], ["sedi", "Sedi e indirizzi aggiuntivi"],
+  ["partita_iva", "Partita IVA"], ["codice_fiscale", "Codice fiscale"], ["codice_sdi", "Codice SDI"], ["pec", "PEC"], ["note", "Note interne"]];
 
+// stato dell'invio della scheda (aggiornato da solo quando la sincronizzazione finisce)
+function statoSincHtml(c){
+  return (c._stato === "conflitto" ? conflittoHtml(c) : '') +
+    (c._stato === "errore" ? '<p class="msg-info err">Modifica non inviata: ' + esc(c._errore) + '</p>' : '') +
+    (c._stato && c._stato !== "conflitto" && c._stato !== "errore" ? '<p class="msg-info att">Salvato sul telefono: verrà inviato appena c\'è rete.</p>' : '');
+}
+su("clienti-aggiornati", async()=>{
+  const box = $("cli-sinc");
+  if(!box || !schedaAperta || !schedaAperta.id) return;
+  const c = await leggiCliente(schedaAperta.id);
+  if(c && $("cli-sinc") === box) box.innerHTML = statoSincHtml(c);
+});
 // apertura: { id } = consulta una scheda; { nuovo: {nome, indirizzo, telefono}, onSalvato } = nuova scheda
-export async function apriSchedaCliente({ id, nuovo, onSalvato } = {}){
+// sezione: "dati" | "lavori" | "impianti" | "documenti" (scheda evoluta: scheda-cliente.js)
+export async function apriSchedaCliente({ id, nuovo, onSalvato, sezione } = {}){
   schedaAperta = { id: id || null, onSalvato: onSalvato || null };
   if(!id) return moduloScheda(null, nuovo || {});
   const c = await leggiCliente(id);
   if(!c){ apriFoglio("Cliente"); $("cli-corpo").innerHTML = '<p class="nota">Scheda non disponibile.</p>'; $("cli-azioni").innerHTML = ""; return; }
   apriFoglio(c.nome);
-  const riga = (ic, testo, link)=>testo ? '<div class="idt-riga">' + icona(ic) + (link ? '<a href="' + esc(link) + '">' + esc(testo) + '</a>' : '<span>' + esc(testo) + '</span>') + '</div>' : '';
   $("cli-corpo").innerHTML =
     (c.archiviato ? '<p class="msg-info att">Cliente archiviato: non compare nei suggerimenti.</p>' : '') +
-    riga("pin", c.indirizzo || "Indirizzo non indicato") +
-    riga("phone", c.telefono, c.telefono ? "tel:" + c.telefono.replace(/[^\d+]/g, "") : "") +
-    riga("mail", c.email, c.email ? "mailto:" + c.email : "") +
-    (c.partita_iva ? '<div class="idt-riga">' + icona("file") + '<span>P. IVA ' + esc(c.partita_iva) + '</span></div>' : '') +
-    (c.note ? '<div class="idt-desc"></div>' : '') +
-    '<p class="nota cli-id">ID scheda: ' + esc(c.id) + '</p>' +
-    (c._stato === "conflitto" ? conflittoHtml(c) : '') +
-    (c._stato === "errore" ? '<p class="msg-info err">Modifica non inviata: ' + esc(c._errore) + '</p>' : '') +
-    (c._stato && c._stato !== "conflitto" && c._stato !== "errore" ? '<p class="msg-info att">Salvato sul telefono: verrà inviato appena c\'è rete.</p>' : '');
-  if(c.note) $("cli-corpo").querySelector(".idt-desc").textContent = c.note;
+    '<div id="cli-sinc">' + statoSincHtml(c) + '</div>' +
+    testaSchedaHtml(c);
+  avviaScheda(c, sezione || "dati");
   const az = [];
-  if(puo("rapportini.compila")) az.push('<button type="button" class="btn btn-primario btn-blocco" data-az="rapportino">' + icona("plus") + 'Nuovo rapportino per questo cliente</button>');
-  if(puo("interventi.gestisci")) az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="intervento">' + icona("cal") + 'Nuovo intervento per questo cliente</button>');
   if(puo("clienti.gestisci")){
     az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="modifica">' + icona("pen") + 'Modifica</button>');
     az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="archivia">' + (c.archiviato ? "Ripristina" : "Archivia") + '</button>');
@@ -223,7 +230,7 @@ export async function apriSchedaCliente({ id, nuovo, onSalvato } = {}){
   if(c._stato === "errore") az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="scarta">Scarta la modifica non inviata</button>');
   if(puo("clienti.elimina") && c.versione) az.push('<button type="button" class="btn btn-secondario btn-blocco" data-az="elimina">' + icona("trash") + 'Elimina</button>');
   $("cli-azioni").innerHTML = az.join("");
-  $("cli-azioni").onclick = async e=>{
+  const azione = async e=>{
     const b = e.target.closest("[data-az]");
     if(!b) return;
     const a = b.dataset.az;
@@ -243,12 +250,16 @@ export async function apriSchedaCliente({ id, nuovo, onSalvato } = {}){
       await apriSchedaCliente({ id: c.id });
     }catch(err){ msgScheda(err.message, "err"); }
   };
+  $("cli-azioni").onclick = azione;
+  $("cli-corpo").onclick = e=>{ if(e.target.closest(".sc-rapide [data-az]")) azione(e); };
 }
 const ETICHETTE = Object.fromEntries(CAMPI_SCHEDA.concat([["archiviato", "Archiviato"]]));
 function conflittoHtml(c){
   const s = c._server || {};
-  const righe = CAMPI_CLIENTE.filter(k=>String(c[k] ?? "") !== String(s[k] ?? ""))
-    .map(k=>'<div class="conf-riga"><span>' + esc(ETICHETTE[k]) + '</span><span>' + esc(String(c[k] ?? "—")) + '</span><span>' + esc(String(s[k] ?? "—")) + '</span></div>').join("");
+  const leggibile = (k, v)=>k === "sedi" ? (Array.isArray(v) && v.length ? v.map(x=>[x.nome, x.indirizzo].filter(Boolean).join(": ")).join("; ") : "—")
+    : k === "archiviato" ? (v ? "sì" : "no") : String(v ?? "") || "—";
+  const righe = campiConfrontabili(s).filter(k=>!stessoCampo(c[k], s[k]))
+    .map(k=>'<div class="conf-riga"><span>' + esc(ETICHETTE[k] || k) + '</span><span>' + esc(leggibile(k, c[k])) + '</span><span>' + esc(leggibile(k, s[k])) + '</span></div>').join("");
   return '<div class="card conf-box"><div class="gruppo-tit" style="margin:0 0 6px">Modificata da un altro utente nel frattempo</div>' +
     '<div class="conf-tab"><div class="conf-riga conf-testa"><span>Campo</span><span>Tua modifica</span><span>Sul server</span></div>' + righe + '</div>' +
     '<div class="due" style="margin-top:10px"><div><button type="button" class="btn btn-primario btn-blocco" data-conf="mia">Tieni la mia</button></div>' +
@@ -262,15 +273,42 @@ document.getElementById("cli-corpo").addEventListener("click", async e=>{
 });
 
 // modulo di creazione / modifica (nessun controllo di unicita' sul nome: gli omonimi sono ammessi)
+const MAX_CAMPO = { nome: 200, indirizzo: 300, telefono: 60, email: 200, partita_iva: 30, referente: 200, codice_fiscale: 20, codice_sdi: 10, pec: 200 };
+const SCELTE = { tipologia: TIPOLOGIE_CLIENTE, stato: STATI_CLIENTE };
+const FISCALI = ["partita_iva", "codice_fiscale", "codice_sdi", "pec"];
+// campi della scheda evoluta: nascosti se il server non e' ancora aggiornato (non verrebbero salvati)
+const ESTESI = ["tipologia", "stato", "referente", "sedi", "codice_fiscale", "codice_sdi", "pec"];
+const rigaSede = (x = {})=>'<div class="sc-sede"><input type="text" class="sc-sede-nome" maxlength="100" placeholder="Nome (es. Magazzino)" autocomplete="off" value="' + esc(x.nome || "") + '">' +
+  '<input type="text" class="sc-sede-ind" maxlength="300" placeholder="Indirizzo" autocomplete="off" value="' + esc(x.indirizzo || "") + '">' +
+  '<button type="button" class="gdel" aria-label="Togli sede" data-sede-togli>&times;</button></div>';
+function campoModulo(k, et){
+  if(k === "sedi") return '<div class="campo"><label>' + esc(et) + '</label><div id="cli-sedi"></div>' +
+    '<button type="button" class="btn btn-secondario" id="cli-sede-agg">' + icona("plus") + '<span>Aggiungi sede o indirizzo</span></button></div>';
+  if(SCELTE[k]) return '<div class="campo"><label for="cli-' + k + '">' + esc(et) + '</label><select id="cli-' + k + '">' +
+    SCELTE[k].map(([v, t])=>'<option value="' + esc(v) + '">' + esc(t) + '</option>').join("") + '</select></div>';
+  return '<div class="campo"><label for="cli-' + k + '">' + esc(et) + (k === "nome" ? " *" : "") + '</label>' +
+    (k === "note" ? '<textarea id="cli-note" rows="3" maxlength="2000"></textarea>'
+      : '<input id="cli-' + k + '" type="' + (k === "telefono" ? "tel" : k === "email" || k === "pec" ? "email" : "text") + '" autocomplete="off"' +
+        (k === "telefono" ? ' inputmode="tel"' : '') + ' maxlength="' + MAX_CAMPO[k] + '">') + '</div>';
+}
 function moduloScheda(base, valori){
   apriFoglio(base ? "Modifica cliente" : "Nuovo cliente");
-  $("cli-corpo").innerHTML = '<form id="cli-form" novalidate>' + CAMPI_SCHEDA.map(([k, et])=>
-    '<div class="campo"><label for="cli-' + k + '">' + esc(et) + (k === "nome" ? " *" : "") + '</label>' +
-    (k === "note" ? '<textarea id="cli-note" rows="3" maxlength="2000"></textarea>'
-      : '<input id="cli-' + k + '" type="' + (k === "telefono" ? "tel" : k === "email" ? "email" : "text") + '" autocomplete="off"' +
-        (k === "telefono" ? ' inputmode="tel"' : '') + ' maxlength="' + ({ nome: 200, indirizzo: 300, telefono: 60, email: 200, partita_iva: 30 })[k] + '">') + '</div>').join("") +
+  const estesa = statoAnagrafica.estesa !== false;
+  const campi = CAMPI_SCHEDA.filter(([k])=>estesa || !ESTESI.includes(k));
+  const fiscali = campi.filter(([k])=>FISCALI.includes(k));
+  $("cli-corpo").innerHTML = '<form id="cli-form" novalidate>' +
+    campi.filter(([k])=>!FISCALI.includes(k) && k !== "note").map(([k, et])=>campoModulo(k, et)).join("") +
+    '<div class="gruppo-tit sc-sottotit">Dati fiscali (facoltativi)</div>' + fiscali.map(([k, et])=>campoModulo(k, et)).join("") +
+    campoModulo("note", "Note interne") +
+    (estesa ? '' : '<p class="nota">Tipologia, referente, sedi e altri dati fiscali saranno disponibili dopo l\'aggiornamento del database.</p>') +
     '<div class="msg-info att nascosto" id="cli-omonimi"></div></form>';
-  CAMPI_SCHEDA.forEach(([k])=>{ $("cli-" + k).value = (valori && valori[k]) || ""; });
+  campi.forEach(([k])=>{ if(k !== "sedi") $("cli-" + k).value = (valori && valori[k]) || (k === "stato" ? "attivo" : ""); });
+  if(estesa){
+    const sedi = pulisciSedi(valori && valori.sedi);
+    $("cli-sedi").innerHTML = sedi.map(rigaSede).join("");
+    $("cli-sede-agg").onclick = ()=>{ if($("cli-sedi").children.length < 20){ $("cli-sedi").insertAdjacentHTML("beforeend", rigaSede()); $("cli-sedi").lastElementChild.querySelector("input").focus(); } };
+    $("cli-sedi").onclick = e=>{ const b = e.target.closest("[data-sede-togli]"); if(b) b.closest(".sc-sede").remove(); };
+  }
   const avvisaOmonimi = ()=>{
     const stessi = omonimi(elencoAnagrafica, $("cli-nome").value, { archiviati: true }).filter(x=>!base || x.id !== base.id);
     $("cli-omonimi").classList.toggle("nascosto", !stessi.length);
@@ -284,7 +322,9 @@ function moduloScheda(base, valori){
   $("cli-azioni").onclick = async e=>{
     if(e.target.closest("#cli-annulla")) return base ? apriSchedaCliente({ id: base.id, onSalvato: schedaAperta && schedaAperta.onSalvato }) : chiudiSchedaCliente();
     if(!e.target.closest("#cli-salva")) return;
-    const dati = Object.fromEntries(CAMPI_SCHEDA.map(([k])=>[k, $("cli-" + k).value]));
+    // i campi non mostrati (server non aggiornato) restano quelli della scheda
+    const dati = { ...(base || {}), ...Object.fromEntries(campi.filter(([k])=>k !== "sedi").map(([k])=>[k, $("cli-" + k).value])) };
+    if(estesa) dati.sedi = [...$("cli-sedi").querySelectorAll(".sc-sede")].map(r=>({ nome: r.querySelector(".sc-sede-nome").value, indirizzo: r.querySelector(".sc-sede-ind").value }));
     if(base) dati.archiviato = base.archiviato;
     const errori = erroriCliente(dati);
     if(errori.length){ msgScheda(errori.join(" "), "err"); return; }

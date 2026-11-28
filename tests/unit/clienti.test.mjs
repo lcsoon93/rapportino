@@ -48,7 +48,8 @@ test("validazione: solo il nome e' obbligatorio, nessun controllo di unicita'", 
   assert.match(erroriCliente({ nome: "A", email: "non-email" }).join(), /email/);
   assert.match(erroriCliente({ nome: "A", telefono: "abc" }).join(), /telefono/);
   assert.deepEqual(erroriCliente({ nome: "A", telefono: "+39 02/123.45-67" }), []);
-  assert.deepEqual(pulisciCliente({ nome: "  Mario   Rossi ", note: " x " }), { nome: "Mario Rossi", indirizzo: "", telefono: "", email: "", partita_iva: "", note: "x", archiviato: false });
+  assert.deepEqual(pulisciCliente({ nome: "  Mario   Rossi ", note: " x " }), { nome: "Mario Rossi", indirizzo: "", telefono: "", email: "", partita_iva: "", note: "x", archiviato: false,
+    tipologia: "", referente: "", codice_fiscale: "", codice_sdi: "", pec: "", stato: "attivo", sedi: [] });
 });
 
 test("documento: copia di nome, indirizzo, telefono e id; differenze per 'Aggiorna la scheda'", ()=>{
