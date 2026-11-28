@@ -58,5 +58,11 @@ begin
   if not pg_temp.negato(comp, 'select public.salva_rapportino(' || replace(corpo, '7d000000-0000-4000-8000-000000000001', '7d000000-0000-4000-8000-000000000002') || ')') then
     raise exception 'company crea rapportini';
   end if;
+  -- eliminazione dal bot (stessa regola dell'app): l'operaio non elimina un completato, l'amministratore si'
+  r := pg_temp.come(mario, $q$with d as (delete from public.rapportini where id = '7d000000-0000-4000-8000-000000000001' returning id) select jsonb_build_object('n', count(*)) from d$q$);
+  if (r->>'n')::int <> 0 then raise exception 'operaio elimina un completato'; end if;
+  r := pg_temp.come(luca, $q$with d as (delete from public.rapportini where id = '7d000000-0000-4000-8000-000000000001' returning id) select jsonb_build_object('n', count(*)) from d$q$);
+  if (r->>'n')::int <> 1 then raise exception 'amministratore non elimina'; end if;
+  if (select count(*) from public.rapportino_operai where rapportino_id = '7d000000-0000-4000-8000-000000000001') <> 0 then raise exception 'ore rimaste'; end if;
 end $$;
 select 'telegram: tutti i controlli superati';

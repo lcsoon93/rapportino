@@ -282,3 +282,60 @@ export function promptBozza(b: Bozza | null, messaggio: string, oggi: string, te
     { role: "user", content: blocco({ oggi, giorno_settimana: giorno, tecnici_dell_app: tecnici, bozza_attuale: b, messaggio }) },
   ];
 }
+
+// ---------------------------------------------------------------- elenco ed eliminazione dei rapportini
+// "/rapportini", "/rapportini oggi|ieri|settimana|mese", "/rapportini Rossi", anche "lista rapportini ..."
+export function richiestaElenco(t: string): { filtro: string } | null {
+  const m = String(t || "").trim().match(/^(?:\/(?:rapportini|lista|elenco)(?:@\w+)?|(?:lista|elenco|mostra(?:mi)?|ultimi)\s+(?:i\s+)?rapportini)\b\s*(.*)$/i);
+  return m ? { filtro: riga(m[1], 100) } : null;
+}
+export const ELENCO_MAX = 10;
+// filtro -> periodo (date locali) e/o testo del cliente
+export function filtroElenco(filtro: string, oggi: string): { dal: string; al: string; cliente: string; titolo: string } {
+  const f = norma(filtro);
+  const sposta = (n: number) => new Date(Date.parse(oggi + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  if (!f) return { dal: "", al: "", cliente: "", titolo: "Ultimi rapportini" };
+  if (f === "oggi") return { dal: oggi, al: oggi, cliente: "", titolo: "Rapportini di oggi" };
+  if (f === "ieri") return { dal: sposta(-1), al: sposta(-1), cliente: "", titolo: "Rapportini di ieri" };
+  if (f === "settimana") return { dal: sposta(-6), al: oggi, cliente: "", titolo: "Rapportini degli ultimi 7 giorni" };
+  if (f === "mese") return { dal: oggi.slice(0, 8) + "01", al: oggi, cliente: "", titolo: "Rapportini del mese" };
+  return { dal: "", al: "", cliente: riga(filtro, 100), titolo: "Rapportini di «" + riga(filtro, 100) + "»" };
+}
+export type RigaElenco = { id: string; data: string; cliente: string; stato: string; esito?: string; attivita?: string; rapportino_operai?: { dalle: string | null; alle: string | null }[] };
+const minutiRap = (r: RigaElenco) => (r.rapportino_operai || []).reduce((t, o) => {
+  const d = oraValida(String(o.dalle ?? "").slice(0, 5)), a = oraValida(String(o.alle ?? "").slice(0, 5));   // il database restituisce HH:MM:SS
+  return t + (d && a && minuti(a) > minuti(d) ? minuti(a) - minuti(d) : 0);
+}, 0);
+const statoRap = (r: RigaElenco) => r.stato !== "completato" ? "bozza" : r.esito === "Da ultimare" ? "da ultimare" : "completato";
+export function elencoTesto(righe: RigaElenco[], titolo: string): { testo: string; tastiera: Tastiera } {
+  if (!righe.length) return { testo: "<b>" + html(titolo) + "</b>\nNessun rapportino trovato.", tastiera: [] };
+  const r = ["<b>" + html(titolo) + "</b>", ""];
+  righe.forEach((x, i) => {
+    const desc = String(x.attivita || "").replace(/\s+/g, " ").trim();
+    const m = minutiRap(x);
+    r.push((i + 1) + ". <b>" + dataIt(x.data) + "</b> — " + html(x.cliente || "(senza cliente)") + " · " + statoRap(x) + (m ? " · " + oreTesto(m) : ""));
+    if (desc) r.push("   <i>" + html(desc.length > 90 ? desc.slice(0, 89) + "…" : desc) + "</i>");
+  });
+  r.push("", "Per eliminarne uno tocca 🗑 e il suo numero (ti chiederò conferma).");
+  const tastiera: Tastiera = [];
+  for (let i = 0; i < righe.length; i += 5)
+    tastiera.push(righe.slice(i, i + 5).map((x, j) => ({ text: "🗑 " + (i + j + 1), callback_data: "del:" + x.id })));
+  return { testo: r.join("\n"), tastiera };
+}
+export function confermaEliminazioneTesto(x: RigaElenco): { testo: string; tastiera: Tastiera } {
+  const desc = String(x.attivita || "").replace(/\s+/g, " ").trim();
+  return {
+    testo: "🗑 <b>Eliminare definitivamente questo rapportino?</b>\n" + dataIt(x.data) + " — " + html(x.cliente || "(senza cliente)") + " · " + statoRap(x) +
+      (desc ? "\n<i>" + html(desc.length > 200 ? desc.slice(0, 199) + "…" : desc) + "</i>" : "") +
+      "\n\nSpariscono anche ore e foto. Non si può annullare.",
+    tastiera: [[{ text: "🗑 Sì, elimina", callback_data: "dok:" + x.id }, { text: "No, tieni", callback_data: "dno" }]],
+  };
+}
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+// pulsanti dell'elenco: "del:<id>" (chiedi conferma), "dok:<id>" (elimina), "dno" (annulla)
+export function leggiPulsanteElenco(d: unknown): { azione: "del" | "dok" | "dno"; id: string } | null {
+  const s = String(d ?? "");
+  if (s === "dno") return { azione: "dno", id: "" };
+  const m = s.match(/^(del|dok):(.+)$/);
+  return m && UUID.test(m[2]) ? { azione: m[1] as "del" | "dok", id: m[2].toLowerCase() } : null;
+}

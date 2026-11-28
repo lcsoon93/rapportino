@@ -27,5 +27,8 @@ async function sessione(admin: ReturnType<typeof clientAdmin>, profiloId: string
 
 Deno.serve((req) => {
   const admin = clientAdmin();
-  return gestisci(req, { env: (k) => Deno.env.get(k), admin, sessione: (id) => sessione(admin, id), chiamante: (r) => chiamante(r, admin) });
+  return gestisci(req, {
+    env: (k) => Deno.env.get(k), admin, sessione: (id) => sessione(admin, id), chiamante: (r) => chiamante(r, admin),
+    rimuoviFoto: async (percorsi) => { const { error } = await admin.storage.from("allegati-rapportini").remove(percorsi); if (error) throw error; },
+  });
 });
