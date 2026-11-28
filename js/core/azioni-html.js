@@ -30,7 +30,10 @@ import { aiAssistente, aiControlloRapportino, aiFotoRapportino, aiPreparaInterve
 import { apriPDFGiornata, azzeraPDFGiornata, condividiPDFGiornata, impostaPDFFoglioUnico, preparaPDFGiornata } from "../modules/stampa-giornata.js";
 import { apriDettaglioIntervento, apriFoglioGiornoCal, apriGiornoCal, chiudiDettaglioIntervento, modificaDaDettaglio, rapportinoDaDettaglio, spostaGiornoCal } from "../modules/agenda.js";
 
+import { collegaBotTelegram, statoBotTelegram } from "../modules/telegram-bot.js";
+
 Object.assign(window, {
+  collegaBotTelegram, statoBotTelegram,
   mostraVista,
   vaiASezione, attivaNotificheUI, disattivaNotificheUI, provaNotificaUI,
   disegnaMese, disegnaSettimana, eliminaGiorno, eliminaGiornoMese, spostaMese, spostaSettimana,

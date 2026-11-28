@@ -30,3 +30,8 @@ verify_jwt = true
 # assistente AI (Groq): solo con una sessione; i dati li legge con il token dell'utente (RLS)
 [functions.ai]
 verify_jwt = true
+
+# bot Telegram privato: lo chiama Telegram (niente sessione Supabase). Il controllo lo fa la funzione:
+# secret del webhook (X-Telegram-Bot-Api-Secret-Token) + id dell'unico utente Telegram autorizzato
+[functions.telegram]
+verify_jwt = false
