@@ -2,23 +2,47 @@
 // Il NOME NON E' UNA CHIAVE: ogni cliente si riconosce solo dal suo id (uuid). Piu' clienti possono
 // avere lo stesso nome e anche lo stesso indirizzo; qui non si unisce mai nulla per nome.
 
-export const CAMPI_CLIENTE = ["nome", "indirizzo", "telefono", "email", "partita_iva", "note", "archiviato"];
-export const LIMITI_CLIENTE = { nome: 200, indirizzo: 300, telefono: 60, email: 200, partita_iva: 30, note: 2000 };
+// campi della scheda; quelli dopo "archiviato" arrivano con la migrazione 20261128090000 (facoltativi)
+export const CAMPI_CLIENTE = ["nome", "indirizzo", "telefono", "email", "partita_iva", "note", "archiviato",
+  "tipologia", "referente", "codice_fiscale", "codice_sdi", "pec", "stato", "sedi"];
+export const CAMPI_SCHEDA_ESTESA = ["tipologia", "referente", "codice_fiscale", "codice_sdi", "pec", "stato", "sedi"];
+export const LIMITI_CLIENTE = { nome: 200, indirizzo: 300, telefono: 60, email: 200, partita_iva: 30, note: 2000,
+  referente: 200, codice_fiscale: 20, codice_sdi: 10, pec: 200 };
+export const TIPOLOGIE_CLIENTE = [["", "Non indicata"], ["privato", "Privato"], ["azienda", "Azienda"], ["amministratore", "Amministratore"], ["condominio", "Condominio"]];
+export const STATI_CLIENTE = [["attivo", "Attivo"], ["potenziale", "Potenziale"], ["inattivo", "Inattivo"]];
+export const MAX_SEDI = 20;
 
 export const norma = t=>String(t || "").toLocaleLowerCase("it-IT").normalize("NFD").replace(/[̀-ͯ]/g, "")
   .replace(/[^\p{L}\p{N}@.+]+/gu, " ").replace(/\s+/g, " ").trim();
 const soloCifre = t=>String(t || "").replace(/\D+/g, "");
+const testo = (v, max)=>String(v ?? "").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, max);
 
-// scheda ripulita (testi senza spazi superflui, campi mancanti vuoti)
+// sedi operative / indirizzi aggiuntivi: [{ nome, indirizzo }] senza righe vuote
+export function pulisciSedi(sedi){
+  return (Array.isArray(sedi) ? sedi : []).map(x=>({ nome: testo(x && x.nome, 100), indirizzo: testo(x && x.indirizzo, 300) }))
+    .filter(x=>x.nome || x.indirizzo).slice(0, MAX_SEDI);
+}
+// scheda ripulita (testi senza spazi superflui, campi mancanti vuoti, valori ammessi)
 export function pulisciCliente(d){
   const c = {};
   for(const k of CAMPI_CLIENTE){
     if(k === "archiviato") c.archiviato = !!(d && d.archiviato);
-    else c[k] = String((d && d[k]) ?? "").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, LIMITI_CLIENTE[k]);
+    else if(k === "sedi") c.sedi = pulisciSedi(d && d.sedi);
+    else if(k === "tipologia") c.tipologia = TIPOLOGIE_CLIENTE.some(t=>t[0] === (d && d.tipologia)) ? d.tipologia : "";
+    else if(k === "stato") c.stato = STATI_CLIENTE.some(t=>t[0] === (d && d.stato)) ? d.stato : "attivo";
+    else c[k] = testo(d && d[k], LIMITI_CLIENTE[k]);
   }
   c.nome = c.nome.replace(/\s+/g, " ");
+  c.codice_fiscale = c.codice_fiscale.toUpperCase();
+  c.codice_sdi = c.codice_sdi.toUpperCase();
   return c;
 }
+// confronto di un campo (le sedi sono un elenco)
+export const valoreCampo = v=>v && typeof v === "object" ? JSON.stringify(v) : String(v ?? "");
+export const stessoCampo = (a, b)=>valoreCampo(a) === valoreCampo(b);
+// campi da confrontare con la copia del server: un server senza la migrazione nuova non li ha
+export const campiConfrontabili = srv=>CAMPI_CLIENTE.filter(k=>!CAMPI_SCHEDA_ESTESA.includes(k) || (srv && k in srv));
+
 // errori bloccanti (il nome e' l'unico campo obbligatorio; nessun controllo di unicita')
 export function erroriCliente(d){
   const e = [];
@@ -26,6 +50,7 @@ export function erroriCliente(d){
   if(!c.nome) e.push("Il nome o la ragione sociale è obbligatorio.");
   if(c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) e.push("L'email non è valida.");
   if(c.telefono && !/^[+\d][\d\s./()-]{3,}$/.test(c.telefono)) e.push("Il telefono non è valido.");
+  if(c.pec && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.pec)) e.push("La PEC non è valida.");
   return e;
 }
 
@@ -43,7 +68,8 @@ export function cercaClienti(elenco, testo, { archiviati = false, massimo = 0 } 
   const punteggio = c=>{
     if(!parole.length) return 3;
     const nome = norma(c.nome);
-    const tutto = [nome, norma(c.indirizzo), norma(c.email), norma(c.partita_iva), norma(c.note)].join(" ");
+    const tutto = [nome, norma(c.indirizzo), norma(c.email), norma(c.partita_iva), norma(c.note), norma(c.referente), norma(c.codice_fiscale),
+      ...(Array.isArray(c.sedi) ? c.sedi.map(x=>norma(x.nome) + " " + norma(x.indirizzo)) : [])].join(" ");
     const tel = soloCifre(c.telefono);
     if(nome.startsWith(q)) return 0;
     if(parole.every(p=>nome.includes(p))) return 1;
@@ -71,9 +97,9 @@ export const stessoNome = (a, b)=>norma(a) === norma(b);
 // (si tiene il server e il campo viene segnalato: decide l'utente, niente si perde).
 export function unisciModifiche(base, mia, server){
   const risultato = {}, conflitti = [];
-  for(const k of CAMPI_CLIENTE){
+  for(const k of campiConfrontabili(server)){
     const b = base ? base[k] : undefined, m = mia[k], s = server[k];
-    const uguali = (x, y)=>String(x ?? "") === String(y ?? "");
+    const uguali = stessoCampo;
     if(uguali(m, s)) risultato[k] = s;
     else if(uguali(m, b)) risultato[k] = s;          // non l'ho toccato io
     else if(uguali(s, b)) risultato[k] = m;          // non l'ha toccato il server
