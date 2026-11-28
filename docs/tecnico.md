@@ -377,6 +377,38 @@ Se il frontend arriva prima della migrazione l'app funziona come prima: le lettu
 interventi e rapportini riprovano senza i campi nuovi e la sezione Clienti avvisa che l'anagrafica non
 è ancora attiva.
 
+
+### Scheda cliente evoluta (migrazione `20261128090000_scheda_cliente.sql`)
+
+La scheda (Clienti → tocco su un cliente) ha le azioni rapide (Chiama, Email, Mappe, Rapportino,
+Intervento) e quattro sezioni:
+
+- **Dati**: campi facoltativi in più — tipologia (privato, azienda, amministratore, condominio), stato
+  (attivo, potenziale, inattivo; diverso da "archiviato"), referente, sedi e indirizzi aggiuntivi
+  (`clienti.sedi`, jsonb), codice fiscale, SDI, PEC. Stessa coda offline e stessi controlli di versione
+  di prima (`salva_cliente`, firma invariata). Se il database non ha ancora la migrazione, i campi nuovi
+  non compaiono nel modulo e il resto funziona come prima.
+- **Lavori**: rapportini e interventi senza rapportino del cliente, più recenti prima (30 alla volta):
+  stato, tecnici, ore (unione degli intervalli per operaio), materiali, foto; filtri per periodo, stato e
+  tipologia; "Apri rapportino e PDF" apre il rapportino originale; "PDF storico lavori" usa il PDF di
+  riepilogo dello Storico. Un documento è del cliente se ha il suo `cliente_id`, oppure se non è
+  collegato a nessuna scheda e ha lo stesso nome (segnato "trovato per nome"); mai quelli collegati a un
+  omonimo. Senza rete: solo i lavori della vecchia app salvati sul telefono.
+- **Impianti** (`impianti_cliente`): marca, modello, matricola, installazione, garanzia (in scadenza
+  entro 60 giorni), posizione, note, dismesso. "Lavori che citano questo impianto" = lavori il cui testo
+  contiene la matricola (almeno 3 caratteri) o marca e modello: ricerca nel testo, nessun collegamento
+  salvato. Modifica con controllo di versione (nessuna sovrascrittura). Solo con la rete.
+- **Documenti** (`documenti_cliente` + bucket privato `documenti-clienti`, PDF e immagini fino a 10 MB,
+  percorso `<id cliente>/<id documento>.<est>`): prima il file, poi i metadati (il database verifica che il
+  file ci sia con la stessa dimensione; se la registrazione fallisce il file si toglie). Solo con la rete.
+
+Permessi (RLS e policy Storage): leggono tutti gli utenti attivi; impianti e documenti li aggiungono tutti
+gli utenti attivi; un impianto lo modificano admin, company o chi l'ha inserito, lo elimina solo l'admin;
+un documento lo eliminano admin, company o chi l'ha caricato; un documento non si modifica. Un cliente con
+impianti o documenti non si elimina (si archivia). Annullamento:
+`supabase/rollback/20261128090000_scheda_cliente_rollback.sql` (elimina impianti, documenti e campi nuovi:
+fare prima il backup indicato nel file).
+
 ## Assistente AI (Groq)
 
 Funzioni (tutte propongono, nessuna salva o modifica dati senza conferma dell'utente):

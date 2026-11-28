@@ -318,7 +318,7 @@ try{
     await pw.waitForSelector("#cli-foglio:not(.nascosto) .cli-id");
     assert.equal(await pw.$('#cli-azioni [data-az="modifica"]'), null);
     assert.equal(await pw.$('#cli-azioni [data-az="archivia"]'), null);
-    assert.ok(await pw.isVisible('#cli-azioni [data-az="rapportino"]'));
+    assert.ok(await pw.isVisible('#cli-corpo .sc-rapide [data-az="rapportino"]'));
     await pw.click("#cli-chiudi");
   });
 
