@@ -215,7 +215,7 @@ test("modello non disponibile: si usa il modello di riserva", async () => {
 
 test("modelli configurabili dai secret", () => {
   const c = configurazione((k) => ({ GROQ_API_KEY: " k ", GROQ_MODELLO_TESTO: "m1", GROQ_MODELLO_VISIONE: "v1" } as Record<string, string>)[k]);
-  assert.deepEqual(c, { chiave: "k", testo: "m1", riserva: MODELLI_PREDEFINITI.riserva, visione: "v1" });
+  assert.deepEqual(c, { chiave: "k", testo: "m1", riserva: MODELLI_PREDEFINITI.riserva, visione: "v1", audio: MODELLI_PREDEFINITI.audio });
 });
 
 // ---------------------------------------------------------------- foto

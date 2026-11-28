@@ -8,13 +8,17 @@ export const GROQ_URL = "https://api.groq.com/openai/v1";
 // - testo:   openai/gpt-oss-120b      (produzione, JSON mode, 131k token di contesto)
 // - riserva: openai/gpt-oss-20b        (produzione, usato se il modello testo non e' disponibile; llama-3.3-70b-versatile non risulta piu' nell'elenco Groq)
 // - visione: qwen/qwen3.8-27b         (immagini: max 3 per richiesta, JSON mode)
+// - audio:   whisper-large-v3-turbo   (trascrizione; formati flac mp3 mp4 mpeg mpga m4a ogg wav webm, max 25 MB
+//            sul piano gratuito; $0.04/ora, minimo fatturato 10 s). Riserva: whisper-large-v3.
 export const MODELLI_PREDEFINITI = {
   testo: "openai/gpt-oss-120b",
   riserva: "openai/gpt-oss-20b",
   visione: "qwen/qwen3.8-27b",
+  audio: "whisper-large-v3-turbo",
+  audioRiserva: "whisper-large-v3",
 };
 
-export type ConfigAI = { chiave: string; testo: string; riserva: string; visione: string };
+export type ConfigAI = { chiave: string; testo: string; riserva: string; visione: string; audio?: string };
 export function configurazione(env: (k: string) => string | undefined): ConfigAI {
   const pulito = (v: string | undefined) => String(v || "").trim();
   return {
@@ -22,6 +26,7 @@ export function configurazione(env: (k: string) => string | undefined): ConfigAI
     testo: pulito(env("GROQ_MODELLO_TESTO")) || MODELLI_PREDEFINITI.testo,
     riserva: pulito(env("GROQ_MODELLO_RISERVA")) || MODELLI_PREDEFINITI.riserva,
     visione: pulito(env("GROQ_MODELLO_VISIONE")) || MODELLI_PREDEFINITI.visione,
+    audio: pulito(env("GROQ_MODELLO_AUDIO")) || MODELLI_PREDEFINITI.audio,
   };
 }
 
@@ -169,4 +174,47 @@ export async function elencoModelli(chiave: string, fetchImpl?: typeof fetch): P
     if ((e as Error).name === "AbortError") throw new ErroreAI("Il servizio AI non ha risposto in tempo.", 504, "timeout");
     throw new ErroreAI("Servizio AI non raggiungibile.", 502, "rete");
   } finally { clearTimeout(t); }
+}
+
+// Trascrizione di un audio (es. messaggio vocale Telegram, OGG/Opus). Il modello di testo NON trascrive:
+// si usa l'endpoint audio di Groq (Whisper). Modello non disponibile -> whisper-large-v3.
+// Restituisce il testo; nessun contenuto nei log.
+export const MAX_AUDIO_BYTE = 20 * 1024 * 1024;
+export async function trascriviAudio(cfg: ConfigAI, opz: {
+  audio: Uint8Array; nomeFile: string; mime: string; lingua?: string; timeoutMs: number; fetchImpl?: typeof fetch;
+}): Promise<{ testo: string; modello: string }> {
+  if (!opz.audio.length) throw new ErroreAI("Audio vuoto.", 400, "audio_vuoto");
+  if (opz.audio.length > MAX_AUDIO_BYTE) throw new ErroreAI("Audio troppo grande.", 413, "troppo_grande");
+  const f = opz.fetchImpl || fetch;
+  const modelli = [cfg.audio || MODELLI_PREDEFINITI.audio, MODELLI_PREDEFINITI.audioRiserva].filter((m, i, a) => a.indexOf(m) === i);
+  let ultimo: ErroreAI | null = null;
+  for (const modello of modelli) {
+    const form = new FormData();
+    form.append("file", new Blob([opz.audio], { type: opz.mime || "audio/ogg" }), opz.nomeFile);
+    form.append("model", modello);
+    form.append("language", opz.lingua || "it");
+    form.append("response_format", "json");
+    form.append("temperature", "0");
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), opz.timeoutMs);
+    let r: Response;
+    try {
+      r = await f(GROQ_URL + "/audio/transcriptions", { method: "POST", headers: { "Authorization": "Bearer " + cfg.chiave }, body: form, signal: ctl.signal });
+    } catch (e) {
+      clearTimeout(t);
+      if ((e as Error).name === "AbortError") throw new ErroreAI("La trascrizione non ha risposto in tempo. Riprova.", 504, "timeout");
+      throw new ErroreAI("Servizio AI non raggiungibile.", 502, "rete");
+    }
+    let corpo = "";
+    try { corpo = await r.text(); } catch { /* corpo illeggibile */ } finally { clearTimeout(t); }
+    if (!r.ok) {
+      ultimo = erroreDaRisposta(r.status, corpo, r.headers.get("retry-after"));
+      if (ultimo.codice === "modello") continue;
+      throw ultimo;
+    }
+    let testo = "";
+    try { testo = String((JSON.parse(corpo) as { text?: unknown }).text ?? ""); } catch { throw new ErroreAI("Trascrizione non valida.", 502, "risposta_non_valida"); }
+    return { testo: testo.trim(), modello };
+  }
+  throw ultimo || new ErroreAI("Servizio AI momentaneamente non disponibile.", 503, "non_disponibile");
 }

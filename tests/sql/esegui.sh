@@ -17,6 +17,7 @@ psql_pg "-d $DB -t -f $W/rls-ai.sql"
 psql_pg "-d $DB -t -f $W/clienti.sql"
 # scheda cliente evoluta: controlli, rollback e nuova applicazione (ripetibile)
 psql_pg "-d $DB -t -f $W/scheda-cliente.sql"
+psql_pg "-d $DB -t -f $W/telegram.sql"
 cp supabase/rollback/20261128090000_scheda_cliente_rollback.sql "$W"/; chmod 644 "$W"/*.sql
 psql_pg "-d $DB -f $W/20261128090000_scheda_cliente_rollback.sql" >/dev/null
 psql_pg "-d $DB -t -c \"select 'rollback scheda cliente: ' || (case when to_regclass('public.impianti_cliente') is null and to_regclass('public.documenti_cliente') is null and not exists (select 1 from information_schema.columns where table_name='clienti' and column_name='sedi') and to_regclass('public.clienti') is not null then 'ok' else 'ERRORE' end)\""
@@ -30,6 +31,11 @@ echo " migrazione riapplicata due volte: ok"
 psql_pg "-d $DB -f $W/20261128090000_scheda_cliente.sql" >/dev/null
 psql_pg "-d $DB -f $W/20261128090000_scheda_cliente.sql" >/dev/null
 echo " scheda cliente riapplicata due volte: ok"
+cp supabase/rollback/20261128120000_telegram_bot_rollback.sql "$W"/; chmod 644 "$W"/*.sql
+psql_pg "-d $DB -f $W/20261128120000_telegram_bot_rollback.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261128120000_telegram_bot.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261128120000_telegram_bot.sql" >/dev/null
+echo " bot telegram: rollback e riapplicazione ok"
 psql_pg "-c 'drop database $DB'" >/dev/null
 rm -rf "$W"
 echo "SQL: tutti i controlli superati"
