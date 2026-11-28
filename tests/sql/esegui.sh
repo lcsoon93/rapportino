@@ -15,6 +15,11 @@ psql_pg "-d $DB -c 'grant all on all tables in schema public to service_role'" >
 psql_pg "-d $DB -t -f $W/limiti-ai.sql"
 psql_pg "-d $DB -t -f $W/rls-ai.sql"
 psql_pg "-d $DB -t -f $W/clienti.sql"
+# scheda cliente evoluta: controlli, rollback e nuova applicazione (ripetibile)
+psql_pg "-d $DB -t -f $W/scheda-cliente.sql"
+cp supabase/rollback/20261128090000_scheda_cliente_rollback.sql "$W"/; chmod 644 "$W"/*.sql
+psql_pg "-d $DB -f $W/20261128090000_scheda_cliente_rollback.sql" >/dev/null
+psql_pg "-d $DB -t -c \"select 'rollback scheda cliente: ' || (case when to_regclass('public.impianti_cliente') is null and to_regclass('public.documenti_cliente') is null and not exists (select 1 from information_schema.columns where table_name='clienti' and column_name='sedi') and to_regclass('public.clienti') is not null then 'ok' else 'ERRORE' end)\""
 # rollback dell'anagrafica e nuova applicazione (la migrazione e' ripetibile)
 cp supabase/rollback/20261116090000_anagrafica_clienti_rollback.sql "$W"/; chmod 644 "$W"/*.sql
 psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti_rollback.sql" >/dev/null
@@ -22,6 +27,9 @@ psql_pg "-d $DB -t -c \"select 'rollback: ' || (case when to_regclass('public.cl
 psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti.sql" >/dev/null
 psql_pg "-d $DB -f $W/20261116090000_anagrafica_clienti.sql" >/dev/null
 echo " migrazione riapplicata due volte: ok"
+psql_pg "-d $DB -f $W/20261128090000_scheda_cliente.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261128090000_scheda_cliente.sql" >/dev/null
+echo " scheda cliente riapplicata due volte: ok"
 psql_pg "-c 'drop database $DB'" >/dev/null
 rm -rf "$W"
 echo "SQL: tutti i controlli superati"
