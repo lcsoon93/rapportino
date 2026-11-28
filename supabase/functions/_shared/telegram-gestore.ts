@@ -19,6 +19,7 @@ import {
   bozzaVuota, cercaCliente, clienteLibero, collegaCliente, controlla, datiSalvataggio, html, leggiPulsante, promptBozza, scegliCandidato,
   validaRispostaAI, ELENCO_MAX, type RigaElenco, confermaEliminazioneTesto, elencoTesto, filtroElenco, leggiPulsanteElenco, richiestaElenco,
   type RigaIntervento, bozzaDaIntervento, elencoInterventiTesto, filtroInterventi, richiestaInterventi, COMANDI_MENU,
+  collegaIntervento, interventiDelCliente, propostaIntervento, scollegaIntervento,
 } from "./telegram-logica.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -203,6 +204,25 @@ const cambiataNelFrattempo = async (x: Contesto) => {
   else await invia(x, "La bozza non c'è più. Mandami di nuovo il lavoro.");
 };
 
+// Cliente confermato e bozza non collegata: se il cliente ha interventi affidati al tecnico ancora da fare
+// (da 30 giorni fa a 7 giorni avanti), il rapportino completa quello e non diventa un fuori programma.
+// Un errore di lettura non blocca la bozza: resta un lavoro nuovo, come prima.
+async function agganciaIntervento(x: Contesto, b: Bozza): Promise<{ bozza: Bozza; nota: string }> {
+  if (b.intervento_id || b.interventi_proposti.length || b.cliente_stato !== "confermato" || !b.cliente) return { bozza: b, nota: "" };
+  const s = await sessione(x);
+  const sposta = (n: number) => new Date(Date.parse(x.oggi + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  const { data, error } = await s.db.from("interventi").select(CAMPI_INTERVENTO).in("stato", ["pianificato", "in_corso"])
+    .gte("data", sposta(-30)).lte("data", sposta(7)).order("data").limit(200);
+  if (error) { log(x.d, { evento: "aggancio_intervento", esito: "errore" }); return { bozza: b, nota: "" }; }
+  const nuova = propostaIntervento(b, interventiDelCliente(b, (data || []) as RigaIntervento[], x.profiloId, x.oggi), x.oggi);
+  if (nuova.intervento_id) {
+    log(x.d, { evento: "aggancio_intervento", esito: "collegato" });
+    return { bozza: nuova, nota: "📌 <b>" + html(nuova.cliente) + "</b> ha un intervento affidato a te: compilo quello (non un fuori programma). Se non è questo, tocca «Non è questo intervento»." };
+  }
+  if (nuova.interventi_proposti.length) log(x.d, { evento: "aggancio_intervento", esito: "da_scegliere", trovati: nuova.interventi_proposti.length });
+  return { bozza: nuova, nota: "" };
+}
+
 // ---------------------------------------------------------------- messaggio (scritto o trascritto)
 async function messaggioTesto(x: Contesto, testo: string) {
   const { riga, scaduta } = await leggiBozza(x);
@@ -212,8 +232,9 @@ async function messaggioTesto(x: Contesto, testo: string) {
   if (riga && riga.dati.cliente_stato === "da_scegliere" && /^\s*\d{1,2}\s*$/.test(testo)) {
     const c = riga.dati.candidati[+testo.trim() - 1];
     if (!c) { await invia(x, "Numero non valido: scegli tra 1 e " + riga.dati.candidati.length + "."); return; }
-    const nuova = await scriviBozza(x, riga, scegliCandidato(riga.dati, c));
-    return nuova ? mostraBozza(x, nuova) : cambiataNelFrattempo(x);
+    const g = await agganciaIntervento(x, scegliCandidato(riga.dati, c));
+    const nuova = await scriviBozza(x, riga, g.bozza);
+    return nuova ? mostraBozza(x, nuova, g.nota) : cambiataNelFrattempo(x);
   }
   const nomi = (await tecnici(x)).filter((t) => t.attivo !== false).map((t) => t.nome);
   const r = await chiediJson(x.cfg, {
@@ -249,9 +270,10 @@ async function messaggioTesto(x: Contesto, testo: string) {
   }
   let { bozza, clienteCambiato } = applicaModifiche(riga ? riga.dati : bozzaVuota(), ai.modifiche);
   if (clienteCambiato) bozza = collegaCliente(bozza, cercaCliente(bozza.cliente, await clienti(x)));
-  const nuova = await scriviBozza(x, riga, bozza);
+  const g = await agganciaIntervento(x, bozza);
+  const nuova = await scriviBozza(x, riga, g.bozza);
   if (!nuova) return cambiataNelFrattempo(x);
-  const avvisi = [premessa, ai.problemi.length ? "⚠️ " + html(ai.problemi.join(" ")) : ""].filter(Boolean).join("\n");
+  const avvisi = [premessa, g.nota, ai.problemi.length ? "⚠️ " + html(ai.problemi.join(" ")) : ""].filter(Boolean).join("\n");
   await mostraBozza(x, nuova, avvisi);
 }
 
@@ -399,7 +421,31 @@ async function pulsante(x: Contesto, cb: Record<string, unknown>) {
     if (riga.dati.cliente_stato !== "da_scegliere") return mostraBozza(x, riga);
     const c = riga.dati.candidati[p.indice];
     if (p.azione === "cli" && !c) return;
-    const nuova = await scriviBozza(x, riga, p.azione === "cli" ? scegliCandidato(riga.dati, c) : clienteLibero(riga.dati));
+    const g = await agganciaIntervento(x, p.azione === "cli" ? scegliCandidato(riga.dati, c) : clienteLibero(riga.dati));
+    const nuova = await scriviBozza(x, riga, g.bozza);
+    await togliPulsanti();
+    return nuova ? mostraBozza(x, nuova, g.nota) : cambiataNelFrattempo(x);
+  }
+  if (p.azione === "fp") {
+    if (!riga.dati.interventi_proposti.length && !(riga.dati.intervento_id && riga.dati.intervento_auto)) return mostraBozza(x, riga);
+    const nuova = await scriviBozza(x, riga, scollegaIntervento(riga.dati));
+    await togliPulsanti();
+    return nuova ? mostraBozza(x, nuova, "Va bene: lavoro <b>fuori programma</b>, non collegato a un intervento.") : cambiataNelFrattempo(x);
+  }
+  if (p.azione === "agi") {
+    const scelto = riga.dati.interventi_proposti[p.indice];
+    if (!scelto || riga.dati.intervento_id) return mostraBozza(x, riga);
+    // riletto ora: deve essere ancora da fare, affidato al tecnico e senza un suo rapportino
+    const s = await sessione(x);
+    const { data: i, error: ei } = await s.db.from("interventi").select(CAMPI_INTERVENTO).eq("id", scelto.id).maybeSingle();
+    if (ei) throw new Error("intervento");
+    const ok = i ? interventiDelCliente({ ...riga.dati, interventi_proposti: [] }, [i as RigaIntervento], x.profiloId, x.oggi) : [];
+    if (!ok.length) {
+      const nuova = await scriviBozza(x, riga, { ...riga.dati, interventi_proposti: riga.dati.interventi_proposti.filter((v) => v.id !== scelto.id) });
+      await togliPulsanti();
+      return nuova ? mostraBozza(x, nuova, "Quell'intervento non è più da compilare (chiuso, riassegnato o già compilato).") : cambiataNelFrattempo(x);
+    }
+    const nuova = await scriviBozza(x, riga, collegaIntervento(riga.dati, ok[0], x.oggi));
     await togliPulsanti();
     return nuova ? mostraBozza(x, nuova) : cambiataNelFrattempo(x);
   }
