@@ -16,7 +16,7 @@ import { type ConfigAI, ErroreAI, chiediJson, configurazione, trascriviAudio, MA
 import {
   type Bozza, MAX_DURATA_VOCALE_S, MAX_TESTO_MESSAGGIO, SCADENZA_BOZZA_ORE, type Tastiera, type Tecnico, anteprima, applicaModifiche,
   bozzaVuota, cercaCliente, clienteLibero, collegaCliente, controlla, datiSalvataggio, html, leggiPulsante, promptBozza, scegliCandidato,
-  validaRispostaAI,
+  validaRispostaAI, ELENCO_MAX, type RigaElenco, confermaEliminazioneTesto, elencoTesto, filtroElenco, leggiPulsanteElenco, richiestaElenco,
 } from "./telegram-logica.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -28,6 +28,9 @@ export type Dipendenze = {
   chiamante?: (req: Request) => Promise<{ profilo: { id: string; ruolo: string; attivo: boolean } } | null>;
   admin: DB;                                   // service_role: solo tabelle del bot e profilo del proprietario
   sessione: (profiloId: string) => Promise<Sessione>;   // sessione dell'utente dell'app (letture e salvataggio)
+  // toglie dallo Storage le foto di un rapportino gia' eliminato (service_role: dopo l'eliminazione le
+  // policy del bucket non riconoscono piu' il rapportino)
+  rimuoviFoto?: (percorsi: string[]) => Promise<void>;
   fetchImpl?: typeof fetch;
   oggi?: () => string;
   adesso?: () => number;
@@ -47,6 +50,7 @@ const AIUTO = [
   "Preparo una bozza e te la mostro: puoi correggerla scrivendo (es. «le ore erano dalle 9», «togli i raccordi», «il cliente è Bianchi»).",
   "Il rapportino si crea solo quando tocchi <b>Conferma</b>.",
   "Comandi: /bozza mostra la bozza, /annulla la cancella. Le bozze non confermate scadono dopo " + SCADENZA_BOZZA_ORE + " ore.",
+  "/rapportini elenca gli ultimi rapportini (anche <i>/rapportini oggi</i>, <i>ieri</i>, <i>settimana</i>, <i>mese</i> o il nome di un cliente); da lì puoi eliminarne uno, con conferma.",
 ].join("\n");
 
 // Secret del webhook: TELEGRAM_WEBHOOK_SECRET se impostato, altrimenti ricavato dal token del bot
@@ -262,11 +266,58 @@ async function messaggioVocale(x: Contesto, v: Record<string, unknown>): Promise
   return r.testo;
 }
 
+// ---------------------------------------------------------------- elenco ed eliminazione
+// Letture ed eliminazione con la sessione dell'utente collegato: vede ed elimina solo cio' che RLS gli
+// consente nell'app (l'amministratore tutti i rapportini, l'operaio solo le proprie bozze).
+const CAMPI_ELENCO = "id, data, cliente, stato, esito, attivita, autore_id, completato_il, rapportino_operai(dalle, alle)";
+async function elencaRapportini(x: Contesto, filtro: string) {
+  const f = filtroElenco(filtro, x.oggi);
+  const s = await sessione(x);
+  let q = s.db.from("rapportini").select(CAMPI_ELENCO);
+  if (f.dal) q = q.gte("data", f.dal);
+  if (f.al) q = q.lte("data", f.al);
+  if (f.cliente) q = q.ilike("cliente", "%" + f.cliente.replace(/[\\%_]/g, "\\$&") + "%");
+  const { data, error } = await q.order("data", { ascending: false }).order("aggiornato_il", { ascending: false }).limit(ELENCO_MAX);
+  if (error) throw new Error("elenco");
+  const e = elencoTesto((data || []) as RigaElenco[], f.titolo);
+  await invia(x, e.testo, e.tastiera.length ? e.tastiera : undefined);
+  log(x.d, { evento: "elenco", esito: "ok", righe: (data || []).length });
+}
+async function leggiRapportino(x: Contesto, id: string): Promise<RigaElenco & { autore_id?: string } | null> {
+  const s = await sessione(x);
+  const { data, error } = await s.db.from("rapportini").select(CAMPI_ELENCO).eq("id", id).maybeSingle();
+  if (error) throw new Error("rapportino");
+  return data;
+}
+async function pulsanteElenco(x: Contesto, p: { azione: "del" | "dok" | "dno"; id: string }, togliPulsanti: () => unknown) {
+  if (p.azione === "dno") { await togliPulsanti(); await invia(x, "Va bene, non ho eliminato nulla."); return; }
+  const r = await leggiRapportino(x, p.id);
+  if (!r) { await togliPulsanti(); await invia(x, "Rapportino non trovato: forse è già stato eliminato."); return; }
+  if (p.azione === "del") { const c = confermaEliminazioneTesto(r); await invia(x, c.testo, c.tastiera); return; }
+  // eliminazione confermata: prima i percorsi delle foto (i metadati spariscono con il rapportino)
+  await togliPulsanti();
+  const s = await sessione(x);
+  const { data: foto } = await s.db.from("allegati").select("percorso").eq("rapportino_id", p.id).not("percorso", "is", null);
+  const { data: tolti, error } = await s.db.from("rapportini").delete().eq("id", p.id).select("id");
+  if (error || !tolti || !tolti.length) {
+    log(x.d, { evento: "eliminazione", esito: error ? "errore" : "non_consentita" });
+    await invia(x, "❌ Rapportino NON eliminato: " + (error && !/42501|permission|policy|row-level/i.test(String(error.code) + " " + (error.message || ""))
+      ? "errore del database, riprova tra poco." : "il tuo utente non ha il permesso di eliminarlo (nell'app solo l'amministratore elimina i rapportini completati)."));
+    return;
+  }
+  const percorsi = ((foto || []) as { percorso: string }[]).map((f) => f.percorso).filter(Boolean);
+  if (percorsi.length && x.d.rimuoviFoto) await x.d.rimuoviFoto(percorsi).catch(() => log(x.d, { evento: "eliminazione_foto", esito: "errore" }));
+  log(x.d, { evento: "eliminazione", esito: "ok", foto: percorsi.length });
+  await invia(x, "🗑 Rapportino eliminato: " + html(r.cliente || "(senza cliente)") + " — " + r.data.split("-").reverse().join("/") + ".");
+}
+
 // ---------------------------------------------------------------- pulsanti
 async function pulsante(x: Contesto, cb: Record<string, unknown>) {
   await tg(x, "answerCallbackQuery", { callback_query_id: cb.id });
   const msg = cb.message as Record<string, unknown> | undefined;
   const togliPulsanti = () => msg && tg(x, "editMessageReplyMarkup", { chat_id: x.chat, message_id: msg.message_id, reply_markup: { inline_keyboard: [] } });
+  const pe = leggiPulsanteElenco(cb.data);
+  if (pe) return pulsanteElenco(x, pe, togliPulsanti);
   const p = leggiPulsante(cb.data);
   if (!p) return;
   const { riga } = await leggiBozza(x);
@@ -390,7 +441,8 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
         } else if (/^\/bozza\b/i.test(t)) {
           const { riga } = await leggiBozza(x);
           if (riga) await mostraBozza(x, riga); else await invia(x, "Nessuna bozza in corso. Mandami il lavoro da registrare.");
-        } else if (t.startsWith("/")) await invia(x, AIUTO);
+        } else if (richiestaElenco(t)) await elencaRapportini(x, richiestaElenco(t)!.filtro);
+        else if (t.startsWith("/")) await invia(x, AIUTO);
         else if (t) await messaggioTesto(x, t);
         else if (vocale) { const testo = await messaggioVocale(x, vocale); if (testo) await messaggioTesto(x, testo); }
         else await invia(x, "Mandami un messaggio scritto o un vocale con il lavoro fatto.");

@@ -25,18 +25,24 @@ const TECNICI = [{ id: LUCA, username: "luca", nome: "Luca Admin", attivo: true 
 // ---------------------------------------------------------------- database finto (sottoinsieme di PostgREST)
 type Riga = Record<string, unknown>;
 function tabelle() { return { telegram_aggiornamenti: [] as Riga[], telegram_bozze: [] as Riga[], profili: [{ id: LUCA, username: "Luca", attivo: true }] as Riga[], clienti: CLIENTI as Riga[] }; }
-function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean } = {}) {
+function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean; eliminaVieta?: boolean } = {}) {
   return {
     from(nome: string) {
       const filtri: ((r: Riga) => boolean)[] = [];
-      let op = "select", valori: Riga | null = null, singolo = false;
+      let op = "select", valori: Riga | null = null, singolo = false, limite = 0;
       const q: Record<string, unknown> = {
-        select: () => q, limit: () => q,
+        select: () => q, limit: (n: number) => { limite = n; return q; }, order: () => q,
+        gte: (k: string, v: string) => { filtri.push((r) => String(r[k]) >= v); return q; },
+        lte: (k: string, v: string) => { filtri.push((r) => String(r[k]) <= v); return q; },
+        not: (k: string) => { filtri.push((r) => r[k] != null); return q; },
         insert: (v: Riga) => { op = "insert"; valori = v; return q; },
         update: (v: Riga) => { op = "update"; valori = v; return q; },
         delete: () => { op = "delete"; return q; },
         eq: (k: string, v: unknown) => { filtri.push((r) => String(r[k]) === String(v)); return q; },
-        ilike: (k: string, v: string) => { filtri.push((r) => String(r[k]).toLowerCase() === v.replace(/\\(.)/g, "$1").toLowerCase()); return q; },
+        ilike: (k: string, v: string) => {
+          const re = new RegExp("^" + v.replace(/\\(.)|%|[.*+?^${}()|[\]\\]/g, (m, e) => e !== undefined ? e.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") : m === "%" ? ".*" : "\\" + m) + "$", "i");
+          filtri.push((r) => re.test(String(r[k]))); return q;
+        },
         lt: (k: string, v: string) => { filtri.push((r) => String(r[k]) < v); return q; },
         or: (s: string) => {
           const parti = s.split(",").map((p) => { const [k, o, ...v] = p.split("."); return { k, o, v: v.join(".") }; });
@@ -58,8 +64,12 @@ function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean } =
             return { data: singolo ? nuova : [nuova], error: null };
           }
           if (op === "update") { scelte.forEach((r) => Object.assign(r, valori)); return { data: singolo ? scelte[0] ?? null : scelte, error: null }; }
-          if (op === "delete") { t[nome] = righe.filter((r) => !scelte.includes(r)); return { data: scelte, error: null }; }
-          return { data: singolo ? scelte[0] ?? null : scelte, error: null };
+          if (op === "delete") {
+            if (opz.eliminaVieta) return { data: [], error: null };           // RLS: nessuna riga eliminabile
+            t[nome] = righe.filter((r) => !scelte.includes(r)); return { data: scelte, error: null };
+          }
+          const out = limite ? scelte.slice(0, limite) : scelte;
+          return { data: singolo ? out[0] ?? null : out, error: null };
         }).then(ok, ko),
       };
       return q;
@@ -70,13 +80,16 @@ function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean } =
 
 // ---------------------------------------------------------------- Telegram e Groq finti
 type Ambiente = ReturnType<typeof ambiente>;
-function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore?: number; trascrizione?: string; salvaErrore?: boolean; erroreScrittura?: boolean } = {}) {
+function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore?: number; trascrizione?: string; salvaErrore?: boolean; erroreScrittura?: boolean;
+  rapportini?: Riga[]; allegati?: Riga[]; eliminaVieta?: boolean } = {}) {
   const t = tabelle();
   const inviati: { metodo: string; corpo: Record<string, unknown> }[] = [];
   const salvati: Record<string, unknown>[] = [];
   const log: Record<string, unknown>[] = [];
   const richiesteAI: unknown[] = [];
   let sessioniAperte = 0, sessioniChiuse = 0, webhook = "";
+  const sessDB: Record<string, Riga[]> = { clienti: CLIENTI as Riga[], rapportini: opz.rapportini || [], allegati: opz.allegati || [] };
+  const fotoRimosse: string[] = [];
   const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
     const u = String(url);
     if (u.startsWith("https://api.telegram.org/file/")) return new Response(new Uint8Array([79, 103, 103, 83, 1, 2, 3]), { status: 200 });
@@ -109,7 +122,7 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
     sessione: async (id) => {
       assert.equal(id, LUCA, "sessione dell'utente collegato al bot");
       sessioniAperte++;
-      const db = dbFinto({ clienti: CLIENTI as Riga[] });
+      const db = dbFinto(sessDB, { eliminaVieta: opz.eliminaVieta });
       return {
         profiloId: id, chiudi: async () => { sessioniChiuse++; },
         db: { from: db.from, rpc: async (f: string, a?: Record<string, unknown>) => {
@@ -127,7 +140,8 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
       };
     },
   };
-  return { t, d, inviati, salvati, log, richiesteAI, sessioni: () => [sessioniAperte, sessioniChiuse] };
+  d.rimuoviFoto = async (p) => { fotoRimosse.push(...p); };
+  return { t, d, inviati, salvati, log, richiesteAI, sessioni: () => [sessioniAperte, sessioniChiuse], sessDB, fotoRimosse };
 }
 let prossimo = 1000;
 const req = (corpo: unknown, segreto = SEGRETO) => new Request("https://x.supabase.co/functions/v1/telegram", {
@@ -452,4 +466,66 @@ test("profilo del bot: username senza distinzione di maiuscole e senza virgolett
   b.d.env = (k) => k === "TELEGRAM_PROFILO" ? "mario_rossi" : ENV[k];
   await manda(b, testo("lavoro"));
   assert.match(ultimo(b), /non è collegato a un utente attivo/);
+});
+
+// ---------------------------------------------------------------- elenco ed eliminazione
+const R1 = "aaaaaaaa-0000-4000-8000-000000000001", R2 = "aaaaaaaa-0000-4000-8000-000000000002", R3 = "aaaaaaaa-0000-4000-8000-000000000003";
+const RAPPORTINI = () => [
+  { id: R1, data: "2026-11-28", cliente: "Condominio Aurora", stato: "completato", esito: "Completato", attivita: "Valvola <sostituita>", autore_id: LUCA,
+    rapportino_operai: [{ dalle: "08:00:00", alle: "11:00:00" }] },
+  { id: R2, data: "2026-11-27", cliente: "Mario Rossi", stato: "bozza", esito: "Completato", attivita: "Da finire", autore_id: LUCA, rapportino_operai: [] },
+  { id: R3, data: "2026-10-02", cliente: "Bianchi Impianti Srl", stato: "completato", esito: "Da ultimare", attivita: "Perdita", autore_id: MARIO, rapportino_operai: [] },
+];
+test("elenco: /rapportini, oggi/ieri/settimana/mese, cliente, a parole; nessuna AI e nessuna bozza toccata", async () => {
+  const a = ambiente({ rapportini: RAPPORTINI() });
+  await manda(a, testo("/rapportini"));
+  let t = ultimo(a);
+  assert.match(t, /Ultimi rapportini/);
+  assert.match(t, /1\. <b>28\/11\/2026<\/b> — Condominio Aurora · completato · 3 ore/);
+  assert.match(t, /Valvola &lt;sostituita&gt;/, "testo scappato");
+  assert.match(t, /Mario Rossi · bozza/);
+  assert.match(t, /Bianchi Impianti Srl · da ultimare/);
+  assert.deepEqual(pulsanti(a).map((p) => p.callback_data), ["del:" + R1, "del:" + R2, "del:" + R3]);
+  await manda(a, testo("/rapportini oggi"));
+  assert.match(ultimo(a), /Rapportini di oggi/);
+  assert.equal(pulsanti(a).length, 1);
+  await manda(a, testo("/rapportini settimana"));
+  assert.equal(pulsanti(a).length, 2);
+  await manda(a, testo("lista rapportini rossi"));
+  assert.match(ultimo(a), /Rapportini di «rossi»/);
+  assert.deepEqual(pulsanti(a).map((p) => p.callback_data), ["del:" + R2]);
+  await manda(a, testo("/rapportini Pinco"));
+  assert.match(ultimo(a), /Nessun rapportino trovato/);
+  assert.equal(a.richiesteAI.length, 0);
+  assert.equal(a.t.telegram_bozze.length, 0);
+});
+
+test("eliminazione: solo dopo conferma esplicita; foto tolte; «No» non elimina; permesso negato dal database", async () => {
+  const a = ambiente({ rapportini: RAPPORTINI(), allegati: [{ rapportino_id: R1, percorso: R1 + "/f1.jpg" }, { rapportino_id: R2, percorso: R2 + "/f2.jpg" }] });
+  await manda(a, tocco("del:" + R1));
+  assert.match(ultimo(a), /Eliminare definitivamente questo rapportino\?/);
+  assert.deepEqual(pulsanti(a).map((p) => p.callback_data), ["dok:" + R1, "dno"]);
+  assert.equal(a.sessDB.rapportini.length, 3, "il primo tocco non elimina");
+  await manda(a, tocco("dno"));
+  assert.match(ultimo(a), /non ho eliminato nulla/);
+  assert.equal(a.sessDB.rapportini.length, 3);
+  await manda(a, tocco("dok:" + R1));
+  assert.match(ultimo(a), /Rapportino eliminato: Condominio Aurora — 28\/11\/2026/);
+  assert.deepEqual(a.sessDB.rapportini.map((r) => r.id), [R2, R3]);
+  assert.deepEqual(a.fotoRimosse, [R1 + "/f1.jpg"], "solo le foto di quel rapportino");
+  await manda(a, tocco("dok:" + R1));
+  assert.match(ultimo(a), /non trovato/);
+  // RLS nega l'eliminazione: niente foto tolte, messaggio chiaro
+  const b = ambiente({ rapportini: RAPPORTINI(), allegati: [{ rapportino_id: R3, percorso: R3 + "/f.jpg" }], eliminaVieta: true });
+  await manda(b, tocco("dok:" + R3));
+  assert.match(ultimo(b), /NON eliminato: il tuo utente non ha il permesso/);
+  assert.equal(b.fotoRimosse.length, 0);
+  assert.equal(b.sessDB.rapportini.length, 3);
+  // pulsanti non validi o di un estraneo: ignorati
+  const c = ambiente({ rapportini: RAPPORTINI() });
+  await manda(c, tocco("dok:non-un-id"));
+  const cbEstraneo = { update_id: ++prossimo, callback_query: { id: "z", from: { id: 999 }, data: "dok:" + R1, message: { message_id: 1, chat: { id: 999, type: "private" } } } };
+  await gestisci(req(cbEstraneo), c.d);
+  assert.equal(c.sessDB.rapportini.length, 3);
+  assert.ok(!c.inviati.some((x) => x.metodo === "sendMessage"));
 });

@@ -20,6 +20,11 @@ compare in Rapportini, nella scheda del cliente, nei PDF e nelle statistiche com
 - **Correzioni**: scrivi o di' cosa cambiare («dalle 9 alle 12», «togli i raccordi», «il cliente è Bianchi»,
   «da ultimare»). `/bozza` mostra la bozza, `/annulla` la cancella. Le bozze non confermate scadono dopo 24 ore.
 - **Esito** predefinito «Completato» (come nell'app), «Da ultimare» se lo dici.
+- **Elenco**: `/rapportini` (ultimi 10), `/rapportini oggi`, `ieri`, `settimana`, `mese` o il nome di un cliente
+  (anche scritto «lista rapportini Rossi»). Mostra data, cliente, stato, ore e descrizione.
+- **Eliminazione**: dall'elenco, pulsante 🗑 e numero → riepilogo → «Sì, elimina». Vale la regola dell'app
+  (RLS): l'amministratore elimina qualsiasi rapportino, un operaio solo le proprie bozze. Con il rapportino
+  spariscono ore e foto (anche i file nello Storage). Non si può annullare.
 
 ## Sicurezza
 
