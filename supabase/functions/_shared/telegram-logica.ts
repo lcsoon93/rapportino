@@ -76,6 +76,24 @@ export function periodoDomanda(dal: unknown, al: unknown, oggi: string): { dal: 
   if (giorni(d, a) > 366) d = new Date(Date.parse(a + "T12:00:00Z") - 366 * 86400000).toISOString().slice(0, 10);
   return { dal: d, al: a };
 }
+// Materiale come si scrive di solito nei rapportini: la lunghezza va nella quantita' («4 mt»), non nella
+// descrizione; la sezione dei cavi in mmq («cavo 3x1,5 mmq»). Se il modello mette «4 metri» nella descrizione
+// e quantita' 1 (o vuota), i metri diventano la quantita'. Nessun numero inventato: si sposta solo cio' che c'e'.
+const METRI = /(?<![\d.,x×])(\d+(?:[.,]\d+)?)\s*(?:metri|metro|mt|ml|m)(?![\p{L}\d])\.?(?:\s+(?:di|del|della))?/iu;
+const mt = (n: string) => n.replace(".", ",") + " mt";
+export function materialeNormale(a: string, q: string): Materiale {
+  let desc = a, qta = q;
+  const mq = qta.match(/^\s*(\d+(?:[.,]\d+)?)\s*(?:metri|metro|mt|ml|m)\.?\s*$/i);
+  if (mq) qta = mt(mq[1]);
+  const md = desc.match(METRI);
+  if (md && (!qta || /^1(?:\s*(?:pz|pezz[oi]))?$/i.test(qta.trim()))) {
+    qta = mt(md[1]);
+    desc = (desc.slice(0, md.index) + " " + desc.slice(md.index! + md[0].length)).replace(/\s+/g, " ").replace(/^[\s,;-]+|[\s,;-]+$/g, "").trim();
+  }
+  if (/\b(cav[oi]|cordin[ae]|fil[oi]|fg\d|fror|n07)/i.test(desc))
+    desc = desc.replace(/(\d+\s*[x×]\s*\d+(?:[.,]\d+)?)(?![\d.,]|\s*(?:mmq|mm2|mm²|mm))/gi, "$1 mmq");
+  return { a: desc || a, q: qta };
+}
 // Valida la risposta del modello: solo campi noti, tipi e limiti controllati. I campi non validi
 // vengono scartati (e segnalati), mai "aggiustati" inventando valori.
 export function validaRispostaAI(o: Record<string, unknown>, oggi: string): RispostaAI {
@@ -100,7 +118,7 @@ export function validaRispostaAI(o: Record<string, unknown>, oggi: string): Risp
     if (!Array.isArray(m.materiali)) problemi.push("Materiali non validi.");
     else out.materiali = m.materiali.slice(0, 50).map((x) => {
       const r: Record<string, unknown> = (x && typeof x === "object") ? x as Record<string, unknown> : { a: x };
-      return { a: riga(r.a ?? r.descrizione ?? r.nome, 200), q: riga(r.q ?? r.quantita, 30) };
+      return materialeNormale(riga(r.a ?? r.descrizione ?? r.nome, 200), riga(r.q ?? r.quantita, 30));
     }).filter((x) => x.a);
   }
   if (has("ore")) {
@@ -300,6 +318,8 @@ export function promptBozza(b: Bozza | null, messaggio: string, oggi: string, te
       "- esito: \"Completato\" oppure \"Da ultimare\" (se il lavoro va finito o serve tornare), solo se detto;",
       "- note: altre informazioni utili (es. da fatturare, accordi), solo se dette;",
       "- materiali: elenco COMPLETO aggiornato [{\"a\": descrizione, \"q\": quantita' come testo}] (quantita' vuota se non detta);",
+      "  la quantita' con l'unita' detta va in \"q\", NON nella descrizione: «4 metri di cavo 3x1,5» -> {\"a\": \"cavo 3x1,5 mmq\", \"q\": \"4 mt\"};",
+      "  «una staffa» -> {\"a\": \"staffa\", \"q\": \"1\"}; sezioni dei cavi in mmq; metri sempre come \"mt\";",
       "- ore: elenco COMPLETO aggiornato [{\"tecnico\": nome o \"\" se non detto, \"dalle\": \"HH:MM\" o \"\", \"alle\": \"HH:MM\" o \"\", \"durata_minuti\": numero o null}].",
       "Correzioni («no, erano 3 ore», «togli i raccordi», «il cliente è Bianchi») sostituiscono i valori precedenti.",
       "Se la bozza e' di un intervento programmato (intervento_id presente) il cliente e' gia' quello dell'intervento: non cambiarlo.",

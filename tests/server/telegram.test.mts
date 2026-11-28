@@ -5,7 +5,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { gestisci, segretoWebhook, type Dipendenze } from "../../supabase/functions/_shared/telegram-gestore.ts";
 import {
-  anteprima, bozzaVuota, cercaCliente, controlla, dataLavoro, datiSalvataggio, leggiPulsante, risolviOre, validaRispostaAI,
+  anteprima, bozzaVuota, cercaCliente, controlla, dataLavoro, datiSalvataggio, leggiPulsante, materialeNormale, risolviOre, validaRispostaAI,
 } from "../../supabase/functions/_shared/telegram-logica.ts";
 
 const TOKEN = "123456:TOKEN_FINTO_non_reale";
@@ -686,4 +686,19 @@ test("«come funziona?»: spiegazione del bot", async () => {
   const a = ambiente({ ai: () => ({ modifiche: {}, aiuto: true }) });
   await manda(a, testo("cosa sai fare?"));
   assert.match(ultimo(a), /Rapportini da Telegram/);
+});
+
+test("materiali: metri nella quantità («4 mt»), sezione dei cavi in mmq, nessun numero inventato", () => {
+  assert.deepEqual(materialeNormale("cavo 3x1,5 4 metri", "1"), { a: "cavo 3x1,5 mmq", q: "4 mt" });
+  assert.deepEqual(materialeNormale("cavo UTP Cat 6 5 metri", "1"), { a: "cavo UTP Cat 6", q: "5 mt" });
+  assert.deepEqual(materialeNormale("4 metri di cavo 3x1,5", ""), { a: "cavo 3x1,5 mmq", q: "4 mt" });
+  assert.deepEqual(materialeNormale("cavo 3x1,5 mmq", "4 metri"), { a: "cavo 3x1,5 mmq", q: "4 mt" });
+  assert.deepEqual(materialeNormale("cavo 3G2,5", "2,5m"), { a: "cavo 3G2,5", q: "2,5 mt" });
+  assert.deepEqual(materialeNormale("staffa a parete per TV 60 pollici", "1"), { a: "staffa a parete per TV 60 pollici", q: "1" });
+  assert.deepEqual(materialeNormale("tubo corrugato 20 mm", "3"), { a: "tubo corrugato 20 mm", q: "3" });
+  assert.deepEqual(materialeNormale("presa volante", ""), { a: "presa volante", q: "" });
+  // quantità diversa da 1 già detta: la descrizione resta com'è
+  assert.deepEqual(materialeNormale("rotolo cavo 100 m", "2"), { a: "rotolo cavo 100 m", q: "2" });
+  const r = validaRispostaAI({ modifiche: { materiali: [{ a: "cavo 3x1,5 4 metri", q: "1" }] } }, "2026-11-28");
+  assert.deepEqual(r.modifiche.materiali, [{ a: "cavo 3x1,5 mmq", q: "4 mt" }]);
 });
