@@ -79,7 +79,7 @@ export function validaRispostaAI(o: Record<string, unknown>, oggi: string): Risp
   if (has("materiali")) {
     if (!Array.isArray(m.materiali)) problemi.push("Materiali non validi.");
     else out.materiali = m.materiali.slice(0, 50).map((x) => {
-      const r = (x && typeof x === "object") ? x as Record<string, unknown> : { a: x };
+      const r: Record<string, unknown> = (x && typeof x === "object") ? x as Record<string, unknown> : { a: x };
       return { a: riga(r.a ?? r.descrizione ?? r.nome, 200), q: riga(r.q ?? r.quantita, 30) };
     }).filter((x) => x.a);
   }
