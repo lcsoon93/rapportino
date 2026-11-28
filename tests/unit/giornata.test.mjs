@@ -97,3 +97,15 @@ test("orario della scheda: programmato, effettivo dal rapportino, nessuno (mai i
   assert.equal(orarioScheda({ ora: "" }, { rapportino: { id: "x", stato: "completato" } }, IO).tipo, "nessuno");
   assert.equal(orarioScheda({ ora: "25:99" }, null, IO).tipo, "nessuno", "orario non valido ignorato");
 });
+
+test("fuori programma: senza intervento ma segnato (es. dal bot Telegram) -> non è un imprevisto", ()=>{
+  const g = calcolaGiornata({ oggi: "2026-11-28", io: "u1", interventi: [], coda: [], rapportiniServer: [
+    { id: "a", data: "2026-11-28", cliente: "Imprevisto Srl", stato: "completato", intervento_id: null, fuori_programma: false, rapportino_operai: [] },
+    { id: "b", data: "2026-11-28", cliente: "Fuori Srl", stato: "completato", intervento_id: null, fuori_programma: true, rapportino_operai: [] },
+    { id: "c", data: "2026-11-28", cliente: "Bozza fuori", stato: "bozza", intervento_id: null, fuori_programma: true, rapportino_operai: [] },
+  ] });
+  assert.deepEqual(g.imprevisti.map(x=>x.rapportino.id), ["a"]);
+  assert.deepEqual(g.fuoriProgramma.map(x=>x.rapportino.id), ["b", "c"]);
+  assert.equal(g.bozze.length, 0, "la bozza fuori programma di oggi non si ripete tra le bozze");
+  assert.equal(g.conteggi.totale, 3);
+});

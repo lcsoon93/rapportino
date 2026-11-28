@@ -20,6 +20,15 @@ compare in Rapportini, nella scheda del cliente, nei PDF e nelle statistiche com
 - **Correzioni**: scrivi o di' cosa cambiare («dalle 9 alle 12», «togli i raccordi», «il cliente è Bianchi»,
   «da ultimare»). `/bozza` mostra la bozza, `/annulla` la cancella. Le bozze non confermate scadono dopo 24 ore.
 - **Esito** predefinito «Completato» (come nell'app), «Da ultimare» se lo dici.
+- **Interventi programmati**: `/interventi` (aperti da 14 giorni fa ai prossimi 7), `/interventi oggi`,
+  `settimana`, `tutti`; anche «lista interventi». Mostra data, ora, cliente, urgenza, se sei assegnato e se c'è
+  già un rapportino. Toccando 📝 e il numero la bozza viene collegata all'intervento (cliente, luogo, telefono e
+  tipologia dell'intervento; il cliente non si cambia): il rapportino salvato ha `intervento_id`, aggiorna lo
+  stato dell'intervento e non è un imprevisto. Come nell'app lo compila chi è assegnato (l'amministratore sempre);
+  se hai già un rapportino per quell'intervento il bot lo dice e non ne crea un secondo.
+- **Lavoro nuovo** (scritto o detto senza scegliere un intervento): rapportino **fuori programma**
+  (`rapportini.fuori_programma = true`, migrazione `20261129090000`), mostrato nell'app in «Fuori programma di
+  oggi», non tra gli imprevisti.
 - **Elenco**: `/rapportini` (ultimi 10), `/rapportini oggi`, `ieri`, `settimana`, `mese` o il nome di un cliente
   (anche scritto «lista rapportini Rossi»). Mostra data, cliente, stato, ore e descrizione.
 - **Eliminazione**: dall'elenco, pulsante 🗑 e numero → riepilogo → «Sì, elimina». Vale la regola dell'app

@@ -61,13 +61,19 @@ export function nomeOperaio(id){
 // Se il database non ha ancora le colonne (frontend pubblicato prima della migrazione) le letture
 // riprovano senza e le scritture non le inviano: l'app continua a funzionare come prima.
 let colonneClienti = true;
+// rapportini.fuori_programma (migrazione 20261129090000): senza la colonna si legge come prima
+let colonnaFuori = true;
 const senzaClienti = campi=>campi.replace(/, cliente_id, telefono/g, "");
-const campiConClienti = campi=>colonneClienti ? campi : senzaClienti(campi);
-const colonnaMancante = e=>!!e && /42703|PGRST204|column .*(cliente_id|telefono)|(cliente_id|telefono).*column/i.test((e.code || "") + " " + (e.message || ""));
+const campiConClienti = campi=>{
+  const c = colonneClienti ? campi : senzaClienti(campi);
+  return colonnaFuori ? c : c.replace(/, fuori_programma/g, "");
+};
+const colonnaMancante = e=>!!e && /42703|PGRST204|column .*(cliente_id|telefono|fuori_programma)|(cliente_id|telefono|fuori_programma).*column/i.test((e.code || "") + " " + (e.message || ""));
 export const anagraficaNeiDocumenti = ()=>colonneClienti;
 // esegue la lettura; con colonne mancanti la ripete senza i campi nuovi
 async function leggiConRipiego(costruisci){
   let r = await costruisci(campiConClienti);
+  if(r.error && colonnaFuori && colonnaMancante(r.error) && /fuori_programma/.test(r.error.message || "")){ colonnaFuori = false; r = await costruisci(campiConClienti); }
   if(r.error && colonneClienti && colonnaMancante(r.error)){ colonneClienti = false; r = await costruisci(campiConClienti); }
   return controlla(r);
 }
@@ -171,7 +177,7 @@ export async function eliminaIntervento(id){
 }
 
 // ---------------------------------------------------------------- rapportini
-const CAMPI_RAPPORTINO = "id, intervento_id, autore_id, data, cliente, indirizzo, cliente_id, telefono, tipologia, attivita, materiali, note, esito, " +
+const CAMPI_RAPPORTINO = "id, intervento_id, autore_id, data, cliente, indirizzo, cliente_id, telefono, tipologia, attivita, materiali, note, esito, fuori_programma, " +
   "firma, firmatario, stato, completato_il, versione, creato_il, aggiornato_il, rapportino_operai(operaio_id, dalle, alle), " +
   "interventi(id, cliente, descrizione, priorita, data, ora, cliente_id, telefono)";
 export async function elencoRapportini({ dal, al, stato, autore, intervento } = {}){
