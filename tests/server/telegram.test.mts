@@ -702,3 +702,84 @@ test("materiali: metri nella quantità («4 mt»), sezione dei cavi in mmq, ness
   const r = validaRispostaAI({ modifiche: { materiali: [{ a: "cavo 3x1,5 4 metri", q: "1" }] } }, "2026-11-28");
   assert.deepEqual(r.modifiche.materiali, [{ a: "cavo 3x1,5 mmq", q: "4 mt" }]);
 });
+
+// ---------------------------------------------------------------- intervento affidato riconosciuto dal cliente
+test("intervento affidato: detto il cliente, il bot completa quell'intervento (non un fuori programma)", async () => {
+  const a = ambiente({ interventi: INTERVENTI(), ai: () => LAVORO });
+  await manda(a, testo("oggi al condominio aurora ho sostituito la valvola"));
+  const t = ultimo(a);
+  assert.match(t, /Condominio Aurora<\/b> ha un intervento affidato a te: compilo quello/);
+  assert.match(t, /Tipo:<\/b> intervento programmato — 28\/11\/2026 09:00 · Controllo caldaia <i>\(affidato a te\)<\/i>/);
+  assert.equal(bozza(a).dati.intervento_id, I1);
+  assert.equal(bozza(a).dati.attivita, "Sostituita la valvola della caldaia.", "quanto detto resta");
+  assert.ok(pulsanti(a).some((p) => p.callback_data === "fp:1"));
+  await manda(a, tocco("ok:1"));
+  assert.match(ultimo(a), /Rapportino creato<\/b> \(intervento programmato\)/);
+  const s = a.salvati[0] as Record<string, Record<string, unknown>>;
+  assert.equal(s.p_rapportino.intervento_id, I1);
+  assert.equal(a.sessDB.rapportini[0].fuori_programma, false);
+});
+
+test("intervento affidato: «Non è questo» -> fuori programma e non viene riproposto; cliente diverso scollega", async () => {
+  const a = ambiente({ interventi: INTERVENTI(), ai: (m) => m.includes("bianchi") ? { modifiche: { cliente: "Bianchi Impianti Srl" } } : m.includes("ore") ? { modifiche: { ore: [{ tecnico: "", dalle: "08:00", alle: "10:00" }] } } : LAVORO });
+  await manda(a, testo("lavoro al condominio aurora"));
+  assert.equal(bozza(a).dati.intervento_id, I1);
+  await manda(a, tocco("fp:1"));
+  assert.match(ultimo(a), /lavoro <b>fuori programma<\/b>/);
+  assert.match(ultimo(a), /Tipo:<\/b> lavoro fuori programma/);
+  assert.equal(bozza(a).dati.intervento_id, null);
+  await manda(a, testo("le ore dalle 8 alle 10"));
+  assert.equal(bozza(a).dati.intervento_id, null, "scartato: non si ricollega");
+  await manda(a, tocco("ok:3"));
+  const s = a.salvati[0] as Record<string, Record<string, unknown>>;
+  assert.equal(s.p_rapportino.intervento_id, null);
+  assert.equal(a.sessDB.rapportini[0].fuori_programma, true);
+
+  // collegato in automatico e poi il tecnico dice un altro cliente: collegamento tolto
+  const b = ambiente({ interventi: INTERVENTI(), ai: (m) => m.includes("bianchi") ? { modifiche: { cliente: "Bianchi Impianti Srl" } } : LAVORO });
+  await manda(b, testo("lavoro al condominio aurora"));
+  assert.equal(bozza(b).dati.intervento_id, I1);
+  await manda(b, testo("no il cliente è bianchi"));
+  assert.equal(bozza(b).dati.intervento_id, null);
+  assert.equal(bozza(b).dati.cliente, "Bianchi Impianti Srl");
+  assert.equal(bozza(b).dati.indirizzo, "", "l'indirizzo dell'intervento non resta sul cliente nuovo");
+  // Bianchi ha un intervento ma con una bozza gia' nell'app: non si collega (niente doppioni)
+  assert.match(ultimo(b), /Tipo:<\/b> lavoro fuori programma/);
+});
+
+test("intervento affidato: più interventi dello stesso cliente -> scelta obbligatoria; non affidati a me o di omonimi -> niente", async () => {
+  const I6 = "bbbbbbbb-0000-4000-8000-000000000006";
+  const lista = [...INTERVENTI(), { id: I6, data: "2026-11-20", ora: null, cliente: "Condominio Aurora", cliente_id: "c3", indirizzo: "Via Aurora 5", descrizione: "Pompa di calore",
+    tipologia: "Installazione", stato: "in_corso", intervento_operai: [{ operaio_id: LUCA, rimosso_il: null }], rapportini: [] }];
+  const a = ambiente({ interventi: lista, ai: () => LAVORO });
+  await manda(a, testo("condominio aurora"));
+  let t = ultimo(a);
+  assert.match(t, /Hai più interventi affidati per questo cliente/);
+  assert.match(t, /1\. 28\/11\/2026 09:00 · Controllo caldaia\n2\. 20\/11\/2026 · Pompa di calore/, "il più vicino alla data per primo");
+  assert.match(t, /Mancano:<\/b> scelta dell'intervento/);
+  assert.ok(!pulsanti(a).some((p) => p.callback_data.startsWith("ok:")), "niente conferma finché non sceglie");
+  await manda(a, tocco("agi:1:1"));
+  assert.equal(bozza(a).dati.intervento_id, I6);
+  assert.equal(bozza(a).dati.tipologia, "Installazione", "LAVORO non dice la tipologia: presa dall'intervento");
+  assert.match(ultimo(a), /Pompa di calore/);
+  assert.ok(pulsanti(a).some((p) => p.callback_data === "ok:2"));
+
+  // Mario Rossi (via Roma) ha un intervento, ma affidato a Mario: per me resta fuori programma
+  const b = ambiente({ interventi: INTERVENTI(), ai: () => ({ modifiche: { ...LAVORO.modifiche, cliente: "Mario Rossi" } }) });
+  await manda(b, testo("da mario rossi"));
+  await manda(b, tocco("cli:0:1"));
+  assert.equal(bozza(b).dati.cliente_id, "c1");
+  assert.equal(bozza(b).dati.intervento_id, null);
+  assert.match(ultimo(b), /Tipo:<\/b> lavoro fuori programma/);
+  // stesso intervento ma affidato a me: l'omonimo di via Verdi (c2) non si collega, quello di via Roma (c1) sì
+  const mio = INTERVENTI().map((i) => i.id === I2 ? { ...i, intervento_operai: [{ operaio_id: LUCA, rimosso_il: null }] } : i);
+  const c = ambiente({ interventi: mio, ai: () => ({ modifiche: { ...LAVORO.modifiche, cliente: "Mario Rossi" } }) });
+  await manda(c, testo("da mario rossi"));
+  await manda(c, tocco("cli:1:1"));
+  assert.equal(bozza(c).dati.intervento_id, null, "omonimo con altra scheda");
+  const d = ambiente({ interventi: mio, ai: () => ({ modifiche: { ...LAVORO.modifiche, cliente: "Mario Rossi" } }) });
+  await manda(d, testo("da mario rossi"));
+  await manda(d, testo("1"));
+  assert.equal(bozza(d).dati.intervento_id, I2);
+  assert.equal(bozza(d).dati.data, OGGI, "data detta dal tecnico, non quella (futura) dell'intervento");
+});

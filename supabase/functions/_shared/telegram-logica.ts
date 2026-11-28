@@ -22,6 +22,9 @@ export type Bozza = {
   materiali: Materiale[]; ore: OraBozza[];
   // intervento programmato da compilare (null = lavoro nuovo, salvato come "fuori programma")
   intervento_id: string | null; intervento: string;
+  // collegamento trovato dal bot (cliente del messaggio = cliente di un intervento affidato al tecnico):
+  // si puo' togliere con «Non è questo». Proposti: piu' interventi possibili, da scegliere. Esclusi: scartati dal tecnico.
+  intervento_auto: boolean; interventi_proposti: { id: string; etichetta: string }[]; interventi_esclusi: string[];
 };
 export type Tecnico = { id: string; nome: string; username: string; attivo?: boolean };
 export type ClienteAnagrafica = { id: string; nome: string; indirizzo?: string; telefono?: string; archiviato?: boolean };
@@ -29,7 +32,7 @@ export type ClienteAnagrafica = { id: string; nome: string; indirizzo?: string; 
 export const bozzaVuota = (): Bozza => ({
   cliente: "", cliente_id: null, indirizzo: "", telefono: "", cliente_stato: "", candidati: [],
   data: "", attivita: "", tipologia: "", esito: "", note: "", materiali: [], ore: [],
-  intervento_id: null, intervento: "",
+  intervento_id: null, intervento: "", intervento_auto: false, interventi_proposti: [], interventi_esclusi: [],
 });
 
 const testo = (v: unknown, max: number) => String(v ?? "").split(String.fromCharCode(0)).join("").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, max);
@@ -147,12 +150,19 @@ export function validaRispostaAI(o: Record<string, unknown>, oggi: string): Risp
 export function applicaModifiche(b: Bozza, mod: RispostaAI["modifiche"]): { bozza: Bozza; clienteCambiato: boolean } {
   const n: Bozza = { ...b, materiali: [...b.materiali], ore: [...b.ore], candidati: [...b.candidati] };
   let clienteCambiato = false;
+  let tolto = false;
   for (const [k, v] of Object.entries(mod)) {
     if (k === "cliente") {
-      if (b.intervento_id) continue;          // rapportino di un intervento: il cliente e' quello dell'intervento
-      if (norma(v) !== norma(b.cliente)) { clienteCambiato = true; n.cliente = String(v); n.cliente_id = null; n.cliente_stato = ""; n.candidati = []; n.telefono = ""; }
+      if (norma(v) === norma(b.cliente)) continue;
+      // intervento scelto dall'elenco: il cliente e' quello dell'intervento
+      if (b.intervento_id && !b.intervento_auto) continue;
+      // intervento trovato dal bot e il tecnico dice un altro cliente: il collegamento era sbagliato, si toglie
+      if (b.intervento_id) { Object.assign(n, scollegaIntervento(n)); tolto = true; }
+      clienteCambiato = true; n.cliente = String(v); n.cliente_id = null; n.cliente_stato = ""; n.candidati = []; n.telefono = "";
+      n.interventi_proposti = [];
     } else (n as Record<string, unknown>)[k] = v;
   }
+  if (tolto && !Object.prototype.hasOwnProperty.call(mod, "indirizzo")) n.indirizzo = "";
   return { bozza: n, clienteCambiato };
 }
 
@@ -238,6 +248,7 @@ export function controlla(b: Bozza, tecnici: Tecnico[], proprietario: string) {
   else if (b.cliente_stato !== "confermato") mancanti.push("conferma del cliente");
   if (!b.data) mancanti.push("data");
   if (!b.attivita.trim()) mancanti.push("descrizione del lavoro");
+  if (!b.intervento_id && b.interventi_proposti.length) mancanti.push("scelta dell'intervento (o «fuori programma»)");
   const avvisi = [...ore.avvisi];
   if (!b.ore.length) avvisi.push("Ore non indicate: il rapportino si può creare, ma senza orari.");
   return { mancanti, bloccanti: ore.bloccanti, avvisi, righe: ore.righe, pronto: !mancanti.length && !ore.bloccanti.length };
@@ -251,7 +262,8 @@ export function anteprima(b: Bozza, versione: number, tecnici: Tecnico[], propri
   const c = controlla(b, tecnici, proprietario);
   const r: string[] = ["<b>📝 Bozza di rapportino</b>", ""];
   const campo = (et: string, v: string) => r.push("<b>" + et + ":</b> " + (v ? html(v) : "<i>mancante</i>"));
-  r.push("<b>Tipo:</b> " + (b.intervento_id ? "intervento programmato" + (b.intervento ? " — " + html(b.intervento) : "") : "lavoro fuori programma (non in agenda)"));
+  r.push("<b>Tipo:</b> " + (b.intervento_id ? "intervento programmato" + (b.intervento ? " — " + html(b.intervento) : "") + (b.intervento_auto ? " <i>(affidato a te)</i>" : "")
+    : b.interventi_proposti.length ? "<i>da scegliere</i>" : "lavoro fuori programma (non in agenda)"));
   campo("Cliente", b.cliente ? b.cliente + (b.cliente_stato === "confermato" ? (b.cliente_id ? " (anagrafica)" : " (non in anagrafica)") : " (da confermare)") : "");
   if (b.indirizzo) campo("Luogo", b.indirizzo);
   campo("Data", dataIt(b.data));
@@ -274,15 +286,24 @@ export function anteprima(b: Bozza, versione: number, tecnici: Tecnico[], propri
     });
     tastiera.push([{ text: ("Usa «" + b.cliente + "» senza anagrafica").slice(0, 60), callback_data: "lib:" + versione }]);
   }
+  if (!b.intervento_id && b.interventi_proposti.length) {
+    r.push("", "📌 <b>Hai più interventi affidati per questo cliente.</b> Quale stai compilando?");
+    b.interventi_proposti.forEach((x, i) => {
+      r.push((i + 1) + ". " + html(x.etichetta));
+      tastiera.push([{ text: ("📝 " + (i + 1) + ". " + x.etichetta).slice(0, 60), callback_data: "agi:" + i + ":" + versione }]);
+    });
+    tastiera.push([{ text: "Nessuno: lavoro fuori programma", callback_data: "fp:" + versione }]);
+  }
+  if (b.intervento_id && b.intervento_auto) tastiera.push([{ text: "↩️ Non è questo intervento: fuori programma", callback_data: "fp:" + versione }]);
   if (c.pronto) tastiera.push([{ text: "✅ Conferma e crea rapportino", callback_data: "ok:" + versione }]);
   tastiera.push([{ text: "✏️ Modifica", callback_data: "mod:" + versione }, { text: "❌ Annulla", callback_data: "no:" + versione }]);
   return { testo: r.join("\n"), tastiera };
 }
 
-// pulsanti: "ok:3", "mod:3", "no:3", "lib:3", "cli:1:3"
+// pulsanti: "ok:3", "mod:3", "no:3", "lib:3", "cli:1:3", "agi:1:3" (intervento proposto), "fp:3" (fuori programma)
 export function leggiPulsante(d: unknown): { azione: string; indice: number; versione: number } | null {
-  const m = String(d ?? "").match(/^(ok|mod|no|lib|cli):(?:(\d{1,2}):)?(\d{1,9})$/);
-  if (!m || (m[1] === "cli") !== (m[2] !== undefined)) return null;
+  const m = String(d ?? "").match(/^(ok|mod|no|lib|cli|agi|fp):(?:(\d{1,2}):)?(\d{1,9})$/);
+  if (!m || (m[1] === "cli" || m[1] === "agi") !== (m[2] !== undefined)) return null;
   return { azione: m[1], indice: m[2] !== undefined ? +m[2] : -1, versione: +m[3] };
 }
 
@@ -322,7 +343,8 @@ export function promptBozza(b: Bozza | null, messaggio: string, oggi: string, te
       "  «una staffa» -> {\"a\": \"staffa\", \"q\": \"1\"}; sezioni dei cavi in mmq; metri sempre come \"mt\";",
       "- ore: elenco COMPLETO aggiornato [{\"tecnico\": nome o \"\" se non detto, \"dalle\": \"HH:MM\" o \"\", \"alle\": \"HH:MM\" o \"\", \"durata_minuti\": numero o null}].",
       "Correzioni («no, erano 3 ore», «togli i raccordi», «il cliente è Bianchi») sostituiscono i valori precedenti.",
-      "Se la bozza e' di un intervento programmato (intervento_id presente) il cliente e' gia' quello dell'intervento: non cambiarlo.",
+      "Se la bozza e' di un intervento programmato (intervento_id presente) il cliente e' gia' quello dell'intervento: non cambiarlo,",
+      "a meno che il tecnico dica esplicitamente che il cliente e' un altro.",
       "Se il tecnico chiede di annullare o cancellare la bozza: \"annulla\": true.",
       "Se il messaggio e' una DOMANDA o una richiesta di informazioni sui dati di lavoro (ore fatte, interventi, rapportini, clienti, materiali, chi e' andato dove, quanto, quando...)",
       "e non descrive un lavoro da registrare: lascia \"modifiche\" vuoto e metti \"domanda\": {\"testo\": domanda riformulata in modo chiaro, \"dal\": \"AAAA-MM-GG\", \"al\": \"AAAA-MM-GG\"}",
@@ -429,6 +451,40 @@ export function bozzaDaIntervento(i: RigaIntervento, oggi: string): Bozza {
     cliente: i.cliente || "", cliente_id: i.cliente_id || null, indirizzo: i.indirizzo || "", telefono: i.telefono || "",
     cliente_stato: "confermato", tipologia: i.tipologia || "", data: i.data && i.data <= oggi ? i.data : oggi,
   };
+}
+
+// ---------------------------------------------------------------- intervento affidato riconosciuto dal cliente
+// Interventi ancora da fare, affidati al tecnico (assegnato e non rimosso), senza un suo rapportino, dello stesso
+// cliente della bozza: stessa scheda (cliente_id) o, se una delle due non ce l'ha, stesso nome. Piu' vicini alla data
+// della bozza (o a oggi) per primi.
+export function interventiDelCliente(b: Bozza, righe: RigaIntervento[], io: string, oggi: string): RigaIntervento[] {
+  if (b.intervento_id || !b.cliente || b.cliente_stato !== "confermato") return [];
+  const nome = norma(b.cliente), rif = b.data || oggi;
+  return righe.filter((i) => (i.stato === "pianificato" || i.stato === "in_corso") && !b.interventi_esclusi.includes(i.id)
+    && (i.intervento_operai || []).some((o) => o.operaio_id === io && !o.rimosso_il)
+    && !(i.rapportini || []).some((r) => r.autore_id === io)
+    && (b.cliente_id && i.cliente_id ? i.cliente_id === b.cliente_id : norma(i.cliente) === nome))
+    .sort((x, y) => Math.abs(giorni(x.data, rif)) - Math.abs(giorni(y.data, rif)) || x.data.localeCompare(y.data));
+}
+// collega la bozza a un intervento tenendo cio' che il tecnico ha gia' detto (descrizione, ore, materiali, data)
+export function collegaIntervento(b: Bozza, i: RigaIntervento, oggi: string): Bozza {
+  return {
+    ...b, intervento_id: i.id, intervento: etichettaIntervento(i), intervento_auto: true, interventi_proposti: [],
+    cliente: i.cliente || b.cliente, cliente_id: i.cliente_id || b.cliente_id, indirizzo: i.indirizzo || b.indirizzo, telefono: i.telefono || b.telefono,
+    cliente_stato: "confermato", candidati: [], tipologia: b.tipologia || i.tipologia || "",
+    data: b.data || (i.data && i.data <= oggi ? i.data : ""),
+  };
+}
+// nessuno -> invariata; uno -> collegata; piu' di uno -> da scegliere (al massimo 5)
+export function propostaIntervento(b: Bozza, trovati: RigaIntervento[], oggi: string): Bozza {
+  if (!trovati.length) return b;
+  if (trovati.length === 1) return collegaIntervento(b, trovati[0], oggi);
+  return { ...b, interventi_proposti: trovati.slice(0, 5).map((i) => ({ id: i.id, etichetta: etichettaIntervento(i) })) };
+}
+// «Non è questo» / «fuori programma»: torna lavoro nuovo e non ripropone gli interventi scartati
+export function scollegaIntervento(b: Bozza): Bozza {
+  const via = [...(b.intervento_id ? [b.intervento_id] : []), ...b.interventi_proposti.map((x) => x.id)];
+  return { ...b, intervento_id: null, intervento: "", intervento_auto: false, interventi_proposti: [], interventi_esclusi: [...b.interventi_esclusi, ...via].slice(-20) };
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

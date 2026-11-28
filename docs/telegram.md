@@ -26,6 +26,12 @@ compare in Rapportini, nella scheda del cliente, nei PDF e nelle statistiche com
   tipologia dell'intervento; il cliente non si cambia): il rapportino salvato ha `intervento_id`, aggiorna lo
   stato dell'intervento e non è un imprevisto. Come nell'app lo compila chi è assegnato (l'amministratore sempre);
   se hai già un rapportino per quell'intervento il bot lo dice e non ne crea un secondo.
+- **Intervento riconosciuto dal cliente**: anche senza `/interventi`, appena il cliente è confermato il bot cerca
+  gli interventi ancora da fare (da 30 giorni fa a 7 giorni avanti) **affidati a te**, dello stesso cliente (stessa
+  scheda; omonimi con scheda diversa esclusi) e senza un tuo rapportino. Uno solo → la bozza lo completa (📌 nel
+  messaggio, «affidato a te» nell'anteprima) con il pulsante «Non è questo intervento: fuori programma». Più di
+  uno → scegli quale (la conferma compare solo dopo) o «Nessuno: fuori programma». Gli interventi scartati non
+  vengono riproposti; se correggi il cliente, il collegamento automatico si toglie.
 - **Lavoro nuovo** (scritto o detto senza scegliere un intervento): rapportino **fuori programma**
   (`rapportini.fuori_programma = true`, migrazione `20261129090000`), mostrato nell'app in «Fuori programma di
   oggi», non tra gli imprevisti.
