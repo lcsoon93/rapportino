@@ -396,3 +396,12 @@ export function leggiPulsanteElenco(d: unknown): { azione: "del" | "dok" | "dno"
   const m = s.match(/^(del|dok|int):(.+)$/);
   return m && UUID.test(m[2]) ? { azione: m[1] as "del" | "dok" | "int", id: m[2].toLowerCase() } : null;
 }
+
+// comandi del pulsante «Menu» a sinistra del campo di testo (setMyCommands: minuscole, cifre e _)
+export const COMANDI_MENU = [
+  { command: "interventi", description: "Interventi programmati da compilare" },
+  { command: "rapportini", description: "Ultimi rapportini (anche oggi, settimana, cliente)" },
+  { command: "bozza", description: "Mostra la bozza in corso" },
+  { command: "annulla", description: "Annulla la bozza in corso" },
+  { command: "aiuto", description: "Come si usa il bot" },
+];

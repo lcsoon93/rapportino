@@ -17,7 +17,7 @@ import {
   type Bozza, MAX_DURATA_VOCALE_S, MAX_TESTO_MESSAGGIO, SCADENZA_BOZZA_ORE, type Tastiera, type Tecnico, anteprima, applicaModifiche,
   bozzaVuota, cercaCliente, clienteLibero, collegaCliente, controlla, datiSalvataggio, html, leggiPulsante, promptBozza, scegliCandidato,
   validaRispostaAI, ELENCO_MAX, type RigaElenco, confermaEliminazioneTesto, elencoTesto, filtroElenco, leggiPulsanteElenco, richiestaElenco,
-  type RigaIntervento, bozzaDaIntervento, elencoInterventiTesto, filtroInterventi, richiestaInterventi,
+  type RigaIntervento, bozzaDaIntervento, elencoInterventiTesto, filtroInterventi, richiestaInterventi, COMANDI_MENU,
 } from "./telegram-logica.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -50,6 +50,7 @@ const AIUTO = [
   "",
   "Preparo una bozza e te la mostro: puoi correggerla scrivendo (es. «le ore erano dalle 9», «togli i raccordi», «il cliente è Bianchi»).",
   "Il rapportino si crea solo quando tocchi <b>Conferma</b>.",
+  "Tutti i comandi sono nel pulsante <b>Menu</b> a sinistra del campo di testo.",
   "Comandi: /bozza mostra la bozza, /annulla la cancella. Le bozze non confermate scadono dopo " + SCADENZA_BOZZA_ORE + " ore.",
   "/interventi elenca gli interventi programmati da compilare: scegline uno e il rapportino sarà collegato a quell'intervento. Un lavoro nuovo scritto o detto a voce diventa un rapportino <b>fuori programma</b> (non un imprevisto).",
   "/rapportini elenca gli ultimi rapportini (anche <i>/rapportini oggi</i>, <i>ieri</i>, <i>settimana</i>, <i>mese</i> o il nome di un cliente); da lì puoi eliminarne uno, con conferma.",
@@ -96,6 +97,10 @@ async function gestioneApp(req: Request, d: Dipendenze): Promise<Response> {
       max_connections: 1, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
     log(d, { evento: "collega_webhook", esito: r.ok ? "ok" : "errore" });
     if (!r.ok) return json({ errore: "Telegram ha rifiutato il collegamento: " + String(r.description || "errore").slice(0, 200) }, 502);
+    // pulsante «Menu» con i comandi (solo chat private); un errore qui non blocca il collegamento
+    const m = await chiama("setMyCommands", { commands: COMANDI_MENU, scope: { type: "all_private_chats" }, language_code: "" });
+    const b = await chiama("setChatMenuButton", { menu_button: { type: "commands" } });
+    log(d, { evento: "menu_comandi", esito: m.ok && b.ok ? "ok" : "errore" });
   }
   const info = (await chiama("getWebhookInfo")).result || {};
   return json({
@@ -482,7 +487,12 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
       else if (msg) {
         const t = typeof msg.text === "string" ? msg.text.trim() : "";
         const vocale = (msg.voice || msg.audio) as Record<string, unknown> | undefined;
-        if (/^\/(start|aiuto|help)\b/i.test(t)) await invia(x, AIUTO);
+        if (/^\/start\b/i.test(t)) {
+          // registra il pulsante «Menu» con i comandi (anche senza passare dall'app)
+          await tg(x, "setMyCommands", { commands: COMANDI_MENU, scope: { type: "chat", chat_id: x.chat } });
+          await tg(x, "setChatMenuButton", { chat_id: x.chat, menu_button: { type: "commands" } });
+          await invia(x, AIUTO);
+        } else if (/^\/(aiuto|help)\b/i.test(t)) await invia(x, AIUTO);
         else if (/^\/annulla\b/i.test(t)) {
           const { riga } = await leggiBozza(x);
           if (riga) await d.admin.from("telegram_bozze").delete().eq("chat_id", x.chat).eq("versione", riga.versione);

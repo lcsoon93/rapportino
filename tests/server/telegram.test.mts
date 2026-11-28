@@ -622,3 +622,26 @@ test("interventi: gia' compilato, bozza nell'app, non assegnato (operaio), bozza
   assert.match(ultimo(b), /Non sei assegnato a questo intervento/);
   assert.equal(b.t.telegram_bozze.length, 0);
 });
+
+test("menu dei comandi: registrato con /start (questa chat) e con «Collega il bot»", async () => {
+  const a = ambiente();
+  await manda(a, testo("/start"));
+  const cmd = a.inviati.find((x) => x.metodo === "setMyCommands")!.corpo;
+  assert.deepEqual((cmd.commands as { command: string }[]).map((c) => c.command), ["interventi", "rapportini", "bozza", "annulla", "aiuto"]);
+  assert.ok((cmd.commands as { command: string }[]).every((c) => /^[a-z0-9_]{1,32}$/.test(c.command)));
+  assert.deepEqual(cmd.scope, { type: "chat", chat_id: +UTENTE });
+  assert.deepEqual(a.inviati.find((x) => x.metodo === "setChatMenuButton")!.corpo, { chat_id: +UTENTE, menu_button: { type: "commands" } });
+  assert.match(ultimo(a), /pulsante <b>Menu<\/b>/);
+  // /aiuto: solo il testo, senza registrare di nuovo
+  const b = ambiente();
+  await manda(b, testo("/aiuto"));
+  assert.ok(!b.inviati.some((x) => x.metodo === "setMyCommands"));
+  // dall'app («Collega il bot»): per tutte le chat private
+  const c = ambiente();
+  const env = { ...ENV, SUPABASE_URL: "https://progetto.supabase.co" } as Record<string, string>;
+  c.d.env = (k) => env[k];
+  c.d.chiamante = async () => ({ profilo: { id: LUCA, ruolo: "admin", attivo: true } });
+  await gestisci(new Request("https://x/functions/v1/telegram", { method: "POST", headers: { Authorization: "Bearer jwt" }, body: JSON.stringify({ azione: "collega" }) }), c.d);
+  assert.deepEqual(c.inviati.find((x) => x.metodo === "setMyCommands")!.corpo.scope, { type: "all_private_chats" });
+  assert.ok(c.inviati.some((x) => x.metodo === "setChatMenuButton"));
+});
