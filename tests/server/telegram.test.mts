@@ -24,7 +24,7 @@ const TECNICI = [{ id: LUCA, username: "luca", nome: "Luca Admin", attivo: true 
 
 // ---------------------------------------------------------------- database finto (sottoinsieme di PostgREST)
 type Riga = Record<string, unknown>;
-function tabelle() { return { telegram_aggiornamenti: [] as Riga[], telegram_bozze: [] as Riga[], profili: [{ id: LUCA, username: "luca", attivo: true }] as Riga[], clienti: CLIENTI as Riga[] }; }
+function tabelle() { return { telegram_aggiornamenti: [] as Riga[], telegram_bozze: [] as Riga[], profili: [{ id: LUCA, username: "Luca", attivo: true }] as Riga[], clienti: CLIENTI as Riga[] }; }
 function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean } = {}) {
   return {
     from(nome: string) {
@@ -36,6 +36,7 @@ function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean } =
         update: (v: Riga) => { op = "update"; valori = v; return q; },
         delete: () => { op = "delete"; return q; },
         eq: (k: string, v: unknown) => { filtri.push((r) => String(r[k]) === String(v)); return q; },
+        ilike: (k: string, v: string) => { filtri.push((r) => String(r[k]).toLowerCase() === v.replace(/\\(.)/g, "$1").toLowerCase()); return q; },
         lt: (k: string, v: string) => { filtri.push((r) => String(r[k]) < v); return q; },
         or: (s: string) => {
           const parti = s.split(",").map((p) => { const [k, o, ...v] = p.split("."); return { k, o, v: v.join(".") }; });
@@ -438,4 +439,17 @@ test("collegamento dall'app: solo l'amministratore; webhook con l'indirizzo dell
   r = await (await gestisci(daApp({ azione: "collega" }), b.d)).json();
   assert.deepEqual(r.mancano, ["TELEGRAM_UTENTE_ID"]);
   assert.ok(!b.inviati.some((x) => x.metodo === "setWebhook"));
+});
+
+test("profilo del bot: username senza distinzione di maiuscole e senza virgolette (come il login)", async () => {
+  for (const valore of ["luca", "LUCA", "\"luca\"", " Luca "]) {
+    const a = ambiente({ ai: () => LAVORO });
+    a.d.env = (k) => k === "TELEGRAM_PROFILO" ? valore : ENV[k];
+    await manda(a, testo("lavoro"));
+    assert.match(ultimo(a), /Bozza di rapportino/, "profilo non trovato con " + valore);
+  }
+  const b = ambiente();
+  b.d.env = (k) => k === "TELEGRAM_PROFILO" ? "mario_rossi" : ENV[k];
+  await manda(b, testo("lavoro"));
+  assert.match(ultimo(b), /non è collegato a un utente attivo/);
 });

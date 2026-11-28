@@ -70,7 +70,7 @@ async function gestioneApp(req: Request, d: Dipendenze): Promise<Response> {
   try { corpo = await req.json(); } catch { /* corpo vuoto */ }
   const token = String(d.env("TELEGRAM_BOT_TOKEN") || "").trim();
   const utente = String(d.env("TELEGRAM_UTENTE_ID") || "").trim();
-  const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim();
+  const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim().replace(/^["'«“]+|["'»”]+$/g, "").trim();
   const mancano = [!token && "TELEGRAM_BOT_TOKEN", !/^\d+$/.test(utente) && "TELEGRAM_UTENTE_ID", !profilo && "TELEGRAM_PROFILO",
     !String(d.env("GROQ_API_KEY") || "").trim() && "GROQ_API_KEY"].filter(Boolean);
   if (!token) return json({ configurato: false, mancano });
@@ -332,7 +332,7 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
   const token = String(d.env("TELEGRAM_BOT_TOKEN") || "").trim();
   const segreto = token ? await segretoWebhook(token, String(d.env("TELEGRAM_WEBHOOK_SECRET") || "").trim()) : "";
   const utente = String(d.env("TELEGRAM_UTENTE_ID") || "").trim();
-  const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim();
+  const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim().replace(/^["'«“]+|["'»”]+$/g, "").trim();
   if (!token || segreto.length < 16 || !/^\d+$/.test(utente) || !profilo) {
     log(d, { evento: "configurazione", esito: "incompleta" });
     return new Response("non configurato", { status: 503 });
@@ -373,7 +373,8 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
   let esito = "ok";
   try {
     // utente dell'app a cui appartengono i rapportini creati dal bot
-    const { data: p } = await d.admin.from("profili").select("id, attivo").eq("username", profilo).maybeSingle();
+    // stessa ricerca del login: maiuscole e minuscole indifferenti ("luca" = "Luca")
+    const { data: p } = await d.admin.from("profili").select("id, attivo").ilike("username", profilo.replace(/[\\%_]/g, "\\$&")).maybeSingle();
     if (!p || !p.attivo) { esito = "profilo"; await invia(x, "Il bot non è collegato a un utente attivo dell'app (controlla il secret TELEGRAM_PROFILO)."); }
     else {
       x.profiloId = p.id;
