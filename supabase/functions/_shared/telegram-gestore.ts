@@ -13,6 +13,7 @@
 //   e' deciso alla creazione della bozza: una conferma ripetuta o interrotta non crea doppioni;
 // - token Telegram e chiave Groq solo nei secret; nei log solo eventi ed esiti, mai testi, nomi o id.
 import { type ConfigAI, ErroreAI, chiediJson, configurazione, trascriviAudio, MAX_AUDIO_BYTE } from "./groq.ts";
+import { rispondiDomanda } from "./ai-gestore.ts";
 import {
   type Bozza, MAX_DURATA_VOCALE_S, MAX_TESTO_MESSAGGIO, SCADENZA_BOZZA_ORE, type Tastiera, type Tecnico, anteprima, applicaModifiche,
   bozzaVuota, cercaCliente, clienteLibero, collegaCliente, controlla, datiSalvataggio, html, leggiPulsante, promptBozza, scegliCandidato,
@@ -227,6 +228,17 @@ async function messaggioTesto(x: Contesto, testo: string) {
     return;
   }
   const vuote = !Object.keys(ai.modifiche).length;
+  if (vuote && ai.aiuto) { await invia(x, AIUTO); return; }
+  // domanda sui dati: risponde l'assistente dell'app (dati letti con la sessione dell'utente); la bozza non cambia
+  if (vuote && ai.domanda) {
+    const d = ai.domanda;
+    const ris = await rispondiDomanda(x.cfg, (await sessione(x)).db, d.testo, d.dal, d.al, x.oggi, x.d.fetchImpl);
+    log(x.d, { evento: "domanda", esito: "ok", modello: ris.modello || "nessuno", token: ris.token });
+    const periodo = d.dal.split("-").reverse().join("/") + " – " + d.al.split("-").reverse().join("/");
+    await invia(x, "💬 " + html(ris.risposta) + (ris.limiti ? "\n\n<i>" + html(ris.limiti) + "</i>" : "") +
+      "\n\n<i>Dati dal " + periodo + ". Puoi indicare un altro periodo nella domanda.</i>" + (riga ? "\n\nLa bozza in corso è ancora aperta: /bozza per vederla." : ""));
+    return;
+  }
   if (vuote && !riga) {
     await invia(x, (premessa ? premessa + "\n\n" : "") + (ai.problemi.length ? html(ai.problemi.join(" ")) + "\n\n" : "") + (ai.fuoriTema ? "" : "Non ho trovato dati di un lavoro nel messaggio.\n\n") + AIUTO);
     return;
@@ -265,8 +277,13 @@ async function messaggioVocale(x: Contesto, v: Record<string, unknown>): Promise
     await invia(x, "Non riesco a scaricare il vocale da Telegram. Riprova."); return null;
   } finally { clearTimeout(t); }
   if (audio.length > MAX_AUDIO_BYTE) { await invia(x, "File audio troppo grande (massimo 20 MB)."); return null; }
-  const nome = "vocale." + (percorso.split(".").pop() || "ogg").replace(/[^a-z0-9]/gi, "").slice(0, 5);
-  const r = await trascriviAudio(x.cfg, { audio, nomeFile: nome, mime: mime.split(";")[0], lingua: "it", timeoutMs: TIMEOUT.audio, fetchImpl: x.d.fetchImpl });
+  // Telegram salva i vocali come ".oga" (OGG/Opus): Groq riconosce il formato dall'estensione e accetta
+  // flac mp3 mp4 mpeg mpga m4a ogg wav webm, quindi .oga/.opus si inviano come .ogg (stesso contenuto)
+  const est = (percorso.split(".").pop() || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const ESTENSIONI: Record<string, string> = { oga: "ogg", opus: "ogg", ogg: "ogg", mp3: "mp3", mpga: "mpga", mpeg: "mpeg", m4a: "m4a", mp4: "mp4", wav: "wav", webm: "webm", flac: "flac" };
+  const nome = "vocale." + (ESTENSIONI[est] || "ogg");
+  const tipo = ({ ogg: "audio/ogg", mp3: "audio/mpeg", mpga: "audio/mpeg", mpeg: "audio/mpeg", m4a: "audio/mp4", mp4: "audio/mp4", wav: "audio/wav", webm: "audio/webm", flac: "audio/flac" } as Record<string, string>)[ESTENSIONI[est] || "ogg"];
+  const r = await trascriviAudio(x.cfg, { audio, nomeFile: nome, mime: tipo, lingua: "it", timeoutMs: TIMEOUT.audio, fetchImpl: x.d.fetchImpl });
   log(x.d, { evento: "trascrizione", esito: r.testo ? "ok" : "vuota", modello: r.modello, secondi: durata });
   if (!r.testo) { await invia(x, "Non ho capito il vocale (nessuna parola riconosciuta). Riprova o scrivimi."); return null; }
   await invia(x, "🎙️ Ho capito: «" + html(r.testo.slice(0, 1500)) + (r.testo.length > 1500 ? "…" : "") + "»");

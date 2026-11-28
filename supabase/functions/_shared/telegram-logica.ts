@@ -58,7 +58,24 @@ export function dataLavoro(v: unknown, oggi: string): { data: string; problema: 
 }
 
 // ---------------------------------------------------------------- risposta dell'AI
-export type RispostaAI = { modifiche: Partial<Bozza> & { ore?: OraBozza[]; materiali?: Materiale[] }; annulla: boolean; fuoriTema: boolean; problemi: string[] };
+export type RispostaAI = {
+  modifiche: Partial<Bozza> & { ore?: OraBozza[]; materiali?: Materiale[] }; annulla: boolean; fuoriTema: boolean; problemi: string[];
+  // domanda sui dati (ore, interventi, rapportini, clienti...) con il periodo a cui si riferisce; aiuto = come si usa il bot
+  domanda: { testo: string; dal: string; al: string } | null; aiuto: boolean;
+};
+// periodo di una domanda: date valide, al massimo 12 mesi, predefinito gli ultimi 90 giorni fino a oggi
+export function periodoDomanda(dal: unknown, al: unknown, oggi: string): { dal: string; al: string } {
+  const ok = (v: unknown) => {
+    const t = String(v ?? "").trim();
+    return /^\d{4}-\d{2}-\d{2}$/.test(t) && !Number.isNaN(Date.parse(t + "T12:00:00Z")) && new Date(t + "T12:00:00Z").toISOString().slice(0, 10) === t ? t : "";
+  };
+  let a = ok(al) || oggi, d = ok(dal);
+  if (a > oggi) a = oggi;
+  if (!d) d = new Date(Date.parse(a + "T12:00:00Z") - 90 * 86400000).toISOString().slice(0, 10);
+  if (d > a) [d, a] = [a, d];
+  if (giorni(d, a) > 366) d = new Date(Date.parse(a + "T12:00:00Z") - 366 * 86400000).toISOString().slice(0, 10);
+  return { dal: d, al: a };
+}
 // Valida la risposta del modello: solo campi noti, tipi e limiti controllati. I campi non validi
 // vengono scartati (e segnalati), mai "aggiustati" inventando valori.
 export function validaRispostaAI(o: Record<string, unknown>, oggi: string): RispostaAI {
@@ -103,7 +120,10 @@ export function validaRispostaAI(o: Record<string, unknown>, oggi: string): Risp
       out.ore = ore;
     }
   }
-  return { modifiche: out, annulla: o.annulla === true, fuoriTema: o.fuori_tema === true, problemi };
+  let domanda: RispostaAI["domanda"] = null;
+  const dq = (o.domanda && typeof o.domanda === "object" && !Array.isArray(o.domanda)) ? o.domanda as Record<string, unknown> : null;
+  if (dq && riga(dq.testo, 500)) domanda = { testo: riga(dq.testo, 500), ...periodoDomanda(dq.dal, dq.al, oggi) };
+  return { modifiche: out, annulla: o.annulla === true, fuoriTema: o.fuori_tema === true, problemi, domanda, aiuto: o.aiuto === true };
 }
 
 export function applicaModifiche(b: Bozza, mod: RispostaAI["modifiche"]): { bozza: Bozza; clienteCambiato: boolean } {
@@ -283,7 +303,11 @@ export function promptBozza(b: Bozza | null, messaggio: string, oggi: string, te
       "- ore: elenco COMPLETO aggiornato [{\"tecnico\": nome o \"\" se non detto, \"dalle\": \"HH:MM\" o \"\", \"alle\": \"HH:MM\" o \"\", \"durata_minuti\": numero o null}].",
       "Correzioni («no, erano 3 ore», «togli i raccordi», «il cliente è Bianchi») sostituiscono i valori precedenti.",
       "Se la bozza e' di un intervento programmato (intervento_id presente) il cliente e' gia' quello dell'intervento: non cambiarlo.",
-      "Se il tecnico chiede di annullare o cancellare la bozza: \"annulla\": true. Se il messaggio non riguarda un lavoro: \"fuori_tema\": true.",
+      "Se il tecnico chiede di annullare o cancellare la bozza: \"annulla\": true.",
+      "Se il messaggio e' una DOMANDA o una richiesta di informazioni sui dati di lavoro (ore fatte, interventi, rapportini, clienti, materiali, chi e' andato dove, quanto, quando...)",
+      "e non descrive un lavoro da registrare: lascia \"modifiche\" vuoto e metti \"domanda\": {\"testo\": domanda riformulata in modo chiaro, \"dal\": \"AAAA-MM-GG\", \"al\": \"AAAA-MM-GG\"}",
+      "con il periodo a cui si riferisce (risolto rispetto a OGGI; se non indicato lascia dal e al vuoti).",
+      "Se chiede come si usa il bot o cosa sa fare: \"aiuto\": true. Se il messaggio non riguarda il lavoro (saluti, altro): \"fuori_tema\": true.",
     ].join("\n") },
     { role: "user", content: blocco({ oggi, giorno_settimana: giorno, tecnici_dell_app: tecnici, bozza_attuale: b, messaggio }) },
   ];
