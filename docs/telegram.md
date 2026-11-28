@@ -31,6 +31,11 @@ compare in Rapportini, nella scheda del cliente, nei PDF e nelle statistiche com
   oggi», non tra gli imprevisti.
 - **Elenco**: `/rapportini` (ultimi 10), `/rapportini oggi`, `ieri`, `settimana`, `mese` o il nome di un cliente
   (anche scritto «lista rapportini Rossi»). Mostra data, cliente, stato, ore e descrizione.
+- **Domande**: scritte o a voce («quante ore ho fatto questa settimana?», «quando sono stato da Rossi?»,
+  «che materiali ho usato a ottobre?»). Risponde lo stesso assistente dati dell'app, sui dati che l'utente
+  collegato vede (RLS), nel periodo detto (predefinito: ultimi 90 giorni; massimo 12 mesi). La bozza non cambia.
+- **Vocali**: Telegram li salva come `.oga`, formato che Groq rifiuta per estensione: il bot li invia come
+  `.ogg` (stesso contenuto OGG/Opus).
 - **Eliminazione**: dall'elenco, pulsante 🗑 e numero → riepilogo → «Sì, elimina». Vale la regola dell'app
   (RLS): l'amministratore elimina qualsiasi rapportino, un operaio solo le proprie bozze. Con il rapportino
   spariscono ore e foto (anche i file nello Storage). Non si può annullare.
