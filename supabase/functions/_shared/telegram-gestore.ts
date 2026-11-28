@@ -24,6 +24,8 @@ export type DB = { from: (t: string) => any; rpc: (f: string, a?: Record<string,
 export type Sessione = { db: DB; profiloId: string; chiudi: () => Promise<void> };
 export type Dipendenze = {
   env: (k: string) => string | undefined;
+  // utente dell'app che chiama (per il collegamento del webhook dall'app: solo amministratore)
+  chiamante?: (req: Request) => Promise<{ profilo: { id: string; ruolo: string; attivo: boolean } } | null>;
   admin: DB;                                   // service_role: solo tabelle del bot e profilo del proprietario
   sessione: (profiloId: string) => Promise<Sessione>;   // sessione dell'utente dell'app (letture e salvataggio)
   fetchImpl?: typeof fetch;
@@ -46,6 +48,56 @@ const AIUTO = [
   "Il rapportino si crea solo quando tocchi <b>Conferma</b>.",
   "Comandi: /bozza mostra la bozza, /annulla la cancella. Le bozze non confermate scadono dopo " + SCADENZA_BOZZA_ORE + " ore.",
 ].join("\n");
+
+// Secret del webhook: TELEGRAM_WEBHOOK_SECRET se impostato, altrimenti ricavato dal token del bot
+// (HMAC-SHA256): nessuno deve crearlo o copiarlo a mano, e cambia se cambia il token.
+export async function segretoWebhook(token: string, impostato: string): Promise<string> {
+  if (impostato) return impostato;
+  const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(token), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const firma = new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode("rapportino-telegram-webhook")));
+  return [...firma].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+const json = (o: unknown, stato = 200) => new Response(JSON.stringify(o), { status: stato, headers: { "Content-Type": "application/json", ...CORS_APP } });
+const CORS_APP = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS" };
+
+// Collegamento dall'app (Altro -> Bot Telegram), solo amministratore con sessione valida:
+//   "stato"   -> bot configurato? webhook collegato? ultimo errore di Telegram (senza dati sensibili)
+//   "collega" -> setWebhook con l'indirizzo di questa funzione e il secret, un aggiornamento alla volta
+async function gestioneApp(req: Request, d: Dipendenze): Promise<Response> {
+  const c = d.chiamante ? await d.chiamante(req).catch(() => null) : null;
+  if (!c || !c.profilo.attivo || c.profilo.ruolo !== "admin") return json({ errore: "Solo l'amministratore può configurare il bot." }, 403);
+  let corpo: Record<string, unknown> = {};
+  try { corpo = await req.json(); } catch { /* corpo vuoto */ }
+  const token = String(d.env("TELEGRAM_BOT_TOKEN") || "").trim();
+  const utente = String(d.env("TELEGRAM_UTENTE_ID") || "").trim();
+  const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim();
+  const mancano = [!token && "TELEGRAM_BOT_TOKEN", !/^\d+$/.test(utente) && "TELEGRAM_UTENTE_ID", !profilo && "TELEGRAM_PROFILO",
+    !String(d.env("GROQ_API_KEY") || "").trim() && "GROQ_API_KEY"].filter(Boolean);
+  if (!token) return json({ configurato: false, mancano });
+  const f = d.fetchImpl || fetch;
+  const chiama = async (metodo: string, b: Record<string, unknown> = {}) => {
+    try {
+      const r = await f(TG + "/bot" + token + "/" + metodo, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(b) });
+      return await r.json() as { ok?: boolean; result?: Record<string, unknown>; description?: string };
+    } catch { return { ok: false, description: "Telegram non raggiungibile" }; }
+  };
+  const me = await chiama("getMe");
+  if (!me.ok) return json({ configurato: false, mancano, errore: "Token del bot non valido (controlla TELEGRAM_BOT_TOKEN)." });
+  const indirizzo = String(d.env("SUPABASE_URL") || "").replace(/\/+$/, "") + "/functions/v1/telegram";
+  if (corpo.azione === "collega") {
+    if (mancano.length) return json({ configurato: false, mancano, errore: "Mancano dei secret: " + mancano.join(", ") + "." });
+    const r = await chiama("setWebhook", { url: indirizzo, secret_token: await segretoWebhook(token, String(d.env("TELEGRAM_WEBHOOK_SECRET") || "").trim()),
+      max_connections: 1, allowed_updates: ["message", "callback_query"], drop_pending_updates: true });
+    log(d, { evento: "collega_webhook", esito: r.ok ? "ok" : "errore" });
+    if (!r.ok) return json({ errore: "Telegram ha rifiutato il collegamento: " + String(r.description || "errore").slice(0, 200) }, 502);
+  }
+  const info = (await chiama("getWebhookInfo")).result || {};
+  return json({
+    configurato: !mancano.length, mancano, bot: "@" + String((me.result || {}).username || ""),
+    collegato: info.url === indirizzo, inAttesa: Number(info.pending_update_count) || 0,
+    ultimoErrore: info.last_error_message ? String(info.last_error_message).slice(0, 200) : "",
+  });
+}
 
 // confronto a tempo costante (il secret non si indovina un carattere alla volta)
 function uguali(a: string, b: string): boolean {
@@ -273,9 +325,12 @@ async function conferma(x: Contesto, riga: RigaBozza, togliPulsanti: () => unkno
 // ---------------------------------------------------------------- ingresso
 export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
   const inizio = Date.now();
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS_APP });
   if (req.method !== "POST") return new Response("metodo non ammesso", { status: 405 });
+  // dall'app (sessione dell'amministratore), non da Telegram: stato e collegamento del webhook
+  if (!req.headers.has("x-telegram-bot-api-secret-token") && /^Bearer\s+\S+/i.test(req.headers.get("Authorization") || "")) return gestioneApp(req, d);
   const token = String(d.env("TELEGRAM_BOT_TOKEN") || "").trim();
-  const segreto = String(d.env("TELEGRAM_WEBHOOK_SECRET") || "").trim();
+  const segreto = token ? await segretoWebhook(token, String(d.env("TELEGRAM_WEBHOOK_SECRET") || "").trim()) : "";
   const utente = String(d.env("TELEGRAM_UTENTE_ID") || "").trim();
   const profilo = String(d.env("TELEGRAM_PROFILO") || "").trim();
   if (!token || segreto.length < 16 || !/^\d+$/.test(utente) || !profilo) {

@@ -3,7 +3,7 @@
 // Esecuzione: node --experimental-strip-types --test tests/server/telegram.test.mts
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { gestisci, type Dipendenze } from "../../supabase/functions/_shared/telegram-gestore.ts";
+import { gestisci, segretoWebhook, type Dipendenze } from "../../supabase/functions/_shared/telegram-gestore.ts";
 import {
   anteprima, bozzaVuota, cercaCliente, controlla, dataLavoro, datiSalvataggio, leggiPulsante, risolviOre, validaRispostaAI,
 } from "../../supabase/functions/_shared/telegram-logica.ts";
@@ -75,7 +75,7 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
   const salvati: Record<string, unknown>[] = [];
   const log: Record<string, unknown>[] = [];
   const richiesteAI: unknown[] = [];
-  let sessioniAperte = 0, sessioniChiuse = 0;
+  let sessioniAperte = 0, sessioniChiuse = 0, webhook = "";
   const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
     const u = String(url);
     if (u.startsWith("https://api.telegram.org/file/")) return new Response(new Uint8Array([79, 103, 103, 83, 1, 2, 3]), { status: 200 });
@@ -83,7 +83,9 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
       const metodo = u.split("/").pop()!;
       const corpo = JSON.parse(String(init!.body));
       inviati.push({ metodo, corpo });
-      const result = metodo === "getFile" ? { file_path: "voice/file_1.oga" } : { message_id: 1 };
+      const result = metodo === "getFile" ? { file_path: "voice/file_1.oga" } : metodo === "getMe" ? { username: "rapportino_bot" }
+        : metodo === "getWebhookInfo" ? { url: webhook, pending_update_count: 0 } : { message_id: 1 };
+      if (metodo === "setWebhook") webhook = corpo.url;
       return new Response(JSON.stringify({ ok: true, result }), { status: 200 });
     }
     if (u.endsWith("/audio/transcriptions")) {
@@ -315,8 +317,18 @@ test("9. sicurezza: secret del webhook, mittente non autorizzato, gruppi, config
   assert.equal(a.t.telegram_bozze.length, 0);
   assert.ok(a.log.some((l) => l.esito === "mittente_non_autorizzato"));
   const senza = ambiente();
-  senza.d.env = (k) => k === "TELEGRAM_WEBHOOK_SECRET" ? "" : ENV[k];
-  assert.equal((await gestisci(req(testo("x"), ""), senza.d)).status, 503, "senza secret non accetta nulla");
+  senza.d.env = (k) => k === "TELEGRAM_BOT_TOKEN" ? "" : ENV[k];
+  assert.equal((await gestisci(req(testo("x")), senza.d)).status, 503, "senza token non accetta nulla");
+  // secret non impostato: ricavato dal token (lo stesso usato da «Collega il bot»); quello sbagliato resta rifiutato
+  const derivato = ambiente({ ai: () => LAVORO });
+  derivato.d.env = (k) => k === "TELEGRAM_WEBHOOK_SECRET" ? undefined : ENV[k];
+  const s1 = await segretoWebhook(TOKEN, "");
+  assert.match(s1, /^[0-9a-f]{64}$/);
+  assert.equal(s1, await segretoWebhook(TOKEN, ""), "sempre lo stesso");
+  assert.notEqual(s1, await segretoWebhook(TOKEN + "x", ""));
+  assert.equal((await gestisci(req(testo("x"), SEGRETO), derivato.d)).status, 401);
+  assert.equal((await gestisci(req(testo("lavoro"), s1), derivato.d)).status, 200);
+  assert.match(ultimo(derivato), /Bozza di rapportino/);
   assert.equal((await gestisci(new Request("https://x", { method: "GET" }), a.d)).status, 405);
   // nessun token o chiave nei log
   const tutto = JSON.stringify(a.log);
@@ -395,4 +407,35 @@ test("13. dati per l'app: stessi campi e regole della RPC salva_rapportino; logi
   assert.deepEqual(v.modifiche, { cliente: "<b>X</b>", materiali: [{ a: "Tubo", q: "3" }], esito: "Da ultimare" });
   const ant = anteprima({ ...bozzaVuota(), cliente: "<b>X</b>", note: "a & b" }, 1, TECNICI, LUCA).testo;
   assert.ok(ant.includes("&lt;b&gt;X&lt;/b&gt;") && ant.includes("a &amp; b"), "testo dell'utente scappato nell'HTML");
+});
+
+test("collegamento dall'app: solo l'amministratore; webhook con l'indirizzo della funzione e il secret ricavato", async () => {
+  const a = ambiente();
+  const env = { ...ENV, SUPABASE_URL: "https://progetto.supabase.co" } as Record<string, string>;
+  delete env.TELEGRAM_WEBHOOK_SECRET;
+  a.d.env = (k) => env[k];
+  const daApp = (corpo: unknown) => new Request("https://x/functions/v1/telegram", { method: "POST", headers: { Authorization: "Bearer jwt", "content-type": "application/json" }, body: JSON.stringify(corpo) });
+  a.d.chiamante = async () => ({ profilo: { id: MARIO, ruolo: "worker", attivo: true } });
+  assert.equal((await gestisci(daApp({ azione: "collega" }), a.d)).status, 403, "operaio: no");
+  a.d.chiamante = async () => null;
+  assert.equal((await gestisci(daApp({ azione: "collega" }), a.d)).status, 403, "senza sessione valida: no");
+  assert.equal(a.inviati.length, 0);
+  a.d.chiamante = async () => ({ profilo: { id: LUCA, ruolo: "admin", attivo: true } });
+  let r = await (await gestisci(daApp({ azione: "stato" }), a.d)).json();
+  assert.deepEqual([r.bot, r.collegato, r.configurato], ["@rapportino_bot", false, true]);
+  r = await (await gestisci(daApp({ azione: "collega" }), a.d)).json();
+  assert.equal(r.collegato, true);
+  const set = a.inviati.find((x) => x.metodo === "setWebhook")!.corpo;
+  assert.equal(set.url, "https://progetto.supabase.co/functions/v1/telegram");
+  assert.equal(set.secret_token, await segretoWebhook(TOKEN, ""));
+  assert.equal(set.max_connections, 1);
+  assert.deepEqual(set.allowed_updates, ["message", "callback_query"]);
+  assert.ok(!JSON.stringify(r).includes(TOKEN) && !JSON.stringify(r).includes(String(set.secret_token)), "token e secret mai restituiti all'app");
+  // secret mancanti: nessun collegamento, elenco di cosa manca
+  const b = ambiente();
+  b.d.env = (k) => k === "TELEGRAM_UTENTE_ID" ? undefined : env[k];
+  b.d.chiamante = a.d.chiamante;
+  r = await (await gestisci(daApp({ azione: "collega" }), b.d)).json();
+  assert.deepEqual(r.mancano, ["TELEGRAM_UTENTE_ID"]);
+  assert.ok(!b.inviati.some((x) => x.metodo === "setWebhook"));
 });

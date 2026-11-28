@@ -683,6 +683,15 @@
           <div class="card">
             <button type="button" class="voce" onclick="mostraVista('utenti')"><span class="v-ic"><svg class="i"><use href="#i-shield"/></svg></span><span class="v-testi"><span class="v-tit">Gestione utenti</span><span class="v-sub">Nomi, ruoli, PIN; operai: crea, disattiva, password</span></span><svg class="i chev"><use href="#i-chev-r"/></svg></button>
           </div>
+          <div class="card tg-card">
+            <div class="gruppo-tit" style="margin:0 0 4px">Bot Telegram (rapportini da messaggi e vocali)</div>
+            <p class="nota" style="margin:0 0 8px">Crea rapportini scrivendo o mandando vocali al tuo bot privato. Passaggi in docs/telegram.md.</p>
+            <div class="msg-info" id="tg-stato" role="status" aria-live="polite"></div>
+            <div class="due">
+              <div><button type="button" class="btn btn-secondario btn-blocco" id="tg-controlla" onclick="statoBotTelegram(this)"><span>Controlla</span></button></div>
+              <div><button type="button" class="btn btn-primario btn-blocco" id="tg-collega" onclick="collegaBotTelegram(this)"><span>Collega il bot</span></button></div>
+            </div>
+          </div>
         </div>
         <div class="gruppo" data-permesso="vista.storico vista.cerca">
           <div class="gruppo-tit">Consultazione</div>

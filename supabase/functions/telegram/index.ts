@@ -1,9 +1,10 @@
 // Bot Telegram privato per creare rapportini (webhook). Tutta la logica e' in _shared/telegram-gestore.ts
 // (provata in tests/server/telegram.test.mts); qui solo il collegamento con Supabase.
-// Secret obbligatori: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, TELEGRAM_UTENTE_ID, TELEGRAM_PROFILO, GROQ_API_KEY.
-// Facoltativi: GROQ_MODELLO_TESTO, GROQ_MODELLO_RISERVA, GROQ_MODELLO_AUDIO. Istruzioni: docs/telegram.md
+// Secret obbligatori: TELEGRAM_BOT_TOKEN, TELEGRAM_UTENTE_ID, TELEGRAM_PROFILO, GROQ_API_KEY.
+// Facoltativi: TELEGRAM_WEBHOOK_SECRET (altrimenti ricavato dal token), GROQ_MODELLO_TESTO, GROQ_MODELLO_RISERVA, GROQ_MODELLO_AUDIO.
+// Il webhook si collega dall'app (Altro -> Bot Telegram, amministratore). Istruzioni: docs/telegram.md
 import { createClient } from "jsr:@supabase/supabase-js@2";
-import { clientAdmin, clientAnonimo } from "../_shared/comune.ts";
+import { chiamante, clientAdmin, clientAnonimo } from "../_shared/comune.ts";
 import { gestisci, type Sessione } from "../_shared/telegram-gestore.ts";
 
 const URL = Deno.env.get("SUPABASE_URL")!;
@@ -26,5 +27,5 @@ async function sessione(admin: ReturnType<typeof clientAdmin>, profiloId: string
 
 Deno.serve((req) => {
   const admin = clientAdmin();
-  return gestisci(req, { env: (k) => Deno.env.get(k), admin, sessione: (id) => sessione(admin, id) });
+  return gestisci(req, { env: (k) => Deno.env.get(k), admin, sessione: (id) => sessione(admin, id), chiamante: (r) => chiamante(r, admin) });
 });
