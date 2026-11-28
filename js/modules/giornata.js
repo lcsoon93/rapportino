@@ -60,14 +60,15 @@ function cardIntervento({ intervento: i, stato: st }){
     azioni: azione + dettaglio });
 }
 function cardImprevisto({ rapportino: r, stato: st }){
-  return card({ oraIcona: "alert", titolo: r.cliente, classe: "mg-imprevisto",
+  const fuori = !!r.fuoriProgramma;
+  return card({ oraIcona: fuori ? "file" : "alert", titolo: r.cliente, classe: fuori ? "mg-fuori" : "mg-imprevisto",
     sotto: r.daInviare ? "Modifiche sul telefono, non ancora inviate" : "",
-    badge: badge("Imprevisto", "att") + badge(st.label, st.classe),
+    badge: (fuori ? badge("Fuori programma", "neutro") : badge("Imprevisto", "att")) + badge(st.label, st.classe),
     azioni: st.codice === "completato" ? bottone("Vedi rapportino", `apriRapportino('${r.id}')`, false, "file")
       : bottone("Riprendi", `apriRapportino('${r.id}')`, true, "pen") });
 }
 function cardBozza(r){
-  const tipo = r.intervento_id ? "Intervento" : "Imprevisto";
+  const tipo = r.intervento_id ? "Intervento" : r.fuoriProgramma ? "Fuori programma" : "Imprevisto";
   const dove = !r.sulServer ? badge("Solo sul telefono", "att") : r.daInviare ? badge("Modifiche da inviare", "att") : badge("Bozza sul server", "neutro");
   return card({ oraIcona: "pen", titolo: r.cliente, classe: "mg-bozza",
     sotto: (r.data ? formattaData(r.data) : "Data non indicata") + " · " + tipo,
@@ -141,6 +142,10 @@ async function disegna(){
   $("mg-conta-imprevisti").textContent = g.imprevisti.length || "";
   $("mg-lista-imprevisti").innerHTML = g.imprevisti.map(cardImprevisto).join("");
 
+  mostra("mg-sez-fuori-head", g.fuoriProgramma.length);
+  $("mg-conta-fuori").textContent = g.fuoriProgramma.length || "";
+  $("mg-lista-fuori").innerHTML = g.fuoriProgramma.map(cardImprevisto).join("");
+
   mostra("mg-sez-bozze-head", g.bozze.length);
   $("mg-conta-bozze").textContent = g.bozze.length || "";
   $("mg-lista-bozze").innerHTML = g.bozze.map(cardBozza).join("");
@@ -170,7 +175,8 @@ async function disegna(){
   mostra("mg-fine-giornata", fine);
   if(fine){
     const daFare = [...g.schede.filter(s=>s.stato.codice !== "completato").map(s=>({ nome: s.intervento.cliente, azione: `compilaRapportinoIntervento('${s.intervento.id}')` })),
-      ...g.imprevisti.filter(x=>x.stato.codice !== "completato").map(x=>({ nome: x.rapportino.cliente + " (imprevisto)", azione: `apriRapportino('${x.rapportino.id}')` }))];
+      ...g.imprevisti.filter(x=>x.stato.codice !== "completato").map(x=>({ nome: x.rapportino.cliente + " (imprevisto)", azione: `apriRapportino('${x.rapportino.id}')` })),
+      ...g.fuoriProgramma.filter(x=>x.stato.codice !== "completato").map(x=>({ nome: x.rapportino.cliente + " (fuori programma)", azione: `apriRapportino('${x.rapportino.id}')` }))];
     $("mg-fine-contenuto").innerHTML = `
       <div class="stat-griglia" style="margin-bottom:12px">
         <div class="stat ok"><span class="stat-val">${c.completati}</span><span class="stat-lab">Completati</span></div>

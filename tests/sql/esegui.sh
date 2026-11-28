@@ -36,6 +36,12 @@ psql_pg "-d $DB -f $W/20261128120000_telegram_bot_rollback.sql" >/dev/null
 psql_pg "-d $DB -f $W/20261128120000_telegram_bot.sql" >/dev/null
 psql_pg "-d $DB -f $W/20261128120000_telegram_bot.sql" >/dev/null
 echo " bot telegram: rollback e riapplicazione ok"
+psql_pg "-d $DB -t -c \"select 'fuori programma: ' || (case when (select column_default from information_schema.columns where table_name='rapportini' and column_name='fuori_programma') = 'false' then 'ok' else 'ERRORE' end)\""
+cp supabase/rollback/20261129090000_rapportini_fuori_programma_rollback.sql "$W"/; chmod 644 "$W"/*.sql
+psql_pg "-d $DB -f $W/20261129090000_rapportini_fuori_programma_rollback.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261129090000_rapportini_fuori_programma.sql" >/dev/null
+psql_pg "-d $DB -f $W/20261129090000_rapportini_fuori_programma.sql" >/dev/null
+echo " fuori programma: rollback e riapplicazione ok"
 psql_pg "-c 'drop database $DB'" >/dev/null
 rm -rf "$W"
 echo "SQL: tutti i controlli superati"

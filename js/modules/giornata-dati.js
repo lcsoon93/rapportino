@@ -32,6 +32,7 @@ export function unisciRapportini(server, locali){
   const perId = new Map();
   (server || []).forEach(r=>perId.set(r.id, {
     id: r.id, intervento_id: r.intervento_id || null, data: r.data, cliente: r.cliente, esito: r.esito || "",
+    fuoriProgramma: !!r.fuori_programma,
     stato: r.stato, ore: r.rapportino_operai || [], sulServer: true, daInviare: false, conflitto: false, completaInAttesa: false,
   }));
   (locali || []).filter(localeAttivo).forEach(v=>{
@@ -40,6 +41,7 @@ export function unisciRapportini(server, locali){
     perId.set(v.id, {
       id: v.id, intervento_id: v.intervento_id || c.intervento_id || (s && s.intervento_id) || null,
       data: c.data || (s && s.data) || "", cliente: c.cliente || (s && s.cliente) || "", esito: c.esito || (s && s.esito) || "",
+      fuoriProgramma: !!(s && s.fuoriProgramma),
       stato: s && s.stato === "completato" && v.stato !== "conflitto" ? "completato" : (s ? s.stato : "bozza"),
       ore: v.ore || (s && s.ore) || [], sulServer: !!s || !!v.salvato, daInviare: true,
       conflitto: v.stato === "conflitto", completaInAttesa: !!v.completa,
@@ -117,18 +119,20 @@ export function calcolaGiornata({ oggi, io, interventi, rapportiniServer, coda }
   const attivi = (interventi || []).filter(i=>i.stato !== "annullato");
   const schede = attivi.map(i=>({ intervento: i, stato: statoIntervento(i, io, perIntervento) }));
   const idInterventiOggi = new Set(attivi.map(i=>i.id));
-  const imprevisti = miei.filter(r=>!r.intervento_id && r.data === oggi).map(r=>({ rapportino: r, stato: statoImprevisto(r) }));
-  // bozze di ogni giorno non già mostrate tra gli interventi e gli imprevisti di oggi
-  const mostrati = new Set([...imprevisti.map(x=>x.rapportino.id),
+  // senza intervento: "fuori programma" (segnati come tali, es. dal bot Telegram) oppure imprevisti
+  const imprevisti = miei.filter(r=>!r.intervento_id && r.data === oggi && !r.fuoriProgramma).map(r=>({ rapportino: r, stato: statoImprevisto(r) }));
+  const fuoriProgramma = miei.filter(r=>!r.intervento_id && r.data === oggi && r.fuoriProgramma).map(r=>({ rapportino: r, stato: statoImprevisto(r) }));
+  // bozze di ogni giorno non già mostrate tra gli interventi, gli imprevisti e i fuori programma di oggi
+  const mostrati = new Set([...imprevisti.map(x=>x.rapportino.id), ...fuoriProgramma.map(x=>x.rapportino.id),
     ...schede.map(s=>s.stato.rapportino && s.stato.rapportino.id).filter(Boolean)]);
   const bozze = miei.filter(r=>!mostrati.has(r.id) && !(r.stato === "completato" && !r.daInviare) &&
       !(r.intervento_id && idInterventiOggi.has(r.intervento_id)))
     .sort((a, b)=>String(b.data || "").localeCompare(String(a.data || "")));
-  const tutti = [...schede.map(s=>s.stato), ...imprevisti.map(x=>x.stato)];
+  const tutti = [...schede.map(s=>s.stato), ...imprevisti.map(x=>x.stato), ...fuoriProgramma.map(x=>x.stato)];
   const conta = c=>tutti.filter(s=>s.codice === c).length;
   const minuti = minutiUnione(miei.filter(r=>r.data === oggi).flatMap(r=>(r.ore || []).filter(o=>o.operaio_id === io)));
   return {
-    schede, imprevisti, bozze,
+    schede, imprevisti, fuoriProgramma, bozze,
     conteggi: {
       totale: tutti.length, completati: conta("completato"), inCorso: conta("in_corso") + conta("da_completare"),
       daIniziare: conta("da_iniziare"), daUltimare: tutti.filter(s=>s.daUltimare).length, minuti,

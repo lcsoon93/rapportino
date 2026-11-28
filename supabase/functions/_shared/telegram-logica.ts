@@ -20,6 +20,8 @@ export type Bozza = {
   cliente_stato: "" | "da_scegliere" | "confermato"; candidati: Candidato[];
   data: string; attivita: string; tipologia: string; esito: string; note: string;
   materiali: Materiale[]; ore: OraBozza[];
+  // intervento programmato da compilare (null = lavoro nuovo, salvato come "fuori programma")
+  intervento_id: string | null; intervento: string;
 };
 export type Tecnico = { id: string; nome: string; username: string; attivo?: boolean };
 export type ClienteAnagrafica = { id: string; nome: string; indirizzo?: string; telefono?: string; archiviato?: boolean };
@@ -27,6 +29,7 @@ export type ClienteAnagrafica = { id: string; nome: string; indirizzo?: string; 
 export const bozzaVuota = (): Bozza => ({
   cliente: "", cliente_id: null, indirizzo: "", telefono: "", cliente_stato: "", candidati: [],
   data: "", attivita: "", tipologia: "", esito: "", note: "", materiali: [], ore: [],
+  intervento_id: null, intervento: "",
 });
 
 const testo = (v: unknown, max: number) => String(v ?? "").split(String.fromCharCode(0)).join("").replace(/\s+$/g, "").replace(/^\s+/g, "").slice(0, max);
@@ -108,6 +111,7 @@ export function applicaModifiche(b: Bozza, mod: RispostaAI["modifiche"]): { bozz
   let clienteCambiato = false;
   for (const [k, v] of Object.entries(mod)) {
     if (k === "cliente") {
+      if (b.intervento_id) continue;          // rapportino di un intervento: il cliente e' quello dell'intervento
       if (norma(v) !== norma(b.cliente)) { clienteCambiato = true; n.cliente = String(v); n.cliente_id = null; n.cliente_stato = ""; n.candidati = []; n.telefono = ""; }
     } else (n as Record<string, unknown>)[k] = v;
   }
@@ -209,6 +213,7 @@ export function anteprima(b: Bozza, versione: number, tecnici: Tecnico[], propri
   const c = controlla(b, tecnici, proprietario);
   const r: string[] = ["<b>📝 Bozza di rapportino</b>", ""];
   const campo = (et: string, v: string) => r.push("<b>" + et + ":</b> " + (v ? html(v) : "<i>mancante</i>"));
+  r.push("<b>Tipo:</b> " + (b.intervento_id ? "intervento programmato" + (b.intervento ? " — " + html(b.intervento) : "") : "lavoro fuori programma (non in agenda)"));
   campo("Cliente", b.cliente ? b.cliente + (b.cliente_stato === "confermato" ? (b.cliente_id ? " (anagrafica)" : " (non in anagrafica)") : " (da confermare)") : "");
   if (b.indirizzo) campo("Luogo", b.indirizzo);
   campo("Data", dataIt(b.data));
@@ -247,7 +252,7 @@ export function leggiPulsante(d: unknown): { azione: string; indice: number; ver
 export function datiSalvataggio(b: Bozza, rapportinoId: string, righe: RigaOre[]) {
   return {
     p_rapportino: {
-      id: rapportinoId, intervento_id: null, data: b.data, cliente: b.cliente, indirizzo: b.indirizzo, cliente_id: b.cliente_id,
+      id: rapportinoId, intervento_id: b.intervento_id || null, data: b.data, cliente: b.cliente, indirizzo: b.indirizzo, cliente_id: b.cliente_id,
       telefono: b.telefono, tipologia: b.tipologia, attivita: b.attivita.trim(), materiali: b.materiali, note: b.note,
       esito: b.esito || "Completato", firma: "", firmatario: "",
     },
@@ -277,6 +282,7 @@ export function promptBozza(b: Bozza | null, messaggio: string, oggi: string, te
       "- materiali: elenco COMPLETO aggiornato [{\"a\": descrizione, \"q\": quantita' come testo}] (quantita' vuota se non detta);",
       "- ore: elenco COMPLETO aggiornato [{\"tecnico\": nome o \"\" se non detto, \"dalle\": \"HH:MM\" o \"\", \"alle\": \"HH:MM\" o \"\", \"durata_minuti\": numero o null}].",
       "Correzioni («no, erano 3 ore», «togli i raccordi», «il cliente è Bianchi») sostituiscono i valori precedenti.",
+      "Se la bozza e' di un intervento programmato (intervento_id presente) il cliente e' gia' quello dell'intervento: non cambiarlo.",
       "Se il tecnico chiede di annullare o cancellare la bozza: \"annulla\": true. Se il messaggio non riguarda un lavoro: \"fuori_tema\": true.",
     ].join("\n") },
     { role: "user", content: blocco({ oggi, giorno_settimana: giorno, tecnici_dell_app: tecnici, bozza_attuale: b, messaggio }) },
@@ -331,11 +337,62 @@ export function confermaEliminazioneTesto(x: RigaElenco): { testo: string; tasti
     tastiera: [[{ text: "🗑 Sì, elimina", callback_data: "dok:" + x.id }, { text: "No, tieni", callback_data: "dno" }]],
   };
 }
+// ---------------------------------------------------------------- interventi programmati
+// "/interventi", "/interventi oggi|settimana|tutti", anche "lista interventi ..."
+export function richiestaInterventi(t: string): { filtro: string } | null {
+  const m = String(t || "").trim().match(/^(?:\/(?:interventi|programmati)(?:@\w+)?|(?:lista|elenco|mostra(?:mi)?)\s+(?:gli\s+)?interventi(?:\s+programmati)?)\b\s*(.*)$/i);
+  return m ? { filtro: riga(m[1], 50) } : null;
+}
+// periodo degli interventi da compilare: predefinito da 14 giorni fa (rimasti aperti) a 7 giorni avanti
+export function filtroInterventi(filtro: string, oggi: string): { dal: string; al: string; titolo: string } {
+  const f = norma(filtro);
+  const sposta = (n: number) => new Date(Date.parse(oggi + "T12:00:00Z") + n * 86400000).toISOString().slice(0, 10);
+  if (f === "oggi") return { dal: oggi, al: oggi, titolo: "Interventi programmati di oggi" };
+  if (f === "settimana") return { dal: oggi, al: sposta(6), titolo: "Interventi programmati dei prossimi 7 giorni" };
+  if (f === "tutti") return { dal: sposta(-60), al: sposta(60), titolo: "Interventi programmati aperti" };
+  return { dal: sposta(-14), al: sposta(7), titolo: "Interventi programmati da compilare" };
+}
+export type RigaIntervento = {
+  id: string; data: string; ora?: string | null; cliente: string; cliente_id?: string | null; indirizzo?: string; telefono?: string;
+  descrizione?: string; tipologia?: string; stato: string; priorita?: string;
+  intervento_operai?: { operaio_id: string; rimosso_il?: string | null }[]; rapportini?: { id: string; autore_id: string; stato: string }[];
+};
+export const etichettaIntervento = (i: RigaIntervento) =>
+  [dataIt(i.data) + (i.ora ? " " + String(i.ora).slice(0, 5) : ""), String(i.descrizione || "").replace(/\s+/g, " ").trim().slice(0, 80)].filter(Boolean).join(" · ");
+export function elencoInterventiTesto(righe: RigaIntervento[], titolo: string, io: string): { testo: string; tastiera: Tastiera } {
+  if (!righe.length) return { testo: "<b>" + html(titolo) + "</b>\nNessun intervento da compilare. Per un lavoro non in agenda scrivimi o mandami un vocale: diventa un rapportino fuori programma.", tastiera: [] };
+  const r = ["<b>" + html(titolo) + "</b>", ""];
+  righe.forEach((i, k) => {
+    const mio = (i.intervento_operai || []).some((o) => o.operaio_id === io && !o.rimosso_il);
+    const fatto = (i.rapportini || []).find((x) => x.autore_id === io);
+    r.push((k + 1) + ". <b>" + dataIt(i.data) + (i.ora ? " " + String(i.ora).slice(0, 5) : "") + "</b> — " + html(i.cliente) +
+      (i.priorita === "urgente" ? " · <b>urgente</b>" : "") + (mio ? "" : " · non assegnato a te") +
+      (fatto ? (fatto.stato === "completato" ? " · già compilato" : " · bozza nell'app") : ""));
+    const d = String(i.descrizione || "").replace(/\s+/g, " ").trim();
+    if (d || i.indirizzo) r.push("   <i>" + html([d.length > 80 ? d.slice(0, 79) + "…" : d, i.indirizzo || ""].filter(Boolean).join(" — ")) + "</i>");
+  });
+  r.push("", "Tocca 📝 e il numero per compilare il rapportino di quell'intervento.");
+  const tastiera: Tastiera = [];
+  for (let k = 0; k < righe.length; k += 5)
+    tastiera.push(righe.slice(k, k + 5).map((i, j) => ({ text: "📝 " + (k + j + 1), callback_data: "int:" + i.id })));
+  return { testo: r.join("\n"), tastiera };
+}
+// bozza del rapportino di un intervento: cliente, luogo e telefono dell'intervento (come nell'app);
+// data: quella dell'intervento se gia' passata o di oggi, altrimenti oggi (correggibile a parole)
+export function bozzaDaIntervento(i: RigaIntervento, oggi: string): Bozza {
+  return {
+    ...bozzaVuota(), intervento_id: i.id, intervento: etichettaIntervento(i),
+    cliente: i.cliente || "", cliente_id: i.cliente_id || null, indirizzo: i.indirizzo || "", telefono: i.telefono || "",
+    cliente_stato: "confermato", tipologia: i.tipologia || "", data: i.data && i.data <= oggi ? i.data : oggi,
+  };
+}
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 // pulsanti dell'elenco: "del:<id>" (chiedi conferma), "dok:<id>" (elimina), "dno" (annulla)
-export function leggiPulsanteElenco(d: unknown): { azione: "del" | "dok" | "dno"; id: string } | null {
+// "int:<id>" (compila l'intervento)
+export function leggiPulsanteElenco(d: unknown): { azione: "del" | "dok" | "dno" | "int"; id: string } | null {
   const s = String(d ?? "");
   if (s === "dno") return { azione: "dno", id: "" };
-  const m = s.match(/^(del|dok):(.+)$/);
-  return m && UUID.test(m[2]) ? { azione: m[1] as "del" | "dok", id: m[2].toLowerCase() } : null;
+  const m = s.match(/^(del|dok|int):(.+)$/);
+  return m && UUID.test(m[2]) ? { azione: m[1] as "del" | "dok" | "int", id: m[2].toLowerCase() } : null;
 }

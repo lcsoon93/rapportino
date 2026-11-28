@@ -24,7 +24,7 @@ const TECNICI = [{ id: LUCA, username: "luca", nome: "Luca Admin", attivo: true 
 
 // ---------------------------------------------------------------- database finto (sottoinsieme di PostgREST)
 type Riga = Record<string, unknown>;
-function tabelle() { return { telegram_aggiornamenti: [] as Riga[], telegram_bozze: [] as Riga[], profili: [{ id: LUCA, username: "Luca", attivo: true }] as Riga[], clienti: CLIENTI as Riga[] }; }
+function tabelle() { return { telegram_aggiornamenti: [] as Riga[], telegram_bozze: [] as Riga[], profili: [{ id: LUCA, username: "Luca", attivo: true, ruolo: "admin" }] as Riga[], clienti: CLIENTI as Riga[] }; }
 function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean; eliminaVieta?: boolean } = {}) {
   return {
     from(nome: string) {
@@ -35,6 +35,8 @@ function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean; el
         gte: (k: string, v: string) => { filtri.push((r) => String(r[k]) >= v); return q; },
         lte: (k: string, v: string) => { filtri.push((r) => String(r[k]) <= v); return q; },
         not: (k: string) => { filtri.push((r) => r[k] != null); return q; },
+        in: (k: string, v: unknown[]) => { filtri.push((r) => v.map(String).includes(String(r[k]))); return q; },
+        is: (k: string, v: unknown) => { filtri.push((r) => v === null ? r[k] == null : r[k] === v); return q; },
         insert: (v: Riga) => { op = "insert"; valori = v; return q; },
         update: (v: Riga) => { op = "update"; valori = v; return q; },
         delete: () => { op = "delete"; return q; },
@@ -81,14 +83,15 @@ function dbFinto(t: Record<string, Riga[]>, opz: { erroreScrittura?: boolean; el
 // ---------------------------------------------------------------- Telegram e Groq finti
 type Ambiente = ReturnType<typeof ambiente>;
 function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore?: number; trascrizione?: string; salvaErrore?: boolean; erroreScrittura?: boolean;
-  rapportini?: Riga[]; allegati?: Riga[]; eliminaVieta?: boolean } = {}) {
+  rapportini?: Riga[]; allegati?: Riga[]; eliminaVieta?: boolean; interventi?: Riga[] } = {}) {
   const t = tabelle();
   const inviati: { metodo: string; corpo: Record<string, unknown> }[] = [];
   const salvati: Record<string, unknown>[] = [];
   const log: Record<string, unknown>[] = [];
   const richiesteAI: unknown[] = [];
   let sessioniAperte = 0, sessioniChiuse = 0, webhook = "";
-  const sessDB: Record<string, Riga[]> = { clienti: CLIENTI as Riga[], rapportini: opz.rapportini || [], allegati: opz.allegati || [] };
+  const sessDB: Record<string, Riga[]> = { clienti: CLIENTI as Riga[], rapportini: opz.rapportini || [], allegati: opz.allegati || [], interventi: opz.interventi || [] };
+  (t as Record<string, Riga[]>).rapportini = sessDB.rapportini;          // service_role vede la stessa tabella
   const fotoRimosse: string[] = [];
   const fetchImpl = (async (url: string | URL, init?: RequestInit) => {
     const u = String(url);
@@ -133,6 +136,7 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
             const gia = salvati.find((s) => (s.p_rapportino as Riga).id === id);
             if (gia) return { data: { esito: "conflitto", rapportino: { id } }, error: null };
             salvati.push(a!);
+            sessDB.rapportini.push({ ...(a!.p_rapportino as Riga), stato: "completato", fuori_programma: false, autore_id: LUCA, rapportino_operai: a!.p_ore });
             return { data: { esito: "ok", rapportino: { id } }, error: null };
           }
           return { data: null, error: { message: "rpc" } };
@@ -528,4 +532,93 @@ test("eliminazione: solo dopo conferma esplicita; foto tolte; «No» non elimina
   await gestisci(req(cbEstraneo), c.d);
   assert.equal(c.sessDB.rapportini.length, 3);
   assert.ok(!c.inviati.some((x) => x.metodo === "sendMessage"));
+});
+
+// ---------------------------------------------------------------- interventi programmati e fuori programma
+const I1 = "bbbbbbbb-0000-4000-8000-000000000001", I2 = "bbbbbbbb-0000-4000-8000-000000000002", I3 = "bbbbbbbb-0000-4000-8000-000000000003",
+  I4 = "bbbbbbbb-0000-4000-8000-000000000004", I5 = "bbbbbbbb-0000-4000-8000-000000000005";
+const INTERVENTI = () => [
+  { id: I1, data: OGGI, ora: "09:00:00", cliente: "Condominio Aurora", cliente_id: "c3", indirizzo: "Via Aurora 5", telefono: "02", descrizione: "Controllo caldaia",
+    tipologia: "Manutenzione", stato: "pianificato", priorita: "normale", intervento_operai: [{ operaio_id: LUCA, rimosso_il: null }], rapportini: [] },
+  { id: I2, data: "2026-11-29", ora: null, cliente: "Mario Rossi", cliente_id: "c1", indirizzo: "Via Roma 1", telefono: "", descrizione: "Perdita",
+    tipologia: "", stato: "pianificato", priorita: "urgente", intervento_operai: [{ operaio_id: MARIO, rimosso_il: null }], rapportini: [] },
+  { id: I3, data: "2026-11-25", ora: null, cliente: "Bianchi Impianti Srl", cliente_id: "c4", stato: "in_corso", intervento_operai: [{ operaio_id: LUCA }],
+    rapportini: [{ id: "r-x", autore_id: LUCA, stato: "bozza" }] },
+  { id: I4, data: "2026-11-27", cliente: "Fatto Srl", stato: "in_corso", intervento_operai: [{ operaio_id: LUCA }], rapportini: [{ id: "r-y", autore_id: LUCA, stato: "completato" }] },
+  { id: I5, data: OGGI, cliente: "Chiuso Srl", stato: "completato", intervento_operai: [{ operaio_id: LUCA }], rapportini: [] },
+];
+test("interventi: /interventi elenca quelli da fare (no completati), con assegnazione e rapportini gia' presenti", async () => {
+  const a = ambiente({ interventi: INTERVENTI() });
+  await manda(a, testo("/interventi"));
+  const t = ultimo(a);
+  assert.match(t, /Interventi programmati da compilare/);
+  assert.match(t, /28\/11\/2026 09:00<\/b> — Condominio Aurora/);
+  assert.match(t, /Mario Rossi · <b>urgente<\/b> · non assegnato a te/);
+  assert.match(t, /Bianchi Impianti Srl · bozza nell'app/);
+  assert.match(t, /Fatto Srl · già compilato/);
+  assert.ok(!t.includes("Chiuso Srl"), "completati esclusi");
+  assert.ok(pulsanti(a).every((p) => p.callback_data.startsWith("int:")));
+  await manda(a, testo("/interventi oggi"));
+  assert.equal(pulsanti(a).length, 1);
+  await manda(a, testo("lista interventi"));
+  assert.match(ultimo(a), /da compilare/);
+  assert.equal(a.richiesteAI.length, 0);
+});
+
+test("compila un intervento: bozza collegata (cliente dell'intervento, non modificabile), salvato con intervento_id, MAI fuori programma o imprevisto", async () => {
+  let giro = 0;
+  const a = ambiente({ interventi: INTERVENTI(), ai: () => (++giro, { modifiche: { cliente: "Altro Cliente", attivita: "Sostituita la valvola.", ore: [{ tecnico: "", dalle: "09:00", alle: "11:00" }] } }) });
+  await manda(a, tocco("int:" + I1));
+  let t = ultimo(a);
+  assert.match(t, /Rapportino dell'intervento di <b>Condominio Aurora<\/b>/);
+  assert.match(t, /Tipo:<\/b> intervento programmato — 28\/11\/2026 09:00 · Controllo caldaia/);
+  assert.match(t, /Condominio Aurora \(anagrafica\)/);
+  assert.match(t, /Mancano:<\/b> descrizione del lavoro/);
+  assert.equal(bozza(a).dati.intervento_id, I1);
+  await manda(a, testo("ho sostituito la valvola dalle 9 alle 11"));
+  t = ultimo(a);
+  assert.match(t, /Condominio Aurora/, "il cliente resta quello dell'intervento");
+  assert.ok(!t.includes("Altro Cliente"));
+  await manda(a, tocco("ok:2"));
+  assert.match(ultimo(a), /Rapportino creato<\/b> \(intervento programmato\)/);
+  const s = a.salvati[0] as Record<string, Record<string, unknown>>;
+  assert.equal(s.p_rapportino.intervento_id, I1);
+  assert.equal(s.p_rapportino.cliente_id, "c3");
+  assert.equal(a.sessDB.rapportini[0].fuori_programma, false, "collegato all'intervento: né imprevisto né fuori programma");
+});
+
+test("lavoro nuovo (senza intervento): salvato come fuori programma", async () => {
+  const a = ambiente({ ai: () => LAVORO });
+  await manda(a, testo("lavoro non in agenda"));
+  assert.match(ultimo(a), /Tipo:<\/b> lavoro fuori programma/);
+  await manda(a, tocco("ok:1"));
+  assert.match(ultimo(a), /Rapportino creato<\/b> \(fuori programma\)/);
+  const r = a.sessDB.rapportini.find((x) => x.id === (a.salvati[0] as Record<string, Record<string, unknown>>).p_rapportino.id)!;
+  assert.equal(r.intervento_id, null);
+  assert.equal(r.fuori_programma, true);
+});
+
+test("interventi: gia' compilato, bozza nell'app, non assegnato (operaio), bozza del bot in corso -> nessuna nuova bozza", async () => {
+  const a = ambiente({ interventi: INTERVENTI() });
+  await manda(a, tocco("int:" + I4));
+  assert.match(ultimo(a), /già completato il rapportino/);
+  await manda(a, tocco("int:" + I3));
+  assert.match(ultimo(a), /bozza di rapportino nell'app/);
+  await manda(a, tocco("int:" + I5));
+  assert.match(ultimo(a), /già completato: non c'è niente da compilare/);
+  assert.equal(a.t.telegram_bozze.length, 0);
+  // amministratore non assegnato: puo' compilare (come nell'app)
+  await manda(a, tocco("int:" + I2));
+  assert.equal(bozza(a).dati.intervento_id, I2);
+  assert.equal(bozza(a).dati.data, OGGI, "intervento futuro compilato oggi: data di oggi");
+  // un'altra scelta con la bozza in corso: rifiutata, la bozza resta
+  await manda(a, tocco("int:" + I1));
+  assert.match(ultimo(a), /Hai già una bozza in corso/);
+  assert.equal(bozza(a).dati.intervento_id, I2);
+  // operaio non assegnato: rifiutato
+  const b = ambiente({ interventi: INTERVENTI() });
+  b.t.profili[0].ruolo = "worker";
+  await manda(b, tocco("int:" + I2));
+  assert.match(ultimo(b), /Non sei assegnato a questo intervento/);
+  assert.equal(b.t.telegram_bozze.length, 0);
 });

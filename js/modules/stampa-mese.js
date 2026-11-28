@@ -84,7 +84,8 @@ export async function preparaPDFMese(btn){
         mancanti += f.mancanti; if(f.errore) fotoNonLette++;
         const c = schedaPDF(r, f.foto);
         const i = r.interventi;
-        c.intervento = i ? [i.ora ? ora(i.ora) : "", i.descrizione || "programmato"].filter(Boolean).join(" · ") : "imprevisto (senza intervento programmato)";
+        c.intervento = i ? [i.ora ? ora(i.ora) : "", i.descrizione || "programmato"].filter(Boolean).join(" · ")
+          : r.fuori_programma ? "fuori programma (lavoro non in agenda)" : "imprevisto (senza intervento programmato)";
         c.rif = "RAP-" + r.data.replace(/-/g, "") + "-" + String(r.id).replace(/-/g, "").slice(0, 4).toUpperCase();
         g.schede.push(c);
       }

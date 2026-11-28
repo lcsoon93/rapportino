@@ -17,6 +17,7 @@ import {
   type Bozza, MAX_DURATA_VOCALE_S, MAX_TESTO_MESSAGGIO, SCADENZA_BOZZA_ORE, type Tastiera, type Tecnico, anteprima, applicaModifiche,
   bozzaVuota, cercaCliente, clienteLibero, collegaCliente, controlla, datiSalvataggio, html, leggiPulsante, promptBozza, scegliCandidato,
   validaRispostaAI, ELENCO_MAX, type RigaElenco, confermaEliminazioneTesto, elencoTesto, filtroElenco, leggiPulsanteElenco, richiestaElenco,
+  type RigaIntervento, bozzaDaIntervento, elencoInterventiTesto, filtroInterventi, richiestaInterventi,
 } from "./telegram-logica.ts";
 
 // deno-lint-ignore no-explicit-any
@@ -50,6 +51,7 @@ const AIUTO = [
   "Preparo una bozza e te la mostro: puoi correggerla scrivendo (es. «le ore erano dalle 9», «togli i raccordi», «il cliente è Bianchi»).",
   "Il rapportino si crea solo quando tocchi <b>Conferma</b>.",
   "Comandi: /bozza mostra la bozza, /annulla la cancella. Le bozze non confermate scadono dopo " + SCADENZA_BOZZA_ORE + " ore.",
+  "/interventi elenca gli interventi programmati da compilare: scegline uno e il rapportino sarà collegato a quell'intervento. Un lavoro nuovo scritto o detto a voce diventa un rapportino <b>fuori programma</b> (non un imprevisto).",
   "/rapportini elenca gli ultimi rapportini (anche <i>/rapportini oggi</i>, <i>ieri</i>, <i>settimana</i>, <i>mese</i> o il nome di un cliente); da lì puoi eliminarne uno, con conferma.",
 ].join("\n");
 
@@ -115,7 +117,7 @@ const ok = () => new Response("ok", { status: 200 });
 type RigaBozza = { chat_id: number; dati: Bozza; stato: string; versione: number; rapportino_id: string; scade_il: string; aggiornato_il: string };
 type Contesto = {
   d: Dipendenze; cfg: ConfigAI; token: string; chat: number; profiloNome: string; adesso: number; oggi: string;
-  sess: Sessione | null; tecnici: Tecnico[] | null; profiloId: string;
+  sess: Sessione | null; tecnici: Tecnico[] | null; profiloId: string; ruolo: string;
 };
 
 // ---------------------------------------------------------------- Telegram Bot API
@@ -311,13 +313,54 @@ async function pulsanteElenco(x: Contesto, p: { azione: "del" | "dok" | "dno"; i
   await invia(x, "🗑 Rapportino eliminato: " + html(r.cliente || "(senza cliente)") + " — " + r.data.split("-").reverse().join("/") + ".");
 }
 
+// ---------------------------------------------------------------- interventi programmati
+// Letti con la sessione dell'utente collegato: l'amministratore vede tutti gli interventi, l'operaio
+// quelli a cui e' assegnato (RLS, come nell'app). Solo quelli ancora da fare (pianificato / in corso).
+const CAMPI_INTERVENTO = "id, data, ora, cliente, cliente_id, indirizzo, telefono, descrizione, tipologia, stato, priorita, " +
+  "intervento_operai(operaio_id, rimosso_il), rapportini(id, autore_id, stato)";
+async function elencaInterventi(x: Contesto, filtro: string) {
+  const f = filtroInterventi(filtro, x.oggi);
+  const s = await sessione(x);
+  const { data, error } = await s.db.from("interventi").select(CAMPI_INTERVENTO).in("stato", ["pianificato", "in_corso"])
+    .gte("data", f.dal).lte("data", f.al).order("data").order("ora", { nullsFirst: true }).limit(ELENCO_MAX);
+  if (error) throw new Error("interventi");
+  const e = elencoInterventiTesto((data || []) as RigaIntervento[], f.titolo, x.profiloId);
+  await invia(x, e.testo, e.tastiera.length ? e.tastiera : undefined);
+  log(x.d, { evento: "elenco_interventi", esito: "ok", righe: (data || []).length });
+}
+async function compilaIntervento(x: Contesto, id: string, togliPulsanti: () => unknown) {
+  const s = await sessione(x);
+  const { data: i, error } = await s.db.from("interventi").select(CAMPI_INTERVENTO).eq("id", id).maybeSingle();
+  if (error) throw new Error("intervento");
+  if (!i) { await invia(x, "Intervento non trovato (eliminato o non visibile al tuo utente)."); return; }
+  const int = i as RigaIntervento;
+  if (int.stato === "annullato" || int.stato === "completato") { await invia(x, "Questo intervento è " + (int.stato === "annullato" ? "annullato" : "già completato") + ": non c'è niente da compilare."); return; }
+  const mio = (int.rapportini || []).find((r) => r.autore_id === x.profiloId);
+  if (mio) {
+    await invia(x, mio.stato === "completato" ? "Hai già completato il rapportino di questo intervento."
+      : "Per questo intervento hai già una bozza di rapportino nell'app: completala dall'app (Giornata o Rapportini), così non ne nasce un secondo.");
+    return;
+  }
+  const assegnato = (int.intervento_operai || []).some((o) => o.operaio_id === x.profiloId && !o.rimosso_il);
+  if (!assegnato && x.ruolo !== "admin") { await invia(x, "Non sei assegnato a questo intervento: il rapportino lo compila chi è assegnato."); return; }
+  const { riga } = await leggiBozza(x);
+  if (riga && riga.dati.intervento_id === int.id) { await togliPulsanti(); await mostraBozza(x, riga, "Stai già compilando questo intervento:"); return; }
+  if (riga) { await invia(x, "Hai già una bozza in corso (" + html(riga.dati.cliente || "senza cliente") + "): confermala o annullala con /annulla, poi scegli l'intervento."); return; }
+  const nuova = await scriviBozza(x, null, bozzaDaIntervento(int, x.oggi));
+  if (!nuova) return cambiataNelFrattempo(x);
+  await togliPulsanti();
+  await mostraBozza(x, nuova, "📝 Rapportino dell'intervento di <b>" + html(int.cliente) + "</b>. Ora scrivimi o dimmi a voce cosa hai fatto, le ore e i materiali.");
+  log(x.d, { evento: "intervento_scelto", esito: "ok" });
+}
+
 // ---------------------------------------------------------------- pulsanti
 async function pulsante(x: Contesto, cb: Record<string, unknown>) {
   await tg(x, "answerCallbackQuery", { callback_query_id: cb.id });
   const msg = cb.message as Record<string, unknown> | undefined;
   const togliPulsanti = () => msg && tg(x, "editMessageReplyMarkup", { chat_id: x.chat, message_id: msg.message_id, reply_markup: { inline_keyboard: [] } });
   const pe = leggiPulsanteElenco(cb.data);
-  if (pe) return pulsanteElenco(x, pe, togliPulsanti);
+  if (pe && pe.azione === "int") return compilaIntervento(x, pe.id, togliPulsanti);
+  if (pe) return pulsanteElenco(x, pe as { azione: "del" | "dok" | "dno"; id: string }, togliPulsanti);
   const p = leggiPulsante(cb.data);
   if (!p) return;
   const { riga } = await leggiBozza(x);
@@ -366,10 +409,16 @@ async function conferma(x: Contesto, riga: RigaBozza, togliPulsanti: () => unkno
     await mostraBozza(x, { ...riga }, "❌ Rapportino NON creato: " + (perm ? "l'utente collegato al bot non ha il permesso di creare rapportini." : "errore del database, riprova tra poco.") + " La bozza è conservata.");
     return;
   }
+  // lavoro nuovo (senza intervento): "fuori programma", non un imprevisto. Lo segna la funzione (service_role)
+  // solo su questo rapportino senza intervento; un errore non annulla il salvataggio (resta come prima).
+  if (!riga.dati.intervento_id) {
+    const { error: e3 } = await x.d.admin.from("rapportini").update({ fuori_programma: true }).eq("id", riga.rapportino_id).is("intervento_id", null);
+    if (e3) log(x.d, { evento: "fuori_programma", esito: "errore" });
+  }
   await x.d.admin.from("telegram_bozze").delete().eq("chat_id", x.chat).eq("rapportino_id", riga.rapportino_id);
-  log(x.d, { evento: "salvataggio", esito: "ok", ripetuto: data.esito === "conflitto" });
+  log(x.d, { evento: "salvataggio", esito: "ok", ripetuto: data.esito === "conflitto", tipo: riga.dati.intervento_id ? "intervento" : "fuori_programma" });
   const b = riga.dati;
-  await invia(x, "✅ <b>Rapportino creato</b>\n" + html(b.cliente) + " — " + html(b.data.split("-").reverse().join("/")) +
+  await invia(x, "✅ <b>Rapportino creato</b>" + (b.intervento_id ? " (intervento programmato)" : " (fuori programma)") + "\n" + html(b.cliente) + " — " + html(b.data.split("-").reverse().join("/")) +
     "\nLo trovi nell'app in Rapportini" + (b.cliente_id ? " e nella scheda del cliente" : "") + ". Firma e foto si aggiungono dall'app se servono.");
 }
 
@@ -420,15 +469,15 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
     await d.admin.from("telegram_aggiornamenti").update({ aggiornato_il: new Date(adesso).toISOString() }).eq("update_id", updateId);
   }
 
-  const x: Contesto = { d, cfg: configurazione(d.env), token, chat: Number(chat.id), profiloNome: profilo, adesso, oggi: d.oggi ? d.oggi() : oggiRoma(), sess: null, tecnici: null, profiloId: "" };
+  const x: Contesto = { d, cfg: configurazione(d.env), token, chat: Number(chat.id), profiloNome: profilo, adesso, oggi: d.oggi ? d.oggi() : oggiRoma(), sess: null, tecnici: null, profiloId: "", ruolo: "" };
   let esito = "ok";
   try {
     // utente dell'app a cui appartengono i rapportini creati dal bot
     // stessa ricerca del login: maiuscole e minuscole indifferenti ("luca" = "Luca")
-    const { data: p } = await d.admin.from("profili").select("id, attivo").ilike("username", profilo.replace(/[\\%_]/g, "\\$&")).maybeSingle();
+    const { data: p } = await d.admin.from("profili").select("id, attivo, ruolo").ilike("username", profilo.replace(/[\\%_]/g, "\\$&")).maybeSingle();
     if (!p || !p.attivo) { esito = "profilo"; await invia(x, "Il bot non è collegato a un utente attivo dell'app (controlla il secret TELEGRAM_PROFILO)."); }
     else {
-      x.profiloId = p.id;
+      x.profiloId = p.id; x.ruolo = String(p.ruolo || "");
       if (cb) await pulsante(x, cb);
       else if (msg) {
         const t = typeof msg.text === "string" ? msg.text.trim() : "";
@@ -442,6 +491,7 @@ export async function gestisci(req: Request, d: Dipendenze): Promise<Response> {
           const { riga } = await leggiBozza(x);
           if (riga) await mostraBozza(x, riga); else await invia(x, "Nessuna bozza in corso. Mandami il lavoro da registrare.");
         } else if (richiestaElenco(t)) await elencaRapportini(x, richiestaElenco(t)!.filtro);
+        else if (richiestaInterventi(t)) await elencaInterventi(x, richiestaInterventi(t)!.filtro);
         else if (t.startsWith("/")) await invia(x, AIUTO);
         else if (t) await messaggioTesto(x, t);
         else if (vocale) { const testo = await messaggioVocale(x, vocale); if (testo) await messaggioTesto(x, testo); }
