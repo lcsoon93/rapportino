@@ -117,6 +117,20 @@ export async function eseguiRicerca(db: DB, f: Filtri, nomi: { id: string; nome:
   };
 }
 
+// Domanda sui dati del periodo (letti con la sessione dell'utente, quindi con RLS): stessa risposta
+// dell'assistente nell'app. Usata anche dal bot Telegram (_shared/telegram-gestore.ts).
+export async function rispondiDomanda(cfg: ConfigAI, db: DB, domanda: string, dal: string, al: string, oggi: string, fetchImpl?: typeof fetch) {
+  const { interventi, rapportini, nomi } = await leggiPeriodo(db, dal, al);
+  const periodo = { dal, al };
+  if (!interventi.length && !rapportini.length) {
+    return { risposta: "Nel periodo scelto non ci sono interventi o rapportini visibili al tuo account: non posso rispondere.", dati_usati: [] as string[], limiti: "", periodo,
+      senzaModello: true, modello: "", token: 0 };
+  }
+  const r = await chiediJson(cfg, { tipo: "testo", messaggi: promptDomanda(domanda, dal, al, contestoDomanda(interventi, rapportini, funzioneNome(nomi), oggi)),
+    maxToken: 1500, timeoutMs: 30000, valida: rispostaDomanda, fetchImpl });
+  return { ...r.dati, periodo, righe: { interventi: interventi.length, rapportini: rapportini.length }, modello: r.modello, token: r.token };
+}
+
 // ---------------------------------------------------------------- azioni
 type Contesto = { c: Record<string, unknown>; cfg: ConfigAI; db: () => DB; oggi: string; fetchImpl?: typeof fetch; uso: { modello: string; token: number } };
 const TIMEOUT = { testo: 25000, visione: 45000 };
@@ -179,15 +193,10 @@ const AZIONE: Record<string, (x: Contesto) => Promise<Record<string, unknown>>> 
   },
   async domanda(x) {
     const v = validaDomanda(x.c, x.oggi);
-    const { interventi, rapportini, nomi } = await leggiPeriodo(x.db(), v.dal, v.al);
-    const periodo = { dal: v.dal, al: v.al };
-    if (!interventi.length && !rapportini.length) {
-      return { risposta: "Nel periodo scelto non ci sono interventi o rapportini visibili al tuo account: non posso rispondere.", dati_usati: [], limiti: "", periodo, senzaModello: true };
-    }
-    const r = await chiediJson(x.cfg, { tipo: "testo", messaggi: promptDomanda(v.domanda, v.dal, v.al, contestoDomanda(interventi, rapportini, funzioneNome(nomi), x.oggi)),
-      maxToken: 1500, timeoutMs: 30000, valida: rispostaDomanda, fetchImpl: x.fetchImpl });
-    x.uso.modello = r.modello; x.uso.token = r.token;
-    return { ...r.dati, periodo, righe: { interventi: interventi.length, rapportini: rapportini.length } };
+    const r = await rispondiDomanda(x.cfg, x.db(), v.domanda, v.dal, v.al, x.oggi, x.fetchImpl);
+    if (r.modello) { x.uso.modello = r.modello; x.uso.token = r.token; }
+    const { modello: _m, token: _t, ...out } = r;
+    return out;
   },
   async predittiva(x) {
     const p = validaPeriodo(x.c, x.oggi, 365);

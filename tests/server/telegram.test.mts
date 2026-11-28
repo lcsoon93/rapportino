@@ -90,6 +90,7 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
   const log: Record<string, unknown>[] = [];
   const richiesteAI: unknown[] = [];
   let sessioniAperte = 0, sessioniChiuse = 0, webhook = "";
+  const nomiAudio: string[] = [], domande: string[] = [];
   const sessDB: Record<string, Riga[]> = { clienti: CLIENTI as Riga[], rapportini: opz.rapportini || [], allegati: opz.allegati || [], interventi: opz.interventi || [] };
   (t as Record<string, Riga[]>).rapportini = sessDB.rapportini;          // service_role vede la stessa tabella
   const fotoRimosse: string[] = [];
@@ -107,12 +108,18 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
     }
     if (u.endsWith("/audio/transcriptions")) {
       const form = init!.body as FormData;
+      const file = form.get("file") as File;
+      nomiAudio.push(file.name + " " + file.type);
       richiesteAI.push({ audio: true, modello: form.get("model"), lingua: form.get("language") });
       return new Response(JSON.stringify({ text: opz.trascrizione ?? "" }), { status: 200 });
     }
     if (u.endsWith("/chat/completions")) {
       if (opz.aiErrore) return new Response(JSON.stringify({ error: { code: "x" } }), { status: opz.aiErrore });
       const corpo = JSON.parse(String(init!.body));
+      if (/rispondi alla domanda/.test(corpo.messages[0].content)) {           // assistente dell'app (domande sui dati)
+        domande.push(corpo.messages[1].content);
+        return new Response(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ risposta: "Hai lavorato 3 ore da Condominio Aurora.", dati_usati: [], limiti: "" }) } }], usage: { total_tokens: 5 }, model: corpo.model }), { status: 200 });
+      }
       const dati = JSON.parse(corpo.messages[1].content.replace(/^<dati>\n|\n<\/dati>$/g, ""));
       richiesteAI.push(dati);
       const r = opz.ai ? opz.ai(dati.messaggio, dati.bozza_attuale) : { modifiche: {} };
@@ -145,7 +152,7 @@ function ambiente(opz: { ai?: (msg: string, bozza: unknown) => unknown; aiErrore
     },
   };
   d.rimuoviFoto = async (p) => { fotoRimosse.push(...p); };
-  return { t, d, inviati, salvati, log, richiesteAI, sessioni: () => [sessioniAperte, sessioniChiuse], sessDB, fotoRimosse };
+  return { t, d, inviati, salvati, log, richiesteAI, sessioni: () => [sessioniAperte, sessioniChiuse], sessDB, fotoRimosse, nomiAudio, domande };
 }
 let prossimo = 1000;
 const req = (corpo: unknown, segreto = SEGRETO) => new Request("https://x.supabase.co/functions/v1/telegram", {
@@ -644,4 +651,39 @@ test("menu dei comandi: registrato con /start (questa chat) e con «Collega il b
   await gestisci(new Request("https://x/functions/v1/telegram", { method: "POST", headers: { Authorization: "Bearer jwt" }, body: JSON.stringify({ azione: "collega" }) }), c.d);
   assert.deepEqual(c.inviati.find((x) => x.metodo === "setMyCommands")!.corpo.scope, { type: "all_private_chats" });
   assert.ok(c.inviati.some((x) => x.metodo === "setChatMenuButton"));
+});
+
+test("vocale Telegram (.oga): inviato a Groq come .ogg (formato accettato), stesso contenuto", async () => {
+  const a = ambiente({ trascrizione: "prova", ai: () => ({ modifiche: {}, fuori_tema: true }) });
+  await manda(a, vocale({}));
+  assert.deepEqual(a.nomiAudio, ["vocale.ogg audio/ogg"]);
+});
+
+test("domande sui dati: risponde l'assistente dell'app con i dati letti dall'utente; la bozza non cambia", async () => {
+  const a = ambiente({ rapportini: RAPPORTINI(), ai: (m) => m.startsWith("quante") ? { modifiche: {}, domanda: { testo: "Quante ore ho fatto questa settimana?", dal: "2026-11-23", al: "2026-11-28" } } : LAVORO });
+  await manda(a, testo("lavoro"));
+  const prima = JSON.stringify(bozza(a));
+  await manda(a, testo("quante ore ho fatto questa settimana?"));
+  const t = ultimo(a);
+  assert.match(t, /💬 Hai lavorato 3 ore da Condominio Aurora\./);
+  assert.match(t, /Dati dal 23\/11\/2026 – 28\/11\/2026/);
+  assert.match(t, /La bozza in corso è ancora aperta/);
+  assert.equal(JSON.stringify(bozza(a)), prima, "bozza invariata");
+  assert.match(a.domande[0], /Condominio Aurora/, "dati del periodo passati all'assistente");
+  assert.ok(!a.domande[0].includes("Bianchi Impianti"), "rapportino fuori periodo escluso (2026-10-02)");
+  // periodo senza dati: risposta senza chiamare il modello
+  const b = ambiente({ ai: () => ({ modifiche: {}, domanda: { testo: "Interventi di gennaio?", dal: "2026-01-01", al: "2026-01-31" } }) });
+  await manda(b, testo("interventi di gennaio?"));
+  assert.match(ultimo(b), /non ci sono interventi o rapportini/);
+  assert.equal(b.domande.length, 0);
+  // periodo non valido o futuro: corretto (al massimo oggi, 90 giorni predefiniti)
+  const c = ambiente({ rapportini: RAPPORTINI(), ai: () => ({ modifiche: {}, domanda: { testo: "riepilogo", dal: "", al: "2030-01-01" } }) });
+  await manda(c, testo("riepilogo"));
+  assert.match(ultimo(c), /Dati dal 30\/08\/2026 – 28\/11\/2026/);
+});
+
+test("«come funziona?»: spiegazione del bot", async () => {
+  const a = ambiente({ ai: () => ({ modifiche: {}, aiuto: true }) });
+  await manda(a, testo("cosa sai fare?"));
+  assert.match(ultimo(a), /Rapportini da Telegram/);
 });
